@@ -14,6 +14,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -141,9 +142,21 @@ func (s *Server) buildMux(frontendFS fs.FS, token string) http.Handler {
 	})
 	mux.Handle("/metrics", promhttp.Handler())
 
-	// If a frontend FS is provided, serve it as an SPA fallback.
+// If a frontend FS is provided, serve it as an SPA fallback.
 	if frontendFS != nil {
 		mux.HandleFunc("/", s.spaHandler(frontendFS))
+// Wrap the mux with otelhttp for automatic HTTP span instrumentation.
+	// Extracts incoming traceparent headers and creates server spans with
+	// http.request.method, url.path, http.response.status_code attributes.
+	handler := otelhttp.NewHandler(mux, "sympozium-apiserver",
+		otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+			return "sympozium.api." + r.Method
+		}),
+	)
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	// Wrap with auth middleware if a token is configured.
