@@ -5,11 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -25,6 +30,8 @@ import (
 	sympoziumv1alpha1 "github.com/alexsjones/sympozium/api/v1alpha1"
 	"github.com/alexsjones/sympozium/internal/orchestrator"
 )
+
+var controllerTracer = otel.Tracer("sympozium.ai/controller")
 
 const agentRunFinalizer = "sympozium.ai/agentrun-finalizer"
 const systemNamespace = "sympozium-system"
@@ -56,6 +63,33 @@ func (r *AgentRunReconciler) imageRef(name string) string {
 	return fmt.Sprintf("%s/%s:%s", imageRegistry, name, tag)
 }
 
+// resolveOTelEndpoint returns the OTLP endpoint for agent pods.
+// Priority: instance CRD → controller's own env → empty (noop).
+func resolveOTelEndpoint(instance *sympoziumv1alpha1.SympoziumInstance) string {
+	if instance != nil && instance.Spec.Observability != nil {
+		if instance.Spec.Observability.Enabled != nil && !*instance.Spec.Observability.Enabled {
+			return ""
+		}
+		if instance.Spec.Observability.Endpoint != "" {
+			return instance.Spec.Observability.Endpoint
+		}
+	}
+	return os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+}
+
+// formatTraceparent returns a W3C traceparent string from a span context,
+// or empty string if the span context is invalid.
+func formatTraceparent(sc trace.SpanContext) string {
+	if !sc.IsValid() {
+		return ""
+	}
+	flags := "00"
+	if sc.IsSampled() {
+		flags = "01"
+	}
+	return fmt.Sprintf("00-%s-%s-%s", sc.TraceID(), sc.SpanID(), flags)
+}
+
 // +kubebuilder:rbac:groups=sympozium.ai,resources=agentruns,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=sympozium.ai,resources=agentruns/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=sympozium.ai,resources=agentruns/finalizers,verbs=update
@@ -75,6 +109,15 @@ func (r *AgentRunReconciler) imageRef(name string) string {
 
 // Reconcile handles AgentRun create/update/delete events.
 func (r *AgentRunReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	reconcileStart := time.Now()
+	ctx, span := controllerTracer.Start(ctx, "agentrun.reconcile",
+		trace.WithAttributes(
+			attribute.String("agentrun.name", req.Name),
+			attribute.String("namespace", req.Namespace),
+		),
+	)
+	defer span.End()
+
 	log := r.Log.WithValues("agentrun", req.NamespacedName)
 
 	// Fetch the AgentRun
@@ -83,8 +126,15 @@ func (r *AgentRunReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		if errors.IsNotFound(err) {
 			return ctrl.Result{}, nil
 		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "fetch agentrun failed")
 		return ctrl.Result{}, err
 	}
+
+	span.SetAttributes(
+		attribute.String("agentrun.phase", string(agentRun.Status.Phase)),
+		attribute.String("instance.name", agentRun.Spec.InstanceRef),
+	)
 
 	// Handle deletion
 	if !agentRun.DeletionTimestamp.IsZero() {
@@ -102,26 +152,45 @@ func (r *AgentRunReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 			if errors.IsConflict(err) {
 				return ctrl.Result{Requeue: true}, nil
 			}
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "add finalizer failed")
 			return ctrl.Result{}, err
 		}
 	}
 
 	// Reconcile based on current phase
+	var result ctrl.Result
+	var err error
 	switch agentRun.Status.Phase {
 	case "", sympoziumv1alpha1.AgentRunPhasePending:
-		return r.reconcilePending(ctx, log, agentRun)
+		result, err = r.reconcilePending(ctx, log, agentRun)
 	case sympoziumv1alpha1.AgentRunPhaseRunning:
-		return r.reconcileRunning(ctx, log, agentRun)
+		result, err = r.reconcileRunning(ctx, log, agentRun)
 	case sympoziumv1alpha1.AgentRunPhaseSucceeded, sympoziumv1alpha1.AgentRunPhaseFailed:
-		return r.reconcileCompleted(ctx, log, agentRun)
+		result, err = r.reconcileCompleted(ctx, log, agentRun)
 	default:
 		log.Info("Unknown phase", "phase", agentRun.Status.Phase)
 		return ctrl.Result{}, nil
 	}
+
+	span.SetAttributes(attribute.Float64("reconcile.duration_ms", float64(time.Since(reconcileStart).Milliseconds())))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "reconcile failed")
+	}
+	return result, err
 }
 
 // reconcilePending handles an AgentRun that needs a Job created.
 func (r *AgentRunReconciler) reconcilePending(ctx context.Context, log logr.Logger, agentRun *sympoziumv1alpha1.AgentRun) (ctrl.Result, error) {
+	ctx, span := controllerTracer.Start(ctx, "agentrun.create_job",
+		trace.WithAttributes(
+			attribute.String("agentrun.name", agentRun.Name),
+			attribute.String("instance.name", agentRun.Spec.InstanceRef),
+		),
+	)
+	defer span.End()
+
 	log.Info("Reconciling pending AgentRun")
 
 	// Validate against policy
@@ -168,6 +237,18 @@ func (r *AgentRunReconciler) reconcilePending(ctx context.Context, log logr.Logg
 		}
 	}
 
+	// Resolve OTel endpoint: instance CRD → controller env → empty (noop).
+	otelEndpoint := resolveOTelEndpoint(instance)
+
+	// Write traceparent annotation so buildContainers can inject TRACEPARENT env var.
+	traceparent := formatTraceparent(span.SpanContext())
+	if traceparent != "" {
+		if agentRun.Annotations == nil {
+			agentRun.Annotations = map[string]string{}
+		}
+		agentRun.Annotations["otel.dev/traceparent"] = traceparent
+	}
+
 	// Resolve skill sidecars from SkillPack CRDs.
 	sidecars := r.resolveSkillSidecars(ctx, log, agentRun)
 
@@ -210,6 +291,14 @@ func (r *AgentRunReconciler) reconcilePending(ctx context.Context, log logr.Logg
 
 // reconcileRunning checks on a running Job and updates status.
 func (r *AgentRunReconciler) reconcileRunning(ctx context.Context, log logr.Logger, agentRun *sympoziumv1alpha1.AgentRun) (ctrl.Result, error) {
+	ctx, span := controllerTracer.Start(ctx, "agentrun.extract_result",
+		trace.WithAttributes(
+			attribute.String("agentrun.name", agentRun.Name),
+			attribute.String("instance.name", agentRun.Spec.InstanceRef),
+		),
+	)
+	defer span.End()
+
 	log.Info("Checking running AgentRun")
 
 	// Find the Job
@@ -595,6 +684,40 @@ func (r *AgentRunReconciler) buildContainers(
 ) []corev1.Container {
 	readOnly := true
 	noPrivEsc := false
+
+	agentEnv := []corev1.EnvVar{
+		{Name: "AGENT_RUN_ID", Value: agentRun.Name},
+		{Name: "AGENT_ID", Value: agentRun.Spec.AgentID},
+		{Name: "SESSION_KEY", Value: agentRun.Spec.SessionKey},
+		{Name: "TASK", Value: agentRun.Spec.Task},
+		{Name: "SYSTEM_PROMPT", Value: agentRun.Spec.SystemPrompt},
+		{Name: "MODEL_PROVIDER", Value: agentRun.Spec.Model.Provider},
+		{Name: "MODEL_NAME", Value: agentRun.Spec.Model.Model},
+		{Name: "MODEL_BASE_URL", Value: agentRun.Spec.Model.BaseURL},
+		{Name: "THINKING_MODE", Value: agentRun.Spec.Model.Thinking},
+	}
+
+	ipcEnv := []corev1.EnvVar{
+		{Name: "AGENT_RUN_ID", Value: agentRun.Name},
+		{Name: "INSTANCE_NAME", Value: agentRun.Spec.InstanceRef},
+		{Name: "EVENT_BUS_URL", Value: "nats://nats.sympozium-system.svc:4222"},
+	}
+
+	// Inject OTel env vars when observability is configured.
+	if tp := agentRun.Annotations["otel.dev/traceparent"]; tp != "" {
+		agentEnv = append(agentEnv, corev1.EnvVar{Name: "TRACEPARENT", Value: tp})
+		ipcEnv = append(ipcEnv, corev1.EnvVar{Name: "TRACEPARENT", Value: tp})
+	}
+	if otelEndpoint != "" {
+		agentEnv = append(agentEnv,
+			corev1.EnvVar{Name: "OTEL_EXPORTER_OTLP_ENDPOINT", Value: otelEndpoint},
+			corev1.EnvVar{Name: "OTEL_SERVICE_NAME", Value: "sympozium-agent-runner"},
+		)
+		ipcEnv = append(ipcEnv,
+			corev1.EnvVar{Name: "OTEL_EXPORTER_OTLP_ENDPOINT", Value: otelEndpoint},
+			corev1.EnvVar{Name: "OTEL_SERVICE_NAME", Value: "sympozium-ipc-bridge"},
+		)
+	}
 
 	containers := []corev1.Container{
 		// Main agent container

@@ -33,7 +33,8 @@ type SympoziumInstanceSpec struct {
 	// +optional
 	Memory *MemorySpec `json:"memory,omitempty"`
 
-	// Observability configures OpenTelemetry exports for runs of this instance.
+	// Observability configures OpenTelemetry for agent pods spawned by this instance.
+	// When nil, inherits from Helm chart global values.
 	// +optional
 	Observability *ObservabilitySpec `json:"observability,omitempty"`
 }
@@ -55,28 +56,39 @@ type MemorySpec struct {
 	SystemPrompt string `json:"systemPrompt,omitempty"`
 }
 
-// ObservabilitySpec configures OpenTelemetry for agent runs.
+// ObservabilitySpec controls OTel instrumentation for a specific instance.
 type ObservabilitySpec struct {
-	// Enabled turns OpenTelemetry tracing/metrics on for this instance.
-	// +kubebuilder:default=false
-	Enabled bool `json:"enabled"`
-
-	// OTLPEndpoint is the collector endpoint (for example:
-	// "otel-collector.observability.svc:4317" for gRPC or
-	// "http://otel-collector.observability.svc:4318" for HTTP/protobuf).
+	// Enabled controls whether OTel instrumentation is active for this instance.
+	// Overrides the global Helm value when set.
 	// +optional
-	OTLPEndpoint string `json:"otlpEndpoint,omitempty"`
+	Enabled *bool `json:"enabled,omitempty"`
 
-	// OTLPProtocol is "grpc" or "http/protobuf".
-	// +kubebuilder:validation:Enum=grpc;http/protobuf
+	// Endpoint is the OTLP collector endpoint (gRPC).
+	// Example: "http://otel-collector.monitoring:4317"
+	// Overrides the global Helm value when set.
 	// +optional
-	OTLPProtocol string `json:"otlpProtocol,omitempty"`
+	Endpoint string `json:"endpoint,omitempty"`
 
-	// ServiceName overrides the OTel service name (default: "sympozium-agent-runner").
+	// Protocol is the OTLP transport protocol.
 	// +optional
-	ServiceName string `json:"serviceName,omitempty"`
+	// +kubebuilder:validation:Enum=grpc;"http/protobuf"
+	Protocol string `json:"protocol,omitempty"`
 
-	// ResourceAttributes are additional OTel resource attributes (key/value).
+	// Headers are additional OTLP export headers (e.g., auth tokens).
+	// +optional
+	Headers map[string]string `json:"headers,omitempty"`
+
+	// HeadersSecretRef references a Secret containing OTLP export headers.
+	// +optional
+	HeadersSecretRef string `json:"headersSecretRef,omitempty"`
+
+	// SamplingRatio is the trace sampling probability (0.0 to 1.0).
+	// +optional
+	// +kubebuilder:validation:Minimum=0.0
+	// +kubebuilder:validation:Maximum=1.0
+	SamplingRatio *float64 `json:"samplingRatio,omitempty"`
+
+	// ResourceAttributes are additional OTel resource attributes.
 	// +optional
 	ResourceAttributes map[string]string `json:"resourceAttributes,omitempty"`
 }
