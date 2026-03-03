@@ -120,6 +120,7 @@ jobs:
           - skill-k8s-ops
           - skill-sre-observability
           - skill-github-gitops
+          - skill-llmfit
     steps:
       - uses: actions/checkout@v4
 
