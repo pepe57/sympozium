@@ -461,7 +461,7 @@ SympoziumInstance:
 | **incident-response** | SRE | Structured incident triage, log analysis, rollback procedures. |
 | **code-review** | Development | Code review checklist, security anti-patterns, Go-specific review patterns. |
 | **llmfit** | SRE | Node-level model placement analysis. Runs llmfit probes per node and ranks best nodes for requested models. Comes with a sidecar containing `llmfit`, `kubectl`, and `jq`. |
-| **web-endpoint** | Connectivity | Expose agents as HTTP APIs — OpenAI-compatible chat completions and MCP protocol. Deploys a long-lived web-proxy sidecar with bearer-token auth and rate limiting. See [Web Endpoint Skill](skill-web-endpoint.md). |
+| **web-endpoint** | Connectivity | Expose agents as HTTP APIs — OpenAI-compatible chat completions and MCP protocol. Deploys a long-lived web-proxy sidecar with bearer-token auth and rate limiting. See [Web Endpoint Skill](skills/web-endpoint.md). |
 
 Apply them from the `config/skills/` directory:
 
@@ -639,8 +639,8 @@ helm upgrade sympozium oci://ghcr.io/alexsjones/sympozium/charts/sympozium \
 
 ## What's next
 
-- **Expose agents as HTTP APIs** — see [Web Endpoint Skill](skill-web-endpoint.md)
-- **Write a custom SkillPack** — see [Writing Skills](writing-skills.md)
-- **Add a new tool** — see [Writing Tools](writing-tools.md)
-- **Write integration tests** — see [Writing Integration Tests](writing-integration-tests.md)
-- **Read the full architecture** — see [Design Document](sympozium-design.md)
+- **Expose agents as HTTP APIs** — see [Web Endpoint Skill](skills/web-endpoint.md)
+- **Write a custom SkillPack** — see [Writing Skills](guides/writing-skills.md)
+- **Add a new tool** — see [Writing Tools](guides/writing-tools.md)
+- **Write integration tests** — see [Writing Integration Tests](guides/writing-integration-tests.md)
+- **Read the full architecture** — see [Design Document](design.md)
