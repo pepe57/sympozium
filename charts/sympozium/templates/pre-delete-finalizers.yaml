@@ -42,6 +42,11 @@ rules:
       - sympoziumschedules/finalizers
       - sympoziumconfigs/finalizers
     verbs: ["update"]
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+      - deployments/scale
+    verbs: ["get", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -91,6 +96,13 @@ spec:
             - -c
             - |
               set -e
+              NAMESPACE="{{ include "sympozium.namespace" . }}"
+
+              # Scale down the controller first so it cannot re-add finalizers
+              echo "Scaling down controller deployment..."
+              kubectl scale deployment sympozium-controller-manager -n "$NAMESPACE" --replicas=0 2>/dev/null || true
+              kubectl rollout status deployment/sympozium-controller-manager -n "$NAMESPACE" --timeout=60s 2>/dev/null || true
+
               RESOURCES="skillpacks.sympozium.ai personapacks.sympozium.ai sympoziuminstances.sympozium.ai agentruns.sympozium.ai sympoziumpolicies.sympozium.ai sympoziumschedules.sympozium.ai sympoziumconfigs.sympozium.ai"
               for res in $RESOURCES; do
                 echo "Stripping finalizers from $res..."
