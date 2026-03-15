@@ -44,12 +44,15 @@ spec:
               port: monitor
             initialDelaySeconds: 5
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
           readinessProbe:
             httpGet:
               path: /healthz
               port: monitor
             initialDelaySeconds: 2
             periodSeconds: 5
+            timeoutSeconds: 3
           resources:
             {{- toYaml .Values.nats.resources | nindent 12 }}
           securityContext:

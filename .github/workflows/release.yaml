@@ -107,6 +107,7 @@ jobs:
           - skill-github-gitops
           - skill-llmfit
           - web-proxy
+          - node-probe
     steps:
       - uses: actions/checkout@v4
 

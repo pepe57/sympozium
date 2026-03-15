@@ -122,6 +122,7 @@ jobs:
           - skill-sre-observability
           - skill-github-gitops
           - skill-llmfit
+          - node-probe
     steps:
       - uses: actions/checkout@v4
 
