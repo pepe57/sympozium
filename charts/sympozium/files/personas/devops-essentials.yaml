@@ -5,6 +5,7 @@ apiVersion: sympozium.ai/v1alpha1
 kind: PersonaPack
 metadata:
   name: devops-essentials
+  namespace: sympozium-system
 spec:
   description: "DevOps workflow agents — incident response, cost analysis, and deployment monitoring."
   category: devops

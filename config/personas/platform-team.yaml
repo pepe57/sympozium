@@ -5,6 +5,7 @@ apiVersion: sympozium.ai/v1alpha1
 kind: PersonaPack
 metadata:
   name: platform-team
+  namespace: sympozium-system
 spec:
   description: "Core platform engineering agents — security, SRE, and platform support."
   category: platform

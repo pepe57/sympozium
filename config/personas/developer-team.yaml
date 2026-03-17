@@ -6,6 +6,7 @@ apiVersion: sympozium.ai/v1alpha1
 kind: PersonaPack
 metadata:
   name: developer-team
+  namespace: sympozium-system
 spec:
   description: "A 2-pizza software development team — tech lead, backend, frontend, QA, reviewer, DevOps, and docs — collaborating on a single GitHub repository."
   category: development
