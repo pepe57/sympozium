@@ -49,3 +49,7 @@ site/
 output.cast
 tmp.gif
 whatsapp
+_bmad/
+_bmad-output/
+.claude/
+mcp-bridge
