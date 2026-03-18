@@ -1778,6 +1778,7 @@ func (r *AgentRunReconciler) buildVolumes(agentRun *sympoziumv1alpha1.AgentRun, 
 					LocalObjectReference: corev1.LocalObjectReference{
 						Name: skill.SkillPackRef,
 					},
+					Optional: boolPtr(true),
 				},
 			})
 		}
@@ -1787,6 +1788,7 @@ func (r *AgentRunReconciler) buildVolumes(agentRun *sympoziumv1alpha1.AgentRun, 
 					LocalObjectReference: corev1.LocalObjectReference{
 						Name: skill.ConfigMapRef,
 					},
+					Optional: boolPtr(true),
 				},
 			})
 		}

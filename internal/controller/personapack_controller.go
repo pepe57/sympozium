@@ -402,8 +402,11 @@ func (r *PersonaPackReconciler) buildInstance(
 		},
 	}
 
-	// Skills
+	// Skills — skip "mcp-bridge" which is a sidecar marker, not a SkillPack.
 	for _, s := range persona.Skills {
+		if s == "mcp-bridge" {
+			continue
+		}
 		ref := sympoziumv1alpha1.SkillRef{
 			SkillPackRef: s,
 		}
