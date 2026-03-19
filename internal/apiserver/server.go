@@ -458,21 +458,21 @@ func (s *Server) getWebEndpointStatus(w http.ResponseWriter, r *http.Request) {
 
 // CreateInstanceRequest is the request body for creating a new SympoziumInstance.
 type CreateInstanceRequest struct {
-	Name              string                          `json:"name"`
-	Provider          string                          `json:"provider"`
-	Model             string                          `json:"model"`
-	BaseURL           string                          `json:"baseURL,omitempty"`
-	SecretName        string                          `json:"secretName,omitempty"`
-	APIKey            string                          `json:"apiKey,omitempty"`
-	AWSRegion         string                          `json:"awsRegion,omitempty"`
-	AWSAccessKeyID    string                          `json:"awsAccessKeyId,omitempty"`
-	AWSSecretAccessKey string                         `json:"awsSecretAccessKey,omitempty"`
-	AWSSessionToken   string                          `json:"awsSessionToken,omitempty"`
-	PolicyRef         string                          `json:"policyRef,omitempty"`
-	Skills            []sympoziumv1alpha1.SkillRef    `json:"skills,omitempty"`
-	Channels          []sympoziumv1alpha1.ChannelSpec `json:"channels,omitempty"`
-	HeartbeatInterval string                          `json:"heartbeatInterval,omitempty"`
-	NodeSelector      map[string]string               `json:"nodeSelector,omitempty"`
+	Name               string                          `json:"name"`
+	Provider           string                          `json:"provider"`
+	Model              string                          `json:"model"`
+	BaseURL            string                          `json:"baseURL,omitempty"`
+	SecretName         string                          `json:"secretName,omitempty"`
+	APIKey             string                          `json:"apiKey,omitempty"`
+	AWSRegion          string                          `json:"awsRegion,omitempty"`
+	AWSAccessKeyID     string                          `json:"awsAccessKeyId,omitempty"`
+	AWSSecretAccessKey string                          `json:"awsSecretAccessKey,omitempty"`
+	AWSSessionToken    string                          `json:"awsSessionToken,omitempty"`
+	PolicyRef          string                          `json:"policyRef,omitempty"`
+	Skills             []sympoziumv1alpha1.SkillRef    `json:"skills,omitempty"`
+	Channels           []sympoziumv1alpha1.ChannelSpec `json:"channels,omitempty"`
+	HeartbeatInterval  string                          `json:"heartbeatInterval,omitempty"`
+	NodeSelector       map[string]string               `json:"nodeSelector,omitempty"`
 }
 
 func (s *Server) createInstance(w http.ResponseWriter, r *http.Request) {
@@ -1253,13 +1253,13 @@ type PatchPersonaPackRequest struct {
 	AWSSessionToken    string                       `json:"awsSessionToken,omitempty"`
 	Model              string                       `json:"model,omitempty"`
 	BaseURL            string                       `json:"baseURL,omitempty"`
-	Channels          []string                     `json:"channels,omitempty"`
-	ChannelConfigs    map[string]string            `json:"channelConfigs,omitempty"`
-	PolicyRef         string                       `json:"policyRef,omitempty"`
-	HeartbeatInterval string                       `json:"heartbeatInterval,omitempty"`
-	SkillParams       map[string]map[string]string `json:"skillParams,omitempty"`
-	GithubToken       string                       `json:"githubToken,omitempty"`
-	Personas          []PersonaPatchSpec           `json:"personas,omitempty"`
+	Channels           []string                     `json:"channels,omitempty"`
+	ChannelConfigs     map[string]string            `json:"channelConfigs,omitempty"`
+	PolicyRef          string                       `json:"policyRef,omitempty"`
+	HeartbeatInterval  string                       `json:"heartbeatInterval,omitempty"`
+	SkillParams        map[string]map[string]string `json:"skillParams,omitempty"`
+	GithubToken        string                       `json:"githubToken,omitempty"`
+	Personas           []PersonaPatchSpec           `json:"personas,omitempty"`
 }
 
 // PersonaPatchSpec allows partial updates to individual personas by name.
@@ -2556,7 +2556,7 @@ func (s *Server) listBedrockModels(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Region          string `json:"region"`
 		AccessKeyID     string `json:"accessKeyId"`
-		SecretAccessKey  string `json:"secretAccessKey"`
+		SecretAccessKey string `json:"secretAccessKey"`
 		SessionToken    string `json:"sessionToken,omitempty"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req); err != nil {

@@ -15,8 +15,8 @@ import (
 
 // mockBedrockClient implements bedrockClientAPI for testing.
 type mockBedrockClient struct {
-	calls    int
-	handler  func(ctx context.Context, input *bedrockruntime.ConverseInput) (*bedrockruntime.ConverseOutput, error)
+	calls   int
+	handler func(ctx context.Context, input *bedrockruntime.ConverseInput) (*bedrockruntime.ConverseOutput, error)
 }
 
 func (m *mockBedrockClient) Converse(ctx context.Context, params *bedrockruntime.ConverseInput, optFns ...func(*bedrockruntime.Options)) (*bedrockruntime.ConverseOutput, error) {
