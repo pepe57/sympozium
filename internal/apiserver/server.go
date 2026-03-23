@@ -518,6 +518,9 @@ func (s *Server) createInstance(w http.ResponseWriter, r *http.Request) {
 
 	if req.BaseURL != "" {
 		inst.Spec.Agents.Default.BaseURL = req.BaseURL
+	} else {
+		// Apply default baseURL for keyless local providers (fixes #39).
+		inst.Spec.Agents.Default.BaseURL = defaultProviderBaseURL(req.Provider)
 	}
 	if len(req.NodeSelector) > 0 {
 		inst.Spec.Agents.Default.NodeSelector = req.NodeSelector
@@ -1384,6 +1387,10 @@ func (s *Server) patchPersonaPack(w http.ResponseWriter, r *http.Request) {
 
 	if req.BaseURL != "" {
 		pp.Spec.BaseURL = req.BaseURL
+	} else if pp.Spec.BaseURL == "" && req.Provider != "" {
+		// Apply default baseURL for keyless local providers so the
+		// controller can reach the inference server (fixes #39).
+		pp.Spec.BaseURL = defaultProviderBaseURL(req.Provider)
 	}
 
 	if len(req.Channels) > 0 {
@@ -1570,6 +1577,19 @@ func defaultProviderSecretName(resourceName, provider string) string {
 		return resourceName + "-credentials"
 	}
 	return fmt.Sprintf("%s-%s-key", resourceName, provider)
+}
+
+// defaultProviderBaseURL returns the conventional default base URL for
+// keyless local providers (ollama, lm-studio). Returns "" for cloud providers.
+func defaultProviderBaseURL(provider string) string {
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case "ollama":
+		return "http://ollama.default.svc:11434/v1"
+	case "lm-studio":
+		return "http://localhost:1234/v1"
+	default:
+		return ""
+	}
 }
 
 func (s *Server) listNamespaces(w http.ResponseWriter, r *http.Request) {

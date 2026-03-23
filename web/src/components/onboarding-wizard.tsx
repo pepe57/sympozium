@@ -41,13 +41,13 @@ import { cn } from "@/lib/utils";
 // ── Shared constants ─────────────────────────────────────────────────────────
 
 export const PROVIDERS = [
-  { value: "openai", label: "OpenAI", defaultModel: "gpt-4o" },
-  { value: "anthropic", label: "Anthropic", defaultModel: "claude-sonnet-4-20250514" },
-  { value: "azure-openai", label: "Azure OpenAI", defaultModel: "gpt-4o" },
-  { value: "ollama", label: "Ollama", defaultModel: "llama3" },
-  { value: "lm-studio", label: "LM Studio", defaultModel: "" },
-  { value: "bedrock", label: "AWS Bedrock", defaultModel: "anthropic.claude-sonnet-4-20250514-v1:0" },
-  { value: "custom", label: "Custom", defaultModel: "" },
+  { value: "openai", label: "OpenAI", defaultModel: "gpt-4o", defaultBaseURL: "" },
+  { value: "anthropic", label: "Anthropic", defaultModel: "claude-sonnet-4-20250514", defaultBaseURL: "" },
+  { value: "azure-openai", label: "Azure OpenAI", defaultModel: "gpt-4o", defaultBaseURL: "" },
+  { value: "ollama", label: "Ollama", defaultModel: "llama3", defaultBaseURL: "http://ollama.default.svc:11434/v1" },
+  { value: "lm-studio", label: "LM Studio", defaultModel: "", defaultBaseURL: "http://localhost:1234/v1" },
+  { value: "bedrock", label: "AWS Bedrock", defaultModel: "anthropic.claude-sonnet-4-20250514-v1:0", defaultBaseURL: "" },
+  { value: "custom", label: "Custom", defaultModel: "", defaultBaseURL: "" },
 ];
 
 const CHANNELS = [
@@ -353,13 +353,25 @@ export function OnboardingWizard({
   );
   const hasActionChannels = actionChannels.length > 0;
 
+  function completeWithDefaults() {
+    // Apply default baseURL for local providers if the user left it empty.
+    const result = { ...form };
+    if (!result.baseURL) {
+      const prov = PROVIDERS.find((p) => p.value === result.provider);
+      if (prov?.defaultBaseURL) {
+        result.baseURL = prov.defaultBaseURL;
+      }
+    }
+    onComplete(result);
+  }
+
   function next() {
     if (step === "confirm") {
       if (hasActionChannels) {
         setChannelActionIdx(0);
         setStep("channelAction");
       } else {
-        onComplete(form);
+        completeWithDefaults();
       }
       return;
     }
@@ -367,7 +379,7 @@ export function OnboardingWizard({
       if (channelActionIdx < actionChannels.length - 1) {
         setChannelActionIdx(channelActionIdx + 1);
       } else {
-        onComplete(form);
+        completeWithDefaults();
       }
       return;
     }
@@ -489,6 +501,7 @@ export function OnboardingWizard({
                     ...form,
                     provider: v,
                     model: form.model || prov?.defaultModel || "",
+                    baseURL: prov?.defaultBaseURL || "",
                   });
                 }}
               >
