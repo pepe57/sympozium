@@ -36,11 +36,9 @@ graph TB
     NATS -- "schedule.upsert" --> SROUTER
     SROUTER -- "creates SympoziumSchedule CRDs" --> CS
 
-    style CP fill:#1a1a2e,stroke:#e94560,color:#fff
-    style DATA fill:#161b22,stroke:#30363d,color:#c9d1d9
-    style SCHED fill:#1a1a2e,stroke:#f5a623,color:#fff
-    style NATS fill:#e94560,stroke:#fff,color:#fff
-    style ADMIN fill:#1f6feb,stroke:#fff,color:#fff
+    style CP stroke:#e94560,stroke-width:2px
+    style DATA stroke:#30363d,stroke-width:2px
+    style SCHED stroke:#f5a623,stroke-width:2px
 ```
 
 ### Agent Pod Lifecycle
@@ -87,11 +85,10 @@ graph LR
     IPC -- "results" --> NATS[("NATS")]
     NATS -- "tasks" --> IPC
 
-    style AP fill:#0f3460,stroke:#53354a,color:#fff
-    style MEM fill:#1c2333,stroke:#7c3aed,color:#fff
-    style SEC fill:#1c2333,stroke:#238636,color:#fff
-    style MCP fill:#1c2333,stroke:#0ea5e9,color:#fff
-    style NATS fill:#e94560,stroke:#fff,color:#fff
+    style AP stroke:#53354a,stroke-width:2px
+    style MEM stroke:#7c3aed,stroke-width:2px
+    style SEC stroke:#238636,stroke-width:2px
+    style MCP stroke:#0ea5e9,stroke-width:2px
 ```
 
 ### Channels & Web Endpoints
@@ -125,12 +122,9 @@ graph LR
 
     NPD -- "annotates nodes<br/>sympozium.ai/inference-*" --> ETCD[("etcd")]
 
-    style CH fill:#16213e,stroke:#0f3460,color:#fff
-    style WE fill:#16213e,stroke:#f5a623,color:#fff
-    style NP fill:#1c2333,stroke:#f5a623,color:#fff
-    style NATS fill:#e94560,stroke:#fff,color:#fff
-    style USER fill:#238636,stroke:#fff,color:#fff
-    style HTTPUSER fill:#f5a623,stroke:#fff,color:#000
+    style CH stroke:#0f3460,stroke-width:2px
+    style WE stroke:#f5a623,stroke-width:2px
+    style NP stroke:#f5a623,stroke-width:2px
 ```
 
 ## How It Works
