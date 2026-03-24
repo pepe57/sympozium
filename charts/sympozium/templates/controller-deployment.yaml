@@ -77,6 +77,12 @@ spec:
             - name: SYMPOZIUM_DEFAULT_OTEL_SERVICE_NAME
               value: {{ .Values.observability.defaultInstance.serviceName | quote }}
             {{- end }}
+            {{- if .Values.agentSandbox.enabled }}
+            - name: AGENT_SANDBOX_ENABLED
+              value: "true"
+            - name: AGENT_SANDBOX_DEFAULT_RUNTIME_CLASS
+              value: {{ .Values.agentSandbox.defaultRuntimeClass | quote }}
+            {{- end }}
           ports:
             - containerPort: 8081
               name: health

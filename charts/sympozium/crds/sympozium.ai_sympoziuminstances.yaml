@@ -63,6 +63,47 @@ spec:
                   default:
                     description: Default is the default agent configuration.
                     properties:
+                      agentSandbox:
+                        description: |-
+                          AgentSandbox configures the Kubernetes Agent Sandbox (CRD) execution backend defaults.
+                          When enabled, agent runs use Sandbox CRs with gVisor/Kata kernel isolation.
+                        properties:
+                          enabled:
+                            description: Enabled activates Agent Sandbox mode for
+                              all runs in this instance.
+                            type: boolean
+                          runtimeClass:
+                            description: RuntimeClass is the default runtimeClassName
+                              (e.g., "gvisor", "kata").
+                            type: string
+                          warmPool:
+                            description: WarmPool configures a controller-managed
+                              SandboxWarmPool for this instance.
+                            properties:
+                              resources:
+                                description: Resources for each warm pool sandbox.
+                                properties:
+                                  limits:
+                                    additionalProperties:
+                                      type: string
+                                    type: object
+                                  requests:
+                                    additionalProperties:
+                                      type: string
+                                    type: object
+                                type: object
+                              runtimeClass:
+                                description: RuntimeClass for warm pool sandboxes.
+                                type: string
+                              size:
+                                default: 2
+                                description: Size is the number of pre-warmed sandboxes
+                                  to maintain.
+                                type: integer
+                            type: object
+                        required:
+                        - enabled
+                        type: object
                       baseURL:
                         description: |-
                           BaseURL overrides the provider's default API endpoint.

@@ -25,7 +25,7 @@ ADHOC_EXPECTED_SECRET="${ADHOC_INSTANCE_NAME}-openai-key"
 ADHOC_RUN_NAME=""
 
 MODEL_NAME="gpt-4o-mini"
-EXPECTED_SKILLS_CSV="code-review,k8s-ops"
+EXPECTED_SKILLS_CSV="code-review,k8s-ops,memory"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -309,7 +309,7 @@ EOF
   pass "PersonaPack run inherited provider/model/auth/skills"
 
   # (2) Ad-hoc instance parity.
-  api_request POST "/api/v1/instances" "{\"name\":\"${ADHOC_INSTANCE_NAME}\",\"provider\":\"openai\",\"model\":\"${MODEL_NAME}\",\"apiKey\":\"${OPENAI_API_KEY}\",\"skills\":[{\"skillPackRef\":\"code-review\"},{\"skillPackRef\":\"k8s-ops\"}]}" >/dev/null
+  api_request POST "/api/v1/instances" "{\"name\":\"${ADHOC_INSTANCE_NAME}\",\"provider\":\"openai\",\"model\":\"${MODEL_NAME}\",\"apiKey\":\"${OPENAI_API_KEY}\",\"skills\":[{\"skillPackRef\":\"code-review\"},{\"skillPackRef\":\"k8s-ops\"},{\"skillPackRef\":\"memory\"}]}" >/dev/null
 
   adhoc_inst_json="$(api_request GET "/api/v1/instances/${ADHOC_INSTANCE_NAME}")"
   assert_instance_fields "$adhoc_inst_json" "$ADHOC_EXPECTED_SECRET" "$MODEL_NAME" "openai" "$EXPECTED_SKILLS_CSV" "Ad-hoc instance"

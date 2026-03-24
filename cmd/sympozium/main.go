@@ -1092,6 +1092,10 @@ spec:
     defaultImage: ghcr.io/sympozium-ai/sympozium/sandbox:latest
     maxCPU: "4"
     maxMemory: 8Gi
+    agentSandboxPolicy:
+      required: false
+      defaultRuntimeClass: gvisor
+      allowedRuntimeClasses: [gvisor, kata]
   featureGates:
     browser-automation: false
     code-execution: true
@@ -2238,6 +2242,7 @@ const (
 	wizStepChannel                           // menu 1-5: channel type
 	wizStepChannelToken                      // text: channel bot token
 	wizStepPolicy                            // y/n: apply default policy
+	wizStepAgentSandbox                      // y/n: enable agent sandbox (CRD) isolation
 	wizStepHeartbeat                         // menu 1-5: heartbeat interval
 	wizStepConfirm                           // y/n: confirm summary
 	wizStepApplying                          // auto — create resources
@@ -2258,6 +2263,7 @@ const (
 	wizStepPersonaModel                  // text: model name
 	wizStepPersonaGithubRepo             // text: GitHub repo (owner/repo)
 	wizStepPersonaTeamTask               // text: team-level task/instructions
+	wizStepPersonaAgentSandbox           // y/n: enable agent sandbox (CRD) isolation
 	wizStepPersonaChannels               // multi-toggle: channels to bind
 	wizStepPersonaChannelToken           // text: channel token (per selected channel)
 	wizStepPersonaHeartbeat              // menu 1-5: heartbeat interval override
@@ -2273,23 +2279,24 @@ type wizardState struct {
 	resultMsgs []string
 
 	// Collected values
-	targetNamespace string
-	instanceName    string
-	providerChoice  string // "1"–"6"
-	providerName    string
-	modelName       string
-	baseURL         string
-	secretEnvKey    string
-	apiKey          string
-	channelChoice   string // "1"–"5"
-	channelType     string
-	channelTokenKey string
-	channelToken    string
-	applyPolicy     bool
-	heartbeatCron   string // cron expression for heartbeat schedule
-	heartbeatLabel  string // human-readable label (e.g. "every hour")
-	githubRepo      string // GitHub repo (owner/repo) for github-gitops skill
-	teamTask        string // Team-level instructions/objective
+	targetNamespace     string
+	instanceName        string
+	providerChoice      string // "1"–"6"
+	providerName        string
+	modelName           string
+	baseURL             string
+	secretEnvKey        string
+	apiKey              string
+	channelChoice       string // "1"–"5"
+	channelType         string
+	channelTokenKey     string
+	channelToken        string
+	applyPolicy         bool
+	heartbeatCron       string // cron expression for heartbeat schedule
+	heartbeatLabel      string // human-readable label (e.g. "every hour")
+	githubRepo          string // GitHub repo (owner/repo) for github-gitops skill
+	teamTask            string // Team-level instructions/objective
+	agentSandboxEnabled bool   // Enable Agent Sandbox (CRD) kernel-level isolation
 
 	// AWS Bedrock credentials (collected via dedicated wizard steps).
 	awsRegion          string
@@ -3016,20 +3023,20 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						if sk.name == "memory" {
 							// memory is mandatory — cannot be toggled off
 						} else {
-						sk.enabled = !sk.enabled
-						if sk.enabled && sk.name == "github-gitops" {
-							m.editSkillGithubInput = true
-							m.editSkillGithubIdx = m.editField
-							ti := textinput.New()
-							ti.Placeholder = "owner/repo (e.g. myorg/platform)"
-							ti.CharLimit = 128
-							ti.Width = 50
-							if repo, ok := sk.params["repo"]; ok {
-								ti.SetValue(repo)
+							sk.enabled = !sk.enabled
+							if sk.enabled && sk.name == "github-gitops" {
+								m.editSkillGithubInput = true
+								m.editSkillGithubIdx = m.editField
+								ti := textinput.New()
+								ti.Placeholder = "owner/repo (e.g. myorg/platform)"
+								ti.CharLimit = 128
+								ti.Width = 50
+								if repo, ok := sk.params["repo"]; ok {
+									ti.SetValue(repo)
+								}
+								ti.Focus()
+								m.editSkillGithubTI = ti
 							}
-							ti.Focus()
-							m.editSkillGithubTI = ti
-						}
 						}
 					}
 				} else if m.editTab == 3 {
@@ -3154,20 +3161,20 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						if sk.name == "memory" {
 							// memory is mandatory — cannot be toggled off
 						} else {
-						sk.enabled = !sk.enabled
-						if sk.enabled && sk.name == "github-gitops" {
-							m.editSkillGithubInput = true
-							m.editSkillGithubIdx = m.editField
-							ti := textinput.New()
-							ti.Placeholder = "owner/repo (e.g. myorg/platform)"
-							ti.CharLimit = 128
-							ti.Width = 50
-							if repo, ok := sk.params["repo"]; ok {
-								ti.SetValue(repo)
+							sk.enabled = !sk.enabled
+							if sk.enabled && sk.name == "github-gitops" {
+								m.editSkillGithubInput = true
+								m.editSkillGithubIdx = m.editField
+								ti := textinput.New()
+								ti.Placeholder = "owner/repo (e.g. myorg/platform)"
+								ti.CharLimit = 128
+								ti.Width = 50
+								if repo, ok := sk.params["repo"]; ok {
+									ti.SetValue(repo)
+								}
+								ti.Focus()
+								m.editSkillGithubTI = ti
 							}
-							ti.Focus()
-							m.editSkillGithubTI = ti
-						}
 						}
 					}
 				} else if m.editTab == 3 {
@@ -5752,10 +5759,28 @@ func (m tuiModel) renderTable(tableH int) string {
 	return b.String()
 }
 
+// resolveInstanceProvider returns the display provider name for a SympoziumInstance.
+func resolveInstanceProvider(inst sympoziumv1alpha1.SympoziumInstance) string {
+	if len(inst.Spec.AuthRefs) > 0 && inst.Spec.AuthRefs[0].Provider != "" {
+		return inst.Spec.AuthRefs[0].Provider
+	}
+	if inst.Spec.Agents.Default.BaseURL != "" {
+		u := inst.Spec.Agents.Default.BaseURL
+		if strings.Contains(u, "ollama") || strings.Contains(u, ":11434") {
+			return "ollama"
+		}
+		if strings.Contains(u, "lm-studio") || strings.Contains(u, ":1234") {
+			return "lm-studio"
+		}
+		return "custom"
+	}
+	return "-"
+}
+
 func (m tuiModel) renderInstancesTable(tableH int) string {
 	var b strings.Builder
 
-	header := fmt.Sprintf(" %-22s %-12s %-20s %-8s %-12s %-8s", "NAME", "PHASE", "SKILLS", "PODS", "TOKENS", "AGE")
+	header := fmt.Sprintf(" %-22s %-12s %-12s %-16s %-8s %-10s %-8s", "NAME", "PHASE", "PROVIDER", "SKILLS", "PODS", "TOKENS", "AGE")
 	b.WriteString(tuiColHeaderStyle.Render(padRight(header, m.width)))
 	b.WriteString("\n")
 
@@ -5781,6 +5806,8 @@ func (m tuiModel) renderInstancesTable(tableH int) string {
 		inst := m.instances[idx]
 		age := shortDuration(time.Since(inst.CreationTimestamp.Time))
 
+		provider := resolveInstanceProvider(inst)
+
 		// Build skills column from SkillRef list.
 		skillNames := make([]string, 0, len(inst.Spec.Skills))
 		for _, sk := range inst.Spec.Skills {
@@ -5800,8 +5827,14 @@ func (m tuiModel) renderInstancesTable(tableH int) string {
 			tokStr = formatTokenCount(total)
 		}
 
-		row := fmt.Sprintf(" %-22s %-12s %-20s %-8d %-12s %-8s",
-			truncate(inst.Name, 22), inst.Status.Phase, truncate(skillStr, 20), inst.Status.ActiveAgentPods, tokStr, age)
+		// Append sandbox indicator to phase.
+		phase := inst.Status.Phase
+		if inst.Spec.Agents.Default.AgentSandbox != nil && inst.Spec.Agents.Default.AgentSandbox.Enabled {
+			phase = phase + " ▣"
+		}
+
+		row := fmt.Sprintf(" %-22s %-12s %-12s %-16s %-8d %-10s %-8s",
+			truncate(inst.Name, 22), phase, truncate(provider, 12), truncate(skillStr, 16), inst.Status.ActiveAgentPods, tokStr, age)
 
 		b.WriteString(m.styleRow(idx, row))
 		b.WriteString("\n")
@@ -5854,6 +5887,10 @@ func (m tuiModel) renderRunsTable(tableH int) string {
 		phase := string(run.Status.Phase)
 		if phase == "" {
 			phase = "Pending"
+		}
+		// Add agent-sandbox indicator to phase.
+		if run.Status.SandboxName != "" || run.Status.SandboxClaimName != "" {
+			phase = phase + " ▣"
 		}
 
 		// Determine trigger source from labels.
@@ -6716,9 +6753,41 @@ func (m tuiModel) renderDetailFeed(width, height int) string {
 	}
 	allLines = append(allLines, title)
 
+	// Instance metadata section — show provider, model, sandbox, policy.
+	if inst != "" {
+		for _, si := range m.instances {
+			if si.Name == inst {
+				provider := resolveInstanceProvider(si)
+				model := si.Spec.Agents.Default.Model
+				if model == "" {
+					model = "-"
+				}
+				allLines = append(allLines, tuiDimStyle.Render(fmt.Sprintf("  provider: %s  model: %s", provider, model)))
+				var badges []string
+				if si.Spec.Agents.Default.AgentSandbox != nil && si.Spec.Agents.Default.AgentSandbox.Enabled {
+					rt := si.Spec.Agents.Default.AgentSandbox.RuntimeClass
+					if rt == "" {
+						rt = "default"
+					}
+					badges = append(badges, fmt.Sprintf("▣ agent-sandbox (%s)", rt))
+				}
+				if si.Spec.PolicyRef != "" {
+					badges = append(badges, fmt.Sprintf("policy: %s", si.Spec.PolicyRef))
+				}
+				if si.Spec.Memory != nil && si.Spec.Memory.Enabled {
+					badges = append(badges, "memory: on")
+				}
+				if len(badges) > 0 {
+					allLines = append(allLines, tuiDimStyle.Render("  "+strings.Join(badges, "  ")))
+				}
+				allLines = append(allLines, "")
+				break
+			}
+		}
+	}
+
 	runs := m.runsForInstance(inst)
 	if len(runs) == 0 {
-		allLines = append(allLines, "")
 		allLines = append(allLines, tuiDimStyle.Render("  No runs yet"))
 		allLines = append(allLines, tuiDimStyle.Render("  Press Shift+F to chat"))
 		for len(allLines) < height {
@@ -7671,6 +7740,17 @@ func tuiRunStatus(ns, name string) (string, error) {
 	b.WriteString(fmt.Sprintf("%s │ phase:%s pod:%s task:%s",
 		run.Name, phase, pod, truncate(run.Spec.Task, 40)))
 
+	// Show agent-sandbox info if present.
+	if run.Status.SandboxName != "" {
+		b.WriteString(fmt.Sprintf("\n  ▣ agent-sandbox: %s", run.Status.SandboxName))
+		if run.Spec.AgentSandbox != nil && run.Spec.AgentSandbox.RuntimeClass != "" {
+			b.WriteString(fmt.Sprintf(" (runtime: %s)", run.Spec.AgentSandbox.RuntimeClass))
+		}
+	}
+	if run.Status.SandboxClaimName != "" {
+		b.WriteString(fmt.Sprintf("\n  ▣ sandbox-claim: %s", run.Status.SandboxClaimName))
+	}
+
 	if run.Status.Result != "" {
 		// Show result inline — truncate to first 2 lines, max 80 chars each.
 		lines := strings.Split(strings.TrimSpace(run.Status.Result), "\n")
@@ -8490,6 +8570,13 @@ func (m tuiModel) advanceWizard(val string) (tea.Model, tea.Cmd) {
 	case wizStepPolicy:
 		v := strings.ToLower(val)
 		w.applyPolicy = (v == "" || v == "y" || v == "yes")
+		w.step = wizStepAgentSandbox
+		m.input.Placeholder = "Enable Agent Sandbox? [y/N]"
+		return m, nil
+
+	case wizStepAgentSandbox:
+		v := strings.ToLower(val)
+		w.agentSandboxEnabled = (v == "y" || v == "yes")
 		w.step = wizStepHeartbeat
 		m.input.Placeholder = "Heartbeat interval [1-5] (default: 2 — every hour)"
 		return m, nil
@@ -8765,6 +8852,13 @@ func (m tuiModel) advanceWizard(val string) (tea.Model, tea.Cmd) {
 
 	case wizStepPersonaTeamTask:
 		w.teamTask = strings.TrimSpace(val)
+		w.step = wizStepPersonaAgentSandbox
+		m.input.Placeholder = "Enable Agent Sandbox? [y/N]"
+		return m, nil
+
+	case wizStepPersonaAgentSandbox:
+		v := strings.ToLower(val)
+		w.agentSandboxEnabled = (v == "y" || v == "yes")
 		w.step = wizStepPersonaChannels
 		m.input.Placeholder = "Toggle channels with number, Enter when done"
 		return m, nil
@@ -8947,6 +9041,13 @@ func (m tuiModel) renderWizardPanel(h int) string {
 		}
 		lines = append(lines, hintStyle.Render("  Policy:   ")+valueStyle.Render(pv))
 	}
+	if w.step > wizStepAgentSandbox {
+		asv := "no"
+		if w.agentSandboxEnabled {
+			asv = "yes (gVisor/Kata)"
+		}
+		lines = append(lines, hintStyle.Render("  Agent Sandbox: ")+valueStyle.Render(asv))
+	}
 	if w.step > wizStepHeartbeat {
 		stepNum = 6
 		hbLabel := w.heartbeatLabel
@@ -9123,6 +9224,14 @@ func (m tuiModel) renderWizardPanel(h int) string {
 		lines = append(lines, stepStyle.Render("  📋 Step 7/9 — Default Policy"))
 		lines = append(lines, menuStyle.Render("  A SympoziumPolicy controls what tools agents can use, sandboxing, etc."))
 		lines = append(lines, labelStyle.Render("  Apply the default policy?"))
+
+	case wizStepAgentSandbox:
+		lines = append(lines, stepStyle.Render("  📋 Step 7.5/9 — Agent Sandbox (K8s CRD)"))
+		lines = append(lines, menuStyle.Render("  Uses kubernetes-sigs/agent-sandbox for kernel-level isolation (gVisor/Kata)."))
+		lines = append(lines, menuStyle.Render("  Runs agents in Sandbox CRs instead of Jobs — provides stronger security,"))
+		lines = append(lines, menuStyle.Render("  warm pools for fast cold starts, and suspend/resume lifecycle."))
+		lines = append(lines, menuStyle.Render("  Requires: agent-sandbox CRDs installed + gVisor/Kata runtime on nodes."))
+		lines = append(lines, labelStyle.Render("  Enable Agent Sandbox isolation?"))
 
 	case wizStepHeartbeat:
 		lines = append(lines, stepStyle.Render("  📋 Step 8/9 — Heartbeat Schedule"))
@@ -9306,6 +9415,13 @@ func (m tuiModel) renderPersonaWizardPanel(h int,
 		}
 		lines = append(lines, hintStyle.Render("  Task:    ")+valueStyle.Render(display))
 	}
+	if w.step > wizStepPersonaAgentSandbox {
+		asv := "no"
+		if w.agentSandboxEnabled {
+			asv = "yes (gVisor/Kata)"
+		}
+		lines = append(lines, hintStyle.Render("  Agent Sandbox: ")+valueStyle.Render(asv))
+	}
 
 	// Current step.
 	switch w.step {
@@ -9389,6 +9505,16 @@ func (m tuiModel) renderPersonaWizardPanel(h int,
 		lines = append(lines, "")
 		lines = append(lines, labelStyle.Render("  What should the team work on?"))
 		lines = append(lines, hintStyle.Render("  Press Enter to use each persona's default task."))
+
+	case wizStepPersonaAgentSandbox:
+		lines = append(lines, stepStyle.Render("  Step 6.5: Agent Sandbox (K8s CRD)"))
+		lines = append(lines, "")
+		lines = append(lines, hintStyle.Render("  Uses kubernetes-sigs/agent-sandbox for kernel-level isolation (gVisor/Kata)."))
+		lines = append(lines, hintStyle.Render("  Runs agents in Sandbox CRs instead of Jobs — provides stronger security,"))
+		lines = append(lines, hintStyle.Render("  warm pools for fast cold starts, and suspend/resume lifecycle."))
+		lines = append(lines, hintStyle.Render("  Requires: agent-sandbox CRDs installed + gVisor/Kata runtime on nodes."))
+		lines = append(lines, "")
+		lines = append(lines, labelStyle.Render("  Enable Agent Sandbox isolation?"))
 
 	case wizStepPersonaChannels:
 		lines = append(lines, stepStyle.Render("  Step 7: Channel Bindings"))
@@ -9803,6 +9929,16 @@ func tuiPersonaApply(ns string, w *wizardState) (string, error) {
 	// Store base URL for local/custom providers (e.g. Ollama, LM Studio, Azure OpenAI).
 	pack.Spec.BaseURL = w.baseURL
 
+	// Store agent-sandbox setting.
+	if w.agentSandboxEnabled {
+		pack.Spec.AgentSandbox = &sympoziumv1alpha1.AgentSandboxInstanceSpec{
+			Enabled:      true,
+			RuntimeClass: "gvisor",
+		}
+	} else {
+		pack.Spec.AgentSandbox = nil
+	}
+
 	// Update each persona with the chosen model and channel bindings.
 	var enabledChannels []string
 	channelConfigs := make(map[string]string)
@@ -9943,6 +10079,11 @@ func tuiOnboardApply(ns string, w *wizardState) (string, error) {
 					DefaultImage: "ghcr.io/sympozium-ai/sympozium/sandbox:latest",
 					MaxCPU:       "4",
 					MaxMemory:    "8Gi",
+					AgentSandboxPolicy: &sympoziumv1alpha1.AgentSandboxPolicySpec{
+						Required:              false,
+						DefaultRuntimeClass:   "gvisor",
+						AllowedRuntimeClasses: []string{"gvisor", "kata"},
+					},
 				},
 				FeatureGates: map[string]bool{
 					"browser-automation": false,
@@ -10007,6 +10148,12 @@ func tuiOnboardApply(ns string, w *wizardState) (string, error) {
 	}
 	if w.applyPolicy {
 		inst.Spec.PolicyRef = policyName
+	}
+	if w.agentSandboxEnabled {
+		inst.Spec.Agents.Default.AgentSandbox = &sympoziumv1alpha1.AgentSandboxInstanceSpec{
+			Enabled:      true,
+			RuntimeClass: "gvisor",
+		}
 	}
 
 	// Default skills: k8s-ops + llmfit + memory.

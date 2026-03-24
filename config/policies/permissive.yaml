@@ -17,6 +17,10 @@ spec:
     maxCPU: "8"
     maxMemory: 16Gi
     allowHostMounts: false
+    agentSandboxPolicy:
+      required: false
+      defaultRuntimeClass: gvisor
+      allowedRuntimeClasses: [gvisor, kata]
   toolGating:
     defaultAction: allow
     rules: []

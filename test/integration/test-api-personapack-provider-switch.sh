@@ -19,7 +19,7 @@ OPENAI_SECRET="${PACK_NAME}-openai-key"
 ANTHROPIC_SECRET="${PACK_NAME}-anthropic-key"
 OPENAI_MODEL="gpt-4o-mini"
 ANTHROPIC_MODEL="claude-3-5-sonnet"
-EXPECTED_SKILLS_CSV="code-review,k8s-ops"
+EXPECTED_SKILLS_CSV="code-review,k8s-ops,memory"
 
 RUN_OPENAI=""
 RUN_ANTHROPIC=""

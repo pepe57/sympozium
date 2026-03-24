@@ -1,0 +1,122 @@
+---
+# Minimal agent-sandbox CRDs for testing Sympozium integration.
+# In production, install from: https://github.com/kubernetes-sigs/agent-sandbox/releases
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: sandboxes.apps.kubernetes.io
+  annotations:
+    api-approved.kubernetes.io: "https://github.com/kubernetes-sigs/agent-sandbox"
+spec:
+  group: apps.kubernetes.io
+  names:
+    kind: Sandbox
+    listKind: SandboxList
+    plural: sandboxes
+    singular: sandbox
+    shortNames: [sb]
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                podName:
+                  type: string
+                message:
+                  type: string
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Pod
+          type: string
+          jsonPath: .status.podName
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: sandboxclaims.apps.kubernetes.io
+  annotations:
+    api-approved.kubernetes.io: "https://github.com/kubernetes-sigs/agent-sandbox"
+spec:
+  group: apps.kubernetes.io
+  names:
+    kind: SandboxClaim
+    listKind: SandboxClaimList
+    plural: sandboxclaims
+    singular: sandboxclaim
+    shortNames: [sbc]
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                sandboxName:
+                  type: string
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: sandboxwarmpools.apps.kubernetes.io
+  annotations:
+    api-approved.kubernetes.io: "https://github.com/kubernetes-sigs/agent-sandbox"
+spec:
+  group: apps.kubernetes.io
+  names:
+    kind: SandboxWarmPool
+    listKind: SandboxWarmPoolList
+    plural: sandboxwarmpools
+    singular: sandboxwarmpool
+    shortNames: [swp]
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true
+            status:
+              type: object
+              properties:
+                readyCount:
+                  type: integer
+                totalCount:
+                  type: integer

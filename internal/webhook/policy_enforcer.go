@@ -85,6 +85,11 @@ func (pe *PolicyEnforcer) Handle(ctx context.Context, req admission.Request) adm
 		return admission.Denied(err.Error())
 	}
 
+	// Validate agent-sandbox policy
+	if err := pe.validateAgentSandbox(run, &policy); err != nil {
+		return admission.Denied(err.Error())
+	}
+
 	return admission.Allowed("policy validated")
 }
 
@@ -131,6 +136,52 @@ func (pe *PolicyEnforcer) validateToolPolicy(run *sympoziumv1alpha1.AgentRun, po
 				if allowed == rule.Tool {
 					return fmt.Errorf("tool %q is denied by policy", rule.Tool)
 				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (pe *PolicyEnforcer) validateAgentSandbox(run *sympoziumv1alpha1.AgentRun, policy *sympoziumv1alpha1.SympoziumPolicy) error {
+	agentSandboxEnabled := run.Spec.AgentSandbox != nil && run.Spec.AgentSandbox.Enabled
+	sidecarSandboxEnabled := run.Spec.Sandbox != nil && run.Spec.Sandbox.Enabled
+
+	// Mutual exclusivity: cannot use both sandbox modes.
+	if agentSandboxEnabled && sidecarSandboxEnabled {
+		return fmt.Errorf("sandbox.enabled and agentSandbox.enabled are mutually exclusive")
+	}
+
+	// Agent Sandbox + server mode not yet supported.
+	if agentSandboxEnabled && run.Spec.Mode == "server" {
+		return fmt.Errorf("agentSandbox is not supported with mode=server")
+	}
+
+	// Policy enforcement: agent-sandbox required.
+	if policy.Spec.SandboxPolicy != nil &&
+		policy.Spec.SandboxPolicy.AgentSandboxPolicy != nil &&
+		policy.Spec.SandboxPolicy.AgentSandboxPolicy.Required {
+		if !agentSandboxEnabled {
+			return fmt.Errorf("agent-sandbox mode is required by policy")
+		}
+	}
+
+	// Validate runtime class against allowed list.
+	if agentSandboxEnabled &&
+		policy.Spec.SandboxPolicy != nil &&
+		policy.Spec.SandboxPolicy.AgentSandboxPolicy != nil {
+		asp := policy.Spec.SandboxPolicy.AgentSandboxPolicy
+		if len(asp.AllowedRuntimeClasses) > 0 && run.Spec.AgentSandbox.RuntimeClass != "" {
+			allowed := false
+			for _, rc := range asp.AllowedRuntimeClasses {
+				if rc == run.Spec.AgentSandbox.RuntimeClass {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				return fmt.Errorf("runtime class %q is not allowed by policy (allowed: %v)",
+					run.Spec.AgentSandbox.RuntimeClass, asp.AllowedRuntimeClasses)
 			}
 		}
 	}
@@ -255,6 +306,29 @@ func (mpe *MutatingPolicyEnforcer) Handle(ctx context.Context, req admission.Req
 	if run.Spec.Sandbox != nil && run.Spec.Sandbox.Enabled {
 		run.Labels["sympozium.ai/sandbox"] = "true"
 		modified = true
+	}
+
+	// Inject agent-sandbox defaults from policy.
+	if policy.Spec.SandboxPolicy != nil && policy.Spec.SandboxPolicy.AgentSandboxPolicy != nil {
+		asp := policy.Spec.SandboxPolicy.AgentSandboxPolicy
+
+		// If policy requires agent-sandbox and it's not set, inject it.
+		if asp.Required && (run.Spec.AgentSandbox == nil || !run.Spec.AgentSandbox.Enabled) {
+			run.Spec.AgentSandbox = &sympoziumv1alpha1.AgentSandboxSpec{
+				Enabled: true,
+			}
+			modified = true
+		}
+
+		// Inject default runtime class.
+		if run.Spec.AgentSandbox != nil && run.Spec.AgentSandbox.Enabled {
+			if asp.DefaultRuntimeClass != "" && run.Spec.AgentSandbox.RuntimeClass == "" {
+				run.Spec.AgentSandbox.RuntimeClass = asp.DefaultRuntimeClass
+				modified = true
+			}
+			run.Labels["sympozium.ai/agent-sandbox"] = "true"
+			modified = true
+		}
 	}
 
 	// Disable service account token automount via annotation

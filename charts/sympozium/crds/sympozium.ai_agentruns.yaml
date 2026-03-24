@@ -60,6 +60,41 @@ spec:
               agentId:
                 description: AgentID identifies the agent configuration to use.
                 type: string
+              agentSandbox:
+                description: |-
+                  AgentSandbox configures the Kubernetes Agent Sandbox (CRD) execution backend.
+                  When enabled, the controller creates a Sandbox CR (kubernetes-sigs/agent-sandbox)
+                  instead of a Job, providing gVisor/Kata kernel-level isolation and warm pool support.
+                  Mutually exclusive with sandbox.enabled and mode=server.
+                properties:
+                  enabled:
+                    description: Enabled activates Agent Sandbox mode for this run.
+                    type: boolean
+                  resources:
+                    description: Resources for the sandbox container.
+                    properties:
+                      limits:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      requests:
+                        additionalProperties:
+                          type: string
+                        type: object
+                    type: object
+                  runtimeClass:
+                    description: |-
+                      RuntimeClass selects the sandbox runtime (e.g., "gvisor", "kata").
+                      Maps to the Sandbox CR's runtimeClassName field.
+                    type: string
+                  warmPoolRef:
+                    description: |-
+                      WarmPoolRef references a SandboxWarmPool to claim a pre-warmed sandbox from.
+                      When set, a SandboxClaim is created instead of a bare Sandbox CR.
+                    type: string
+                required:
+                - enabled
+                type: object
               cleanup:
                 default: delete
                 description: 'Cleanup policy: "delete" to remove pod after completion,
@@ -342,6 +377,14 @@ spec:
                 type: string
               result:
                 description: Result is the agent's final reply (populated on success).
+                type: string
+              sandboxClaimName:
+                description: SandboxClaimName is the name of the SandboxClaim when
+                  using warm pools.
+                type: string
+              sandboxName:
+                description: SandboxName is the name of the Sandbox CR created for
+                  this run (agent-sandbox mode).
                 type: string
               serviceName:
                 description: ServiceName is the name of the Service created for server-mode

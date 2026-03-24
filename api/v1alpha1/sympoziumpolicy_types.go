@@ -55,6 +55,27 @@ type SandboxPolicySpec struct {
 	// Defaults to "RuntimeDefault" when not set.
 	// +optional
 	SeccompProfile *SeccompProfileSpec `json:"seccompProfile,omitempty"`
+
+	// AgentSandboxPolicy configures enforcement for the Kubernetes Agent Sandbox
+	// (CRD) execution backend. When set, controls whether runs must use the
+	// agent-sandbox CRD and which runtime classes are permitted.
+	// +optional
+	AgentSandboxPolicy *AgentSandboxPolicySpec `json:"agentSandboxPolicy,omitempty"`
+}
+
+// AgentSandboxPolicySpec defines policy for the Agent Sandbox CRD execution backend.
+type AgentSandboxPolicySpec struct {
+	// Required makes Agent Sandbox mode mandatory (all runs must use Sandbox CRD).
+	Required bool `json:"required"`
+
+	// DefaultRuntimeClass is the fallback runtimeClassName when not specified on the run.
+	// +optional
+	DefaultRuntimeClass string `json:"defaultRuntimeClass,omitempty"`
+
+	// AllowedRuntimeClasses restricts which runtime classes can be used.
+	// Empty means all are allowed.
+	// +optional
+	AllowedRuntimeClasses []string `json:"allowedRuntimeClasses,omitempty"`
 }
 
 // SubagentPolicySpec defines sub-agent limits.

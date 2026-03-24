@@ -9,6 +9,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -99,6 +100,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Initialize dynamic client for Agent Sandbox CRD support.
+	var dynamicClient dynamic.Interface
+	if os.Getenv("AGENT_SANDBOX_ENABLED") == "true" {
+		dc, err := dynamic.NewForConfig(mgr.GetConfig())
+		if err != nil {
+			setupLog.Error(err, "unable to create dynamic client for agent-sandbox")
+		} else if controller.CheckAgentSandboxCRDs(dc) {
+			dynamicClient = dc
+			setupLog.Info("Agent Sandbox CRD support enabled")
+		} else {
+			setupLog.Info("Agent Sandbox CRDs not found in cluster, feature disabled")
+		}
+	}
+
 	if err := (&controller.AgentRunReconciler{
 		Client:          mgr.GetClient(),
 		Scheme:          mgr.GetScheme(),
@@ -107,6 +122,7 @@ func main() {
 		Clientset:       clientset,
 		ImageTag:        imageTag,
 		RunHistoryLimit: maxRunHistory,
+		DynamicClient:   dynamicClient,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "AgentRun")
 		os.Exit(1)

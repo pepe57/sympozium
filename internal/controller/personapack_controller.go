@@ -413,8 +413,9 @@ func (r *PersonaPackReconciler) buildInstance(
 		Spec: sympoziumv1alpha1.SympoziumInstanceSpec{
 			Agents: sympoziumv1alpha1.AgentsSpec{
 				Default: sympoziumv1alpha1.AgentConfig{
-					Model:   model,
-					BaseURL: pack.Spec.BaseURL,
+					Model:        model,
+					BaseURL:      pack.Spec.BaseURL,
+					AgentSandbox: pack.Spec.AgentSandbox,
 				},
 			},
 			// Copy auth refs from the pack (set during install via TUI).

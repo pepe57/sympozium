@@ -247,6 +247,11 @@ type AgentConfig struct {
 	// +optional
 	Sandbox *SandboxSpec `json:"sandbox,omitempty"`
 
+	// AgentSandbox configures the Kubernetes Agent Sandbox (CRD) execution backend defaults.
+	// When enabled, agent runs use Sandbox CRs with gVisor/Kata kernel isolation.
+	// +optional
+	AgentSandbox *AgentSandboxInstanceSpec `json:"agentSandbox,omitempty"`
+
 	// Subagents configuration.
 	// +optional
 	Subagents *SubagentsSpec `json:"subagents,omitempty"`
@@ -269,6 +274,36 @@ type SandboxSpec struct {
 	// Resources for the sandbox container.
 	// +optional
 	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+}
+
+// AgentSandboxInstanceSpec defines instance-level defaults for the Kubernetes
+// Agent Sandbox (CRD) execution backend.
+type AgentSandboxInstanceSpec struct {
+	// Enabled activates Agent Sandbox mode for all runs in this instance.
+	Enabled bool `json:"enabled"`
+
+	// RuntimeClass is the default runtimeClassName (e.g., "gvisor", "kata").
+	// +optional
+	RuntimeClass string `json:"runtimeClass,omitempty"`
+
+	// WarmPool configures a controller-managed SandboxWarmPool for this instance.
+	// +optional
+	WarmPool *WarmPoolSpec `json:"warmPool,omitempty"`
+}
+
+// WarmPoolSpec configures a managed SandboxWarmPool for pre-provisioned sandboxes.
+type WarmPoolSpec struct {
+	// Size is the number of pre-warmed sandboxes to maintain.
+	// +kubebuilder:default=2
+	Size int `json:"size,omitempty"`
+
+	// RuntimeClass for warm pool sandboxes.
+	// +optional
+	RuntimeClass string `json:"runtimeClass,omitempty"`
+
+	// Resources for each warm pool sandbox.
+	// +optional
+	Resources *ResourceSpec `json:"resources,omitempty"`
 }
 
 // SubagentsSpec defines sub-agent spawning configuration.

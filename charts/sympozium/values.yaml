@@ -296,6 +296,22 @@ mcpBridge:
       cpu: 200m
       memory: 256Mi
 
+# -- Kubernetes Agent Sandbox (kubernetes-sigs/agent-sandbox) integration.
+# Enables an alternative execution backend using Sandbox CRDs for gVisor/Kata
+# kernel-level isolation, warm pools for cold-start elimination, and
+# suspend/resume lifecycle management.
+# Requires: agent-sandbox CRDs installed in the cluster.
+agentSandbox:
+  # -- Enable Agent Sandbox CRD support. When false, all agent-sandbox features
+  # are disabled and no RBAC rules for Sandbox CRs are created.
+  enabled: false
+  # -- Default runtimeClassName for Sandbox CRs ("gvisor", "kata", or "").
+  # Used when no runtimeClass is specified on the AgentRun or policy.
+  defaultRuntimeClass: "gvisor"
+  # -- Create RBAC rules allowing the controller to manage Sandbox, SandboxClaim,
+  # and SandboxWarmPool CRs (apiGroup: apps.kubernetes.io).
+  rbac: true
+
 # -- ServiceMonitor for Prometheus (requires prometheus-operator)
 serviceMonitor:
   enabled: false

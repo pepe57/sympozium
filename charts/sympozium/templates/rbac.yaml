@@ -118,6 +118,15 @@ rules:
   - apiGroups: ["gateway.networking.k8s.io"]
     resources: ["gatewayclasses", "gateways", "httproutes"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  {{- if and .Values.agentSandbox.enabled .Values.agentSandbox.rbac }}
+  # Agent Sandbox CRDs (kubernetes-sigs/agent-sandbox)
+  - apiGroups: ["apps.kubernetes.io"]
+    resources: ["sandboxes", "sandboxclaims", "sandboxwarmpools"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps.kubernetes.io"]
+    resources: ["sandboxes/status", "sandboxclaims/status", "sandboxwarmpools/status"]
+    verbs: ["get"]
+  {{- end }}
 ---
 apiVersion: v1
 kind: ServiceAccount

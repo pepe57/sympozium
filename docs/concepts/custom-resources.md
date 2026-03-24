@@ -5,7 +5,7 @@ Sympozium models every agentic concept as a Kubernetes Custom Resource:
 | CRD | Kubernetes Analogy | Purpose |
 |-----|--------------------|---------|
 | `SympoziumInstance` | Namespace / Tenant | Per-user gateway — channels, provider config, memory settings, skill bindings |
-| `AgentRun` | Job | Single agent execution — task, model, result capture, memory extraction |
+| `AgentRun` | Job / [Sandbox CR](agent-sandbox.md) | Single agent execution — task, model, result capture, memory extraction. Optionally uses Agent Sandbox CRDs for kernel-level isolation |
 | `SympoziumPolicy` | NetworkPolicy | Feature and tool gating — what an agent can and cannot do |
 | `SkillPack` | ConfigMap | Portable skill bundles — kubectl, Helm, or custom tools — mounted into agent pods as files, with optional sidecar containers for cluster ops |
 | `SympoziumSchedule` | CronJob | Recurring tasks — heartbeats, sweeps, scheduled runs with cron expressions |

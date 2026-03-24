@@ -88,6 +88,22 @@ The DaemonSet uses `hostNetwork: true` to probe localhost on the host. It runs a
 
 See the [Ollama guide](../guides/ollama.md) for full details on node-based inference.
 
+## Agent Sandbox (Kubernetes CRD)
+
+Integrates with [kubernetes-sigs/agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) for kernel-level isolation (gVisor/Kata), warm pools, and suspend/resume lifecycle. See the [Agent Sandbox concept doc](../concepts/agent-sandbox.md) for details.
+
+```yaml
+agentSandbox:
+  enabled: false                   # Master switch — requires agent-sandbox CRDs installed
+  defaultRuntimeClass: "gvisor"    # Default runtimeClassName for Sandbox CRs
+  rbac: true                       # Grant controller RBAC for Sandbox/SandboxClaim/SandboxWarmPool
+```
+
+When `enabled: true`, the controller:
+- Creates RBAC rules for `apps.kubernetes.io` resources (Sandbox, SandboxClaim, SandboxWarmPool)
+- Checks for agent-sandbox CRDs at startup and enables the feature if found
+- Routes AgentRuns with `agentSandbox.enabled: true` to Sandbox CRs instead of Jobs
+
 ## Network Policies
 
 ```yaml

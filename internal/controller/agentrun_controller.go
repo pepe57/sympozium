@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -73,6 +74,10 @@ type AgentRunReconciler struct {
 	Clientset       kubernetes.Interface
 	ImageTag        string // release tag for Sympozium images (e.g. "v0.0.25")
 	RunHistoryLimit int    // max completed runs to keep per instance (0 = use default)
+
+	// DynamicClient is used for Agent Sandbox CRD operations.
+	// Nil when agent-sandbox support is disabled or CRDs are not installed.
+	DynamicClient dynamic.Interface
 }
 
 const imageRegistry = "ghcr.io/sympozium-ai/sympozium"
@@ -235,6 +240,11 @@ func (r *AgentRunReconciler) reconcilePending(ctx context.Context, log logr.Logg
 		return ctrl.Result{}, r.failRun(ctx, agentRun, fmt.Sprintf("policy validation failed: %v", err))
 	}
 
+	// Agent Sandbox mode — create Sandbox CR instead of Job.
+	if agentRun.Spec.AgentSandbox != nil && agentRun.Spec.AgentSandbox.Enabled {
+		return r.reconcilePendingAgentSandbox(ctx, log, agentRun)
+	}
+
 	// Ensure the sympozium-agent ServiceAccount exists in the target namespace.
 	if err := r.ensureAgentServiceAccount(ctx, agentRun.Namespace); err != nil {
 		return ctrl.Result{}, fmt.Errorf("ensuring agent service account: %w", err)
@@ -325,6 +335,28 @@ func (r *AgentRunReconciler) reconcilePending(ctx context.Context, log logr.Logg
 	}
 	sidecars = taskSidecars
 
+	// If the memory skill is attached, verify the memory server Deployment
+	// exists before creating the Job. The instance controller creates it
+	// asynchronously — if it hasn't reconciled yet, requeue rather than
+	// creating a pod that hangs on the wait-for-memory init container.
+	// Give up after 60s to avoid infinite requeue loops.
+	if agentRunHasMemorySkill(agentRun) {
+		memoryDeployName := fmt.Sprintf("%s-memory", agentRun.Spec.InstanceRef)
+		var memoryDeploy appsv1.Deployment
+		if err := r.Get(ctx, client.ObjectKey{
+			Namespace: agentRun.Namespace,
+			Name:      memoryDeployName,
+		}, &memoryDeploy); err != nil {
+			age := time.Since(agentRun.CreationTimestamp.Time)
+			if age > 60*time.Second {
+				return ctrl.Result{}, r.failRun(ctx, agentRun,
+					fmt.Sprintf("memory server deployment %q not found after %s — ensure the instance has been reconciled", memoryDeployName, age.Truncate(time.Second)))
+			}
+			log.Info("Memory server not ready yet, requeueing", "deployment", memoryDeployName, "age", age.Truncate(time.Second))
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+		}
+	}
+
 	// Mirror skill ConfigMaps from sympozium-system into the agent namespace
 	// so projected volumes can reference them (ConfigMaps are namespace-local).
 	if err := r.mirrorSkillConfigMaps(ctx, log, agentRun); err != nil {
@@ -377,6 +409,11 @@ func (r *AgentRunReconciler) reconcileRunning(ctx context.Context, log logr.Logg
 	defer span.End()
 
 	log.Info("Checking running AgentRun")
+
+	// Agent Sandbox mode — check Sandbox CR status instead of Job.
+	if agentRun.Status.SandboxName != "" || agentRun.Status.SandboxClaimName != "" {
+		return r.reconcileRunningAgentSandbox(ctx, log, agentRun)
+	}
 
 	// Find the Job
 	job := &batchv1.Job{}
@@ -1406,6 +1443,9 @@ func (r *AgentRunReconciler) buildContainers(
 		)
 
 		// Init container to wait for memory server readiness before agent starts.
+		// Timeout after 60s — if the memory server isn't up by then, the instance
+		// controller likely hasn't reconciled the Deployment yet. The AgentRun will
+		// fail and can be retried, rather than hanging indefinitely.
 		initContainers = append(initContainers, corev1.Container{
 			Name:            "wait-for-memory",
 			Image:           "busybox:1.36",
@@ -1418,7 +1458,7 @@ func (r *AgentRunReconciler) buildContainers(
 				},
 			},
 			Command: []string{"sh", "-c",
-				fmt.Sprintf("until wget -q --spider --timeout=2 %s/health; do echo 'waiting for memory server...'; sleep 1; done", memoryURL),
+				fmt.Sprintf("elapsed=0; until wget -q --spider --timeout=2 %s/health; do echo 'waiting for memory server...'; sleep 2; elapsed=$((elapsed+2)); if [ $elapsed -ge 60 ]; then echo 'ERROR: memory server not ready after 60s'; exit 1; fi; done", memoryURL),
 			},
 			Resources: corev1.ResourceRequirements{
 				Requests: corev1.ResourceList{

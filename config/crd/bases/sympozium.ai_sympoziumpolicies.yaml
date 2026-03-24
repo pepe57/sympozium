@@ -92,6 +92,30 @@ spec:
               sandboxPolicy:
                 description: SandboxPolicy defines sandbox requirements.
                 properties:
+                  agentSandboxPolicy:
+                    description: |-
+                      AgentSandboxPolicy configures enforcement for the Kubernetes Agent Sandbox
+                      (CRD) execution backend. When set, controls whether runs must use the
+                      agent-sandbox CRD and which runtime classes are permitted.
+                    properties:
+                      allowedRuntimeClasses:
+                        description: |-
+                          AllowedRuntimeClasses restricts which runtime classes can be used.
+                          Empty means all are allowed.
+                        items:
+                          type: string
+                        type: array
+                      defaultRuntimeClass:
+                        description: DefaultRuntimeClass is the fallback runtimeClassName
+                          when not specified on the run.
+                        type: string
+                      required:
+                        description: Required makes Agent Sandbox mode mandatory (all
+                          runs must use Sandbox CRD).
+                        type: boolean
+                    required:
+                    - required
+                    type: object
                   allowHostMounts:
                     default: false
                     description: AllowHostMounts controls whether host path mounts

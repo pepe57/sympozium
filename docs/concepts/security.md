@@ -8,6 +8,7 @@ Sympozium enforces defence-in-depth at every layer — from network isolation to
 |-------|-----------|-------|
 | **Network** | `NetworkPolicy` deny-all egress on agent pods | Only the IPC bridge can reach NATS; agents cannot reach the internet or other pods |
 | **Pod sandbox** | `SecurityContext` — `runAsNonRoot`, UID 1000, read-only root filesystem | Every agent and sidecar container runs with least privilege |
+| **Kernel isolation** | [Agent Sandbox CRD](agent-sandbox.md) (optional) — gVisor/Kata via `kubernetes-sigs/agent-sandbox` | When enabled, agent pods run inside a user-space kernel (gVisor) or lightweight VM (Kata), isolating them from the host kernel |
 | **Admission control** | `SympoziumPolicy` admission webhook | Feature and tool gates enforced before the pod is created |
 | **Skill RBAC** | Ephemeral `Role`/`ClusterRole` per AgentRun | Each skill declares exactly the API permissions it needs — the controller auto-provisions them at run start and revokes them on completion |
 | **RBAC lifecycle** | `ownerReference` (namespace) + label-based cleanup (cluster) | Namespace RBAC is garbage-collected by Kubernetes. Cluster RBAC is cleaned up by the controller on AgentRun completion and deletion |

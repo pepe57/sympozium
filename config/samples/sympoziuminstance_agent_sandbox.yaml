@@ -1,0 +1,34 @@
+---
+# Example: SympoziumInstance with Agent Sandbox (CRD) defaults and warm pool.
+#
+# All agent runs for this instance will use the Kubernetes Agent Sandbox
+# execution backend with gVisor isolation. A warm pool of 3 pre-provisioned
+# sandboxes eliminates cold starts.
+#
+# Prerequisites:
+#   - agent-sandbox CRDs installed in the cluster
+#   - Helm value agentSandbox.enabled=true
+#   - gVisor runtime class configured on nodes
+apiVersion: sympozium.ai/v1alpha1
+kind: SympoziumInstance
+metadata:
+  name: secure-alice
+  namespace: default
+spec:
+  agents:
+    default:
+      model: claude-sonnet-4-20250514
+      agentSandbox:
+        enabled: true
+        runtimeClass: gvisor
+        warmPool:
+          size: 3
+          runtimeClass: gvisor
+  authRefs:
+    - provider: anthropic
+      secret: alice-anthropic-key
+  policyRef: restrictive
+  skills:
+    - skillPackRef: k8s-ops
+  memory:
+    enabled: true

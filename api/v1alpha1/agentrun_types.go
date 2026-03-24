@@ -38,6 +38,13 @@ type AgentRunSpec struct {
 	// +optional
 	Sandbox *AgentRunSandboxSpec `json:"sandbox,omitempty"`
 
+	// AgentSandbox configures the Kubernetes Agent Sandbox (CRD) execution backend.
+	// When enabled, the controller creates a Sandbox CR (kubernetes-sigs/agent-sandbox)
+	// instead of a Job, providing gVisor/Kata kernel-level isolation and warm pool support.
+	// Mutually exclusive with sandbox.enabled and mode=server.
+	// +optional
+	AgentSandbox *AgentSandboxSpec `json:"agentSandbox,omitempty"`
+
 	// Skills to mount into the agent pod.
 	// +optional
 	Skills []SkillRef `json:"skills,omitempty"`
@@ -124,6 +131,29 @@ type AgentRunSandboxSpec struct {
 	Resources *ResourceSpec `json:"resources,omitempty"`
 }
 
+// AgentSandboxSpec configures the Kubernetes Agent Sandbox (CRD) execution backend.
+// When enabled, the controller creates a Sandbox CR (from kubernetes-sigs/agent-sandbox)
+// instead of a batchv1.Job. This provides gVisor/Kata kernel-level isolation, warm pools
+// for cold-start elimination, and suspend/resume lifecycle management.
+type AgentSandboxSpec struct {
+	// Enabled activates Agent Sandbox mode for this run.
+	Enabled bool `json:"enabled"`
+
+	// RuntimeClass selects the sandbox runtime (e.g., "gvisor", "kata").
+	// Maps to the Sandbox CR's runtimeClassName field.
+	// +optional
+	RuntimeClass string `json:"runtimeClass,omitempty"`
+
+	// WarmPoolRef references a SandboxWarmPool to claim a pre-warmed sandbox from.
+	// When set, a SandboxClaim is created instead of a bare Sandbox CR.
+	// +optional
+	WarmPoolRef string `json:"warmPoolRef,omitempty"`
+
+	// Resources for the sandbox container.
+	// +optional
+	Resources *ResourceSpec `json:"resources,omitempty"`
+}
+
 // SandboxSecurityContext defines security settings for the sandbox.
 type SandboxSecurityContext struct {
 	// ReadOnlyRootFilesystem makes the root filesystem read-only.
@@ -192,6 +222,14 @@ type AgentRunStatus struct {
 	// JobName is the name of the Job created for this run.
 	// +optional
 	JobName string `json:"jobName,omitempty"`
+
+	// SandboxName is the name of the Sandbox CR created for this run (agent-sandbox mode).
+	// +optional
+	SandboxName string `json:"sandboxName,omitempty"`
+
+	// SandboxClaimName is the name of the SandboxClaim when using warm pools.
+	// +optional
+	SandboxClaimName string `json:"sandboxClaimName,omitempty"`
 
 	// StartedAt is when the agent run started.
 	// +optional
