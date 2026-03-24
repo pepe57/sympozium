@@ -80,15 +80,17 @@ Sympozium serves **two powerful use cases** on one Kubernetes-native platform:
 
 ### Key Features
 
-- **PersonaPacks** — Pre-configured agent bundles (system prompt, skills, tool policy, schedule, memory seeds). Activate a pack, enter your API key, and the controller stamps out all agents automatically.
-- **Isolated Skill Sidecars** — Every skill runs in its own sidecar container with ephemeral least-privilege RBAC that's garbage-collected when the run finishes. _Give the agent tools, not trust._
-- **Multi-Channel Agents** — Connect agents to Telegram, Slack, Discord, or WhatsApp. Each channel runs as a dedicated Deployment backed by NATS JetStream.
-- **Persistent Memory** — SQLite + FTS5 on a PersistentVolume. Agents call `memory_search`, `memory_store`, and `memory_list` — memories survive across ephemeral pod runs.
-- **Scheduled Heartbeats** — Cron-based recurring agent runs via SympoziumSchedule CRDs. Automated health checks, alert triage, resource right-sizing, with CronJob-style concurrency policies.
-- **Agent Sandbox** — Kernel-level isolation via the [Kubernetes Agent Sandbox](https://deploy.sympozium.ai/docs/concepts/agent-sandbox/) project (`kubernetes-sigs/agent-sandbox`). Opt into gVisor or Kata Containers for untrusted workloads, with warm pools for near-instant starts.
-- **MCP Server Integration** — MCPServer CRDs define external tool providers using the Model Context Protocol. Auto tool discovery, prefixed namespacing, and allow/deny filtering.
-- **TUI & Web UI** — A full-featured terminal UI and browser-based Web UI for managing instances, runs, schedules, channels, and skills. Or skip the UI entirely with Helm and kubectl.
-- **Any AI Provider** — OpenAI, Anthropic, Azure OpenAI, Ollama, or any OpenAI-compatible endpoint. Per-instance config, no vendor lock-in.
+| | |
+|---|---|
+| **PersonaPacks** | Helm-like bundles for AI agents — activate a pack and the controller stamps out a full agent team |
+| **Skill Sidecars** | Every skill runs in its own sidecar with ephemeral least-privilege RBAC, garbage-collected on completion |
+| **Multi-Channel** | Telegram, Slack, Discord, WhatsApp — each channel is a dedicated Deployment backed by NATS JetStream |
+| **Persistent Memory** | SQLite + FTS5 on a PersistentVolume — memories survive across ephemeral pod runs |
+| **Scheduled Heartbeats** | Cron-based recurring agent runs for health checks, alert triage, and resource right-sizing |
+| **Agent Sandbox** | Kernel-level isolation via [kubernetes-sigs/agent-sandbox](https://deploy.sympozium.ai/docs/concepts/agent-sandbox/) — gVisor or Kata with warm pools for instant starts |
+| **MCP Servers** | External tool providers via Model Context Protocol with auto-discovery and allow/deny filtering |
+| **TUI & Web UI** | Terminal and browser dashboards, or skip the UI entirely with Helm and kubectl |
+| **Any AI Provider** | OpenAI, Anthropic, Azure, Ollama, or any compatible endpoint — no vendor lock-in |
 
 ---
 
