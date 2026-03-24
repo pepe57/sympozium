@@ -78,15 +78,17 @@ Sympozium serves **two powerful use cases** on one Kubernetes-native platform:
 1. **Orchestrate fleets of AI agents** — customer support, code review, data pipelines, or any domain-specific workflow. Each agent gets its own pod, RBAC, and network policy with proper tenant isolation.
 2. **Administer the cluster itself agentically** — point agents inward to diagnose failures, scale deployments, triage alerts, and remediate issues, all with Kubernetes-native isolation, RBAC, and audit trails.
 
-### Persistent Memory with SQLite
+### Key Features
 
-Agents remember across runs. The `memory` SkillPack provides a **SQLite + FTS5** database on a PersistentVolume, exposed as `memory_search`, `memory_store`, and `memory_list` tools. No external database required.
-
-### Isolated Skill Sidecars
-
-**Every skill runs in its own sidecar container** — a separate, isolated process injected into the agent pod at runtime with ephemeral least-privilege RBAC that's garbage-collected when the run finishes.
-
-> _"Give the agent tools, not trust."_
+- **PersonaPacks** — Pre-configured agent bundles (system prompt, skills, tool policy, schedule, memory seeds). Activate a pack, enter your API key, and the controller stamps out all agents automatically.
+- **Isolated Skill Sidecars** — Every skill runs in its own sidecar container with ephemeral least-privilege RBAC that's garbage-collected when the run finishes. _Give the agent tools, not trust._
+- **Multi-Channel Agents** — Connect agents to Telegram, Slack, Discord, or WhatsApp. Each channel runs as a dedicated Deployment backed by NATS JetStream.
+- **Persistent Memory** — SQLite + FTS5 on a PersistentVolume. Agents call `memory_search`, `memory_store`, and `memory_list` — memories survive across ephemeral pod runs.
+- **Scheduled Heartbeats** — Cron-based recurring agent runs via SympoziumSchedule CRDs. Automated health checks, alert triage, resource right-sizing, with CronJob-style concurrency policies.
+- **Agent Sandbox** — Kernel-level isolation via the [Kubernetes Agent Sandbox](https://deploy.sympozium.ai/docs/concepts/agent-sandbox/) project (`kubernetes-sigs/agent-sandbox`). Opt into gVisor or Kata Containers for untrusted workloads, with warm pools for near-instant starts.
+- **MCP Server Integration** — MCPServer CRDs define external tool providers using the Model Context Protocol. Auto tool discovery, prefixed namespacing, and allow/deny filtering.
+- **TUI & Web UI** — A full-featured terminal UI and browser-based Web UI for managing instances, runs, schedules, channels, and skills. Or skip the UI entirely with Helm and kubectl.
+- **Any AI Provider** — OpenAI, Anthropic, Azure OpenAI, Ollama, or any OpenAI-compatible endpoint. Per-instance config, no vendor lock-in.
 
 ---
 
