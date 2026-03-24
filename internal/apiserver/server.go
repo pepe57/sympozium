@@ -459,19 +459,19 @@ func (s *Server) getWebEndpointStatus(w http.ResponseWriter, r *http.Request) {
 
 // CreateInstanceRequest is the request body for creating a new SympoziumInstance.
 type CreateInstanceRequest struct {
-	Name               string                          `json:"name"`
-	Provider           string                          `json:"provider"`
-	Model              string                          `json:"model"`
-	BaseURL            string                          `json:"baseURL,omitempty"`
-	SecretName         string                          `json:"secretName,omitempty"`
-	APIKey             string                          `json:"apiKey,omitempty"`
-	AWSRegion          string                          `json:"awsRegion,omitempty"`
-	AWSAccessKeyID     string                          `json:"awsAccessKeyId,omitempty"`
-	AWSSecretAccessKey string                          `json:"awsSecretAccessKey,omitempty"`
-	AWSSessionToken    string                          `json:"awsSessionToken,omitempty"`
-	PolicyRef          string                          `json:"policyRef,omitempty"`
-	Skills             []sympoziumv1alpha1.SkillRef    `json:"skills,omitempty"`
-	Channels           []sympoziumv1alpha1.ChannelSpec `json:"channels,omitempty"`
+	Name               string                                      `json:"name"`
+	Provider           string                                      `json:"provider"`
+	Model              string                                      `json:"model"`
+	BaseURL            string                                      `json:"baseURL,omitempty"`
+	SecretName         string                                      `json:"secretName,omitempty"`
+	APIKey             string                                      `json:"apiKey,omitempty"`
+	AWSRegion          string                                      `json:"awsRegion,omitempty"`
+	AWSAccessKeyID     string                                      `json:"awsAccessKeyId,omitempty"`
+	AWSSecretAccessKey string                                      `json:"awsSecretAccessKey,omitempty"`
+	AWSSessionToken    string                                      `json:"awsSessionToken,omitempty"`
+	PolicyRef          string                                      `json:"policyRef,omitempty"`
+	Skills             []sympoziumv1alpha1.SkillRef                `json:"skills,omitempty"`
+	Channels           []sympoziumv1alpha1.ChannelSpec             `json:"channels,omitempty"`
 	HeartbeatInterval  string                                      `json:"heartbeatInterval,omitempty"`
 	NodeSelector       map[string]string                           `json:"nodeSelector,omitempty"`
 	AgentSandbox       *sympoziumv1alpha1.AgentSandboxInstanceSpec `json:"agentSandbox,omitempty"`
