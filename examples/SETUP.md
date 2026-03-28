@@ -40,7 +40,7 @@ kubectl create secret generic my-openai-key \
 ### Telegram Bot Token
 ```bash
 kubectl create secret generic alice-telegram-secret \
-  --from-literal=token=123456789:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
+  --from-literal=TELEGRAM_BOT_TOKEN=123456789:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
 ```
 
 ### Slack Bot Token
