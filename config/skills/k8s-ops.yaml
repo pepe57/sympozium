@@ -169,6 +169,9 @@ spec:
       - apiGroups: ["rbac.authorization.k8s.io"]
         resources: ["roles", "rolebindings"]
         verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+      - apiGroups: ["metrics.k8s.io"]
+        resources: ["pods"]
+        verbs: ["get", "list"]
     # Cluster-scoped RBAC: full read + node/namespace management
     clusterRBAC:
       - apiGroups: [""]
@@ -192,3 +195,6 @@ spec:
       - apiGroups: ["apiextensions.k8s.io"]
         resources: ["customresourcedefinitions"]
         verbs: ["get", "list", "watch"]
+      - apiGroups: ["metrics.k8s.io"]
+        resources: ["pods", "nodes"]
+        verbs: ["get", "list"]
