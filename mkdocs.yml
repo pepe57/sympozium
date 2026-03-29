@@ -90,6 +90,7 @@ nav:
     - Your First AgentRun: guides/first-agentrun.md
     - Using Ollama: guides/ollama.md
     - LM Studio & Local Inference: guides/lm-studio.md
+    - AWS Bedrock: guides/aws-bedrock.md
     - Serving Mode: guides/serving-mode.md
     - Writing PersonaPacks: guides/writing-personapacks.md
     - Writing Skills: guides/writing-skills.md
