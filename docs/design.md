@@ -34,7 +34,7 @@ Sympozium takes the best of both:
 | Sandbox isolation | Docker container (long-lived sidecar) | Container = sandbox (read-only rootfs, cap-drop) | Pod SecurityContext + **PodSecurity admission** |
 | IPC | In-process EventEmitter | Filesystem polling (JSON files) | **gRPC sidecar** + shared ephemeral volume |
 | Tool/feature gating | In-process tool-policy pipeline (7 layers) | Mount allowlist (external file) | **Admission webhooks** + CRD-based policy |
-| State | Files on disk (~/.openclaw/) | SQLite + files | **etcd (CRDs)** + object storage + PostgreSQL |
+| State | Files on disk (~/.openclaw/) | SQLite + files | **etcd (CRDs)** + PostgreSQL |
 | Multi-instance | Single-instance (file lock) | Single-instance | **Horizontally scalable** (stateless control plane) |
 | Channel connections | In-process per channel | WhatsApp only, in-process | **Channel pods** (one Deployment per channel type) |
 
@@ -70,7 +70,7 @@ Sympozium takes the best of both:
   │   └──────────────────────┘  │  └───────────────────────────────────┘  │
   │                             │                                          │
   │   ┌─────────────────────────┼──────────────────────────────────────┐  │
-  │   │  Event Bus (NATS / Redis Streams)                              │  │
+  │   │  Event Bus (NATS JetStream)                                    │  │
   │   └─────────────────────────┼──────────────────────────────────────┘  │
   └─────────────────────────────┼──────────────────────────────────────────┘
                                 │
@@ -99,12 +99,12 @@ Sympozium takes the best of both:
 
   ┌──────────────────────────────────────────────────────────────────┐
   │                        Data Layer                                │
-  │  ┌──────────┐  ┌──────────────┐  ┌──────────┐  ┌─────────────┐ │
-  │  │ PostgreSQL│  │ Redis/Valkey │  │  MinIO   │  │  etcd       │ │
-  │  │ (sessions,│  │ (pub/sub,    │  │  (S3)    │  │  (CRDs,     │ │
-  │  │  memory,  │  │  queues,     │  │ transcr. │  │   state)    │ │
-  │  │  config)  │  │  locks)      │  │ skills   │  │             │ │
-  │  └──────────┘  └──────────────┘  └──────────┘  └─────────────┘ │
+  │  ┌──────────┐  ┌──────────────┐  ┌─────────────┐               │
+  │  │ PostgreSQL│  │ NATS         │  │  etcd       │               │
+  │  │ (sessions,│  │ JetStream    │  │  (CRDs,     │               │
+  │  │  memory,  │  │ (pub/sub,    │  │   state)    │               │
+  │  │  config)  │  │  queues)     │  │             │               │
+  │  └──────────┘  └──────────────┘  └─────────────┘               │
   └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -139,7 +139,7 @@ spec:
   # Agent configuration
   agents:
     default:
-      model: claude-opus-4-0-20250514
+      model: gpt-4o     # overridable per-persona; see PersonaPack activation
       thinking: high
       sandbox:
         enabled: true
@@ -219,9 +219,9 @@ spec:
 
   model:
     provider: anthropic
-    model: claude-opus-4-0-20250514
+    model: gpt-4o
     thinking: high
-    authSecretRef: alice-anthropic-key
+    authSecretRef: alice-openai-key
 
   sandbox:
     enabled: true
@@ -379,10 +379,11 @@ agent pods at `/skills`.
 `helm`), it declares a `sidecar` spec. The AgentRun controller dynamically injects
 the sidecar container into the agent pod and creates scoped RBAC resources
 (Role/RoleBinding for namespace-scoped access, ClusterRole/ClusterRoleBinding for
-cluster-wide access). The controller itself is bound to `cluster-admin` so it can
-create arbitrary RBAC rules declared by SkillPacks without hitting Kubernetes RBAC
-escalation prevention. RBAC resources are garbage-collected when the AgentRun
-completes or is deleted.
+cluster-wide access). The controller uses a scoped `ClusterRole` with explicitly
+enumerated permissions rather than `cluster-admin`, so any new API groups required
+by SkillPack RBAC rules must also be added to the controller's own ClusterRole to
+avoid Kubernetes RBAC escalation prevention. RBAC resources are garbage-collected
+when the AgentRun completes or is deleted.
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -638,7 +639,7 @@ spec:
       containers:
         # Main agent container — runs the LLM inference loop
         - name: agent
-          image: ghcr.io/openclaw/agent-runner:latest
+          image: ghcr.io/sympozium-ai/sympozium/agent-runner:latest
           securityContext:
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
@@ -671,7 +672,7 @@ spec:
 
         # Sidecar: IPC bridge to control plane
         - name: ipc-bridge
-          image: ghcr.io/openclaw/ipc-bridge:latest
+          image: ghcr.io/sympozium-ai/sympozium/ipc-bridge:latest
           env:
             - name: AGENT_RUN_ID
               value: run-abc123
@@ -794,7 +795,7 @@ spec:
     spec:
       containers:
         - name: telegram
-          image: ghcr.io/openclaw/channel-telegram:latest
+          image: ghcr.io/sympozium-ai/sympozium/channel-telegram:latest
           env:
             - name: INSTANCE_NAME
               value: alice
@@ -839,7 +840,7 @@ reconnection doesn't affect Telegram. A Telegram rate limit doesn't block Discor
 
 ### 4.5 Event Bus
 
-NATS JetStream (or Redis Streams) serves as the nervous system connecting all
+NATS JetStream serves as the nervous system connecting all
 components:
 
 **Event topics:**
@@ -1083,16 +1084,11 @@ CREATE INDEX ON memory_embeddings
 | `skills.*` | `SkillPack` CRDs |
 | `cron.*` | K8s CronJob resources |
 
-### 6.3 Transcripts: Files → Object Storage
+### 6.3 Transcripts: Files → PostgreSQL
 
-Session transcripts (append-only JSONL) move to MinIO/S3:
-
-```
-s3://sympozium-transcripts/{instance}/{agentId}/{sessionKey}/{timestamp}.jsonl
-```
-
-Agent pods write transcript events to the IPC volume; the IPC bridge flushes
-them to object storage in batches.
+Session transcripts (append-only JSONL) move to PostgreSQL via the
+`transcript_events` table. Agent pods write transcript events to the IPC volume;
+the IPC bridge flushes them to the database in batches.
 
 ---
 
@@ -1104,7 +1100,7 @@ them to object storage in batches.
 - Build the Sympozium operator (controller-runtime based)
 - `SympoziumInstance` controller: reconcile channel pods + store config
 - `AgentRun` controller: create Jobs, watch completion, deliver results
-- Agent pod image: minimal Node.js runner that reads task from `/ipc/input/`,
+- Agent pod image: Go-based runner that reads task from `/ipc/input/`,
   calls LLM, writes result to `/ipc/output/`
 - IPC bridge sidecar: file-watch + NATS publish/subscribe
 
