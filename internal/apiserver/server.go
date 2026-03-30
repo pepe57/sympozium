@@ -308,8 +308,8 @@ func (s *Server) deleteInstance(w http.ResponseWriter, r *http.Request) {
 
 // PatchInstanceRequest is the request body for partially updating a SympoziumInstance.
 type PatchInstanceRequest struct {
-	WebEndpoint *PatchWebEndpoint                  `json:"webEndpoint,omitempty"`
-	Lifecycle   *sympoziumv1alpha1.LifecycleHooks  `json:"lifecycle,omitempty"`
+	WebEndpoint *PatchWebEndpoint                 `json:"webEndpoint,omitempty"`
+	Lifecycle   *sympoziumv1alpha1.LifecycleHooks `json:"lifecycle,omitempty"`
 }
 
 // PatchWebEndpoint is the web endpoint patch payload.

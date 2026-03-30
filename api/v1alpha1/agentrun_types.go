@@ -213,9 +213,9 @@ type ToolPolicySpec struct {
 type AgentRunPhase string
 
 const (
-	AgentRunPhasePending   AgentRunPhase = "Pending"
-	AgentRunPhaseRunning   AgentRunPhase = "Running"
-	AgentRunPhaseServing   AgentRunPhase = "Serving"
+	AgentRunPhasePending     AgentRunPhase = "Pending"
+	AgentRunPhaseRunning     AgentRunPhase = "Running"
+	AgentRunPhaseServing     AgentRunPhase = "Serving"
 	AgentRunPhasePostRunning AgentRunPhase = "PostRunning"
 	AgentRunPhaseSucceeded   AgentRunPhase = "Succeeded"
 	AgentRunPhaseFailed      AgentRunPhase = "Failed"
