@@ -127,11 +127,11 @@ export function personaPackYamlFromWizard(
 export function instanceYamlFromResource(inst: SympoziumInstance): string {
   const spec: Record<string, YamlValue> = {};
 
-  if (inst.spec.agents) spec.agents = inst.spec.agents;
-  if (inst.spec.skills && inst.spec.skills.length > 0) spec.skills = inst.spec.skills;
-  if (inst.spec.channels && inst.spec.channels.length > 0) spec.channels = inst.spec.channels;
-  if (inst.spec.authRefs && inst.spec.authRefs.length > 0) spec.authRefs = inst.spec.authRefs;
-  if (inst.spec.memory) spec.memory = inst.spec.memory;
+  if (inst.spec.agents) spec.agents = inst.spec.agents as unknown as YamlValue;
+  if (inst.spec.skills && inst.spec.skills.length > 0) spec.skills = inst.spec.skills as unknown as YamlValue;
+  if (inst.spec.channels && inst.spec.channels.length > 0) spec.channels = inst.spec.channels as unknown as YamlValue;
+  if (inst.spec.authRefs && inst.spec.authRefs.length > 0) spec.authRefs = inst.spec.authRefs as unknown as YamlValue;
+  if (inst.spec.memory) spec.memory = inst.spec.memory as unknown as YamlValue;
   if (inst.spec.policyRef) spec.policyRef = inst.spec.policyRef;
 
   const obj: Record<string, YamlValue> = {
@@ -157,7 +157,7 @@ export function personaPackYamlFromResource(pack: PersonaPack): string {
   if (pack.spec.description) spec.description = pack.spec.description;
   if (pack.spec.category) spec.category = pack.spec.category;
   if (pack.spec.version) spec.version = pack.spec.version;
-  if (pack.spec.authRefs && pack.spec.authRefs.length > 0) spec.authRefs = pack.spec.authRefs;
+  if (pack.spec.authRefs && pack.spec.authRefs.length > 0) spec.authRefs = pack.spec.authRefs as unknown as YamlValue;
   if (pack.spec.channelConfigs && Object.keys(pack.spec.channelConfigs).length > 0)
     spec.channelConfigs = pack.spec.channelConfigs;
   if (pack.spec.skillParams && Object.keys(pack.spec.skillParams).length > 0)
@@ -172,11 +172,11 @@ export function personaPackYamlFromResource(pack: PersonaPack): string {
     };
     if (p.displayName) persona.displayName = p.displayName;
     if (p.model) persona.model = p.model;
-    if (p.skills && p.skills.length > 0) persona.skills = p.skills;
-    if (p.toolPolicy) persona.toolPolicy = p.toolPolicy;
+    if (p.skills && p.skills.length > 0) persona.skills = p.skills as unknown as YamlValue;
+    if (p.toolPolicy) persona.toolPolicy = p.toolPolicy as unknown as YamlValue;
     if (p.schedule) persona.schedule = p.schedule as unknown as YamlValue;
     if (p.memory) persona.memory = p.memory as unknown as YamlValue;
-    if (p.channels && p.channels.length > 0) persona.channels = p.channels;
+    if (p.channels && p.channels.length > 0) persona.channels = p.channels as unknown as YamlValue;
     if (p.webEndpoint) persona.webEndpoint = p.webEndpoint as unknown as YamlValue;
     if (p.lifecycle) persona.lifecycle = p.lifecycle as unknown as YamlValue;
     return persona;
