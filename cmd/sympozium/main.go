@@ -1271,7 +1271,7 @@ func applyCRDs(ch *chart.Chart) error {
 	defer os.RemoveAll(tmpDir)
 
 	for _, crd := range ch.CRDObjects() {
-		path := filepath.Join(tmpDir, crd.Name)
+		path := filepath.Join(tmpDir, filepath.Base(crd.Name))
 		if err := os.WriteFile(path, crd.File.Data, 0644); err != nil {
 			return fmt.Errorf("writing CRD %s: %w", crd.Name, err)
 		}
