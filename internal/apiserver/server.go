@@ -486,6 +486,7 @@ type CreateInstanceRequest struct {
 	HeartbeatInterval  string                                      `json:"heartbeatInterval,omitempty"`
 	NodeSelector       map[string]string                           `json:"nodeSelector,omitempty"`
 	AgentSandbox       *sympoziumv1alpha1.AgentSandboxInstanceSpec `json:"agentSandbox,omitempty"`
+	RunTimeout         string                                      `json:"runTimeout,omitempty"`
 }
 
 func (s *Server) createInstance(w http.ResponseWriter, r *http.Request) {
@@ -538,6 +539,9 @@ func (s *Server) createInstance(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.AgentSandbox != nil {
 		inst.Spec.Agents.Default.AgentSandbox = req.AgentSandbox
+	}
+	if req.RunTimeout != "" {
+		inst.Spec.Agents.Default.RunTimeout = req.RunTimeout
 	}
 
 	// Bedrock: create a multi-key secret with AWS credentials.

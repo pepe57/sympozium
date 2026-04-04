@@ -28,6 +28,13 @@ import (
 // the agent stops and returns whatever text it has.
 var maxToolIterations = 50
 
+// maxConsecutiveToolErrors is the number of consecutive iterations where
+// every tool call returns an error before the agent bails early. This
+// prevents the model from burning the entire run budget retrying a
+// fundamentally broken operation (e.g., wrong API endpoint, missing
+// credentials, unreachable service).
+var maxConsecutiveToolErrors = 3
+
 // llmRequestTimeout is the per-request timeout for individual LLM API calls.
 // For local providers (ollama, lm-studio, vllm) this prevents a single queued
 // request from consuming the entire run budget. Cloud providers get no
@@ -39,10 +46,20 @@ var llmRequestTimeout time.Duration // 0 means no per-request timeout
 // Defaults: 2 for local providers, 5 for cloud providers.
 var llmMaxRetries = -1 // -1 means "use provider-appropriate default"
 
+// runTimeout is the overall context deadline for the entire agent run.
+// Defaults: 10 minutes for cloud providers, 30 minutes for local providers.
+// Override with RUN_TIMEOUT env var (Go duration string, e.g. "30m", "1h").
+var runTimeout time.Duration // 0 means "use provider-appropriate default"
+
 func init() {
 	if val := os.Getenv("MAX_TOOL_ITERATIONS"); val != "" {
 		if n, err := strconv.Atoi(val); err == nil && n > 0 {
 			maxToolIterations = n
+		}
+	}
+	if val := os.Getenv("MAX_CONSECUTIVE_TOOL_ERRORS"); val != "" {
+		if n, err := strconv.Atoi(val); err == nil && n > 0 {
+			maxConsecutiveToolErrors = n
 		}
 	}
 	if val := os.Getenv("LLM_REQUEST_TIMEOUT"); val != "" {
@@ -53,6 +70,11 @@ func init() {
 	if val := os.Getenv("LLM_MAX_RETRIES"); val != "" {
 		if n, err := strconv.Atoi(val); err == nil && n >= 0 {
 			llmMaxRetries = n
+		}
+	}
+	if val := os.Getenv("RUN_TIMEOUT"); val != "" {
+		if d, err := time.ParseDuration(val); err == nil && d > 0 {
+			runTimeout = d
 		}
 	}
 }
@@ -87,6 +109,17 @@ func effectiveRequestTimeout(provider string) time.Duration {
 		return 5 * time.Minute
 	}
 	return 0 // no per-request timeout for cloud providers
+}
+
+// effectiveRunTimeout returns the overall run context timeout.
+func effectiveRunTimeout(provider string) time.Duration {
+	if runTimeout > 0 {
+		return runTimeout // explicit override via RUN_TIMEOUT env
+	}
+	if isLocalProvider(provider) {
+		return 30 * time.Minute
+	}
+	return 10 * time.Minute
 }
 
 type agentResult struct {
@@ -263,7 +296,9 @@ func main() {
 
 	_ = os.MkdirAll("/ipc/output", 0o755)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	rt := effectiveRunTimeout(provider)
+	log.Printf("run_timeout=%s", rt)
+	ctx, cancel := context.WithTimeout(context.Background(), rt)
 	defer cancel()
 
 	obs := initObservability(ctx)
@@ -448,6 +483,8 @@ func callAnthropic(ctx context.Context, apiKey, baseURL, model, systemPrompt, ta
 	totalInputTokens := 0
 	totalOutputTokens := 0
 	totalToolCalls := 0
+	consecutiveErrorIterations := 0
+	var lastToolErrors []string
 
 	for i := 0; i < maxToolIterations; i++ {
 		params := anthropic.MessageNewParams{
@@ -521,15 +558,37 @@ func callAnthropic(ctx context.Context, apiKey, baseURL, model, systemPrompt, ta
 
 		// Execute each tool call and build tool_result blocks.
 		var resultBlocks []anthropic.ContentBlockParamUnion
+		allFailed := true
+		lastToolErrors = lastToolErrors[:0]
 		for _, tu := range toolUseBlocks {
 			totalToolCalls++
 			log.Printf("tool_use [%d]: %s id=%s", totalToolCalls, tu.Name, tu.ID)
 
 			result := executeToolCallWithTelemetry(ctx, tu.Name, string(tu.Input), tu.ID)
 			isErr := strings.HasPrefix(result, "Error:")
+			if isErr {
+				lastToolErrors = append(lastToolErrors, fmt.Sprintf("%s: %s", tu.Name, truncate(result, 200)))
+			} else {
+				allFailed = false
+			}
 			resultBlocks = append(resultBlocks, anthropic.NewToolResultBlock(tu.ID, result, isErr))
 		}
 		messages = append(messages, anthropic.NewUserMessage(resultBlocks...))
+
+		// Circuit breaker: if every tool call errored for N consecutive
+		// iterations, bail early — the model is stuck in a failing loop.
+		if allFailed {
+			consecutiveErrorIterations++
+			log.Printf("WARNING: all %d tool calls failed (consecutive=%d/%d)",
+				len(toolUseBlocks), consecutiveErrorIterations, maxConsecutiveToolErrors)
+			if consecutiveErrorIterations >= maxConsecutiveToolErrors {
+				return "", totalInputTokens, totalOutputTokens, totalToolCalls,
+					fmt.Errorf("aborting: %d consecutive iterations with all tool calls failing — likely a persistent issue. Last errors: %s",
+						consecutiveErrorIterations, strings.Join(lastToolErrors, "; "))
+			}
+		} else {
+			consecutiveErrorIterations = 0
+		}
 	}
 
 	return "", totalInputTokens, totalOutputTokens, totalToolCalls,
@@ -594,6 +653,8 @@ func callOpenAI(ctx context.Context, provider, apiKey, baseURL, model, systemPro
 	totalInputTokens := 0
 	totalOutputTokens := 0
 	totalToolCalls := 0
+	consecutiveErrorIterations := 0
+	var lastToolErrors []string
 
 	for i := 0; i < maxToolIterations; i++ {
 		params := openai.ChatCompletionNewParams{
@@ -645,13 +706,35 @@ func callOpenAI(ctx context.Context, provider, apiKey, baseURL, model, systemPro
 			messages = append(messages, choice.Message.ToParam())
 
 			// Execute each tool call and add results.
+			allFailed := true
+			lastToolErrors = lastToolErrors[:0]
 			for _, tc := range choice.Message.ToolCalls {
 				fc := tc.AsFunction()
 				totalToolCalls++
 				log.Printf("tool_call [%d]: %s id=%s", totalToolCalls, fc.Function.Name, fc.ID)
 
 				result := executeToolCallWithTelemetry(ctx, fc.Function.Name, fc.Function.Arguments, fc.ID)
+				if strings.HasPrefix(result, "Error:") {
+					lastToolErrors = append(lastToolErrors, fmt.Sprintf("%s: %s", fc.Function.Name, truncate(result, 200)))
+				} else {
+					allFailed = false
+				}
 				messages = append(messages, openai.ToolMessage(result, fc.ID))
+			}
+
+			// Circuit breaker: if every tool call errored for N consecutive
+			// iterations, bail early — the model is stuck in a failing loop.
+			if allFailed {
+				consecutiveErrorIterations++
+				log.Printf("WARNING: all %d tool calls failed (consecutive=%d/%d)",
+					len(choice.Message.ToolCalls), consecutiveErrorIterations, maxConsecutiveToolErrors)
+				if consecutiveErrorIterations >= maxConsecutiveToolErrors {
+					return "", totalInputTokens, totalOutputTokens, totalToolCalls,
+						fmt.Errorf("aborting: %d consecutive iterations with all tool calls failing — likely a persistent issue. Last errors: %s",
+							consecutiveErrorIterations, strings.Join(lastToolErrors, "; "))
+				}
+			} else {
+				consecutiveErrorIterations = 0
 			}
 			continue
 		}

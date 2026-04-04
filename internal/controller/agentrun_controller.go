@@ -303,6 +303,13 @@ func (r *AgentRunReconciler) reconcilePending(ctx context.Context, log logr.Logg
 			}
 		}
 		mcpServers = instance.Spec.MCPServers
+
+		// Propagate RunTimeout from instance config to AgentRun spec if not already set.
+		if agentRun.Spec.Timeout == nil && instance.Spec.Agents.Default.RunTimeout != "" {
+			if d, err := time.ParseDuration(instance.Spec.Agents.Default.RunTimeout); err == nil && d > 0 {
+				agentRun.Spec.Timeout = &metav1.Duration{Duration: d}
+			}
+		}
 	}
 
 	// Resolve MCPServer CRs: for any mcpServer entry without a URL,
@@ -1434,6 +1441,13 @@ func (r *AgentRunReconciler) buildContainers(
 		{Name: "MODEL_NAME", Value: agentRun.Spec.Model.Model},
 		{Name: "MODEL_BASE_URL", Value: agentRun.Spec.Model.BaseURL},
 		{Name: "THINKING_MODE", Value: agentRun.Spec.Model.Thinking},
+	}
+
+	// Inject RUN_TIMEOUT from the AgentRun spec or instance config.
+	if agentRun.Spec.Timeout != nil {
+		agentEnv = append(agentEnv, corev1.EnvVar{
+			Name: "RUN_TIMEOUT", Value: agentRun.Spec.Timeout.Duration.String(),
+		})
 	}
 
 	ipcEnv := []corev1.EnvVar{

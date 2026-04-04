@@ -260,6 +260,13 @@ type AgentConfig struct {
 	// +optional
 	Subagents *SubagentsSpec `json:"subagents,omitempty"`
 
+	// RunTimeout is the maximum duration for each agent run (e.g. "30m", "1h").
+	// Defaults to 10 minutes for cloud providers and 30 minutes for local
+	// providers (ollama, lm-studio, vllm). Local models are significantly
+	// slower per request, so the longer default prevents premature timeouts.
+	// +optional
+	RunTimeout string `json:"runTimeout,omitempty"`
+
 	// NodeSelector constrains agent pods to nodes with matching labels.
 	// Used for node-pinned inference (e.g., Ollama installed on specific GPU nodes).
 	// +optional
