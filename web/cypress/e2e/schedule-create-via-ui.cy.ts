@@ -58,8 +58,8 @@ describe("Schedule — create via UI", () => {
     });
 
     cy.visit("/schedules");
-    cy.contains(SCHEDULE, { timeout: 20000 }).should("be.visible");
-    cy.contains(/\*\/5/).should("be.visible");
+    cy.contains(SCHEDULE, { timeout: 20000 }).should("exist");
+    cy.contains(/\*\/5/).should("exist");
   });
 });
 

@@ -28,7 +28,10 @@ declare global {
       /** Delete an instance by name via API (cleanup helper). */
       deleteInstance(name: string): Chainable<void>;
       /** Create a minimal LM Studio SympoziumInstance via API. */
-      createLMStudioInstance(name: string): Chainable<void>;
+      createLMStudioInstance(
+        name: string,
+        opts?: { skills?: string[] },
+      ): Chainable<void>;
       /** Dispatch an ad-hoc run against an instance via API. Returns the created run name. */
       dispatchRun(
         instanceRef: string,
@@ -100,17 +103,21 @@ Cypress.Commands.add("deleteSchedule", (name: string) => {
   });
 });
 
-Cypress.Commands.add("createLMStudioInstance", (name: string) => {
+Cypress.Commands.add("createLMStudioInstance", (name: string, opts) => {
+  const body: Record<string, unknown> = {
+    name,
+    provider: "lm-studio",
+    model: "qwen/qwen3.5-9b",
+    baseURL: "http://host.docker.internal:1234/v1",
+  };
+  if (opts?.skills?.length) {
+    body.skills = opts.skills.map((s) => ({ skillPackRef: s }));
+  }
   cy.request({
     method: "POST",
     url: "/api/v1/instances?namespace=default",
     headers: authHeaders(),
-    body: {
-      name,
-      provider: "lm-studio",
-      model: "qwen/qwen3.5-9b",
-      baseURL: "http://host.docker.internal:1234/v1",
-    },
+    body,
     failOnStatusCode: false,
   }).then((resp) => {
     if (resp.status >= 400 && resp.status !== 409) {

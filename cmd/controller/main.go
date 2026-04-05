@@ -119,6 +119,7 @@ func main() {
 
 	agentRunReconciler := &controller.AgentRunReconciler{
 		Client:          mgr.GetClient(),
+		APIReader:       mgr.GetAPIReader(),
 		Scheme:          mgr.GetScheme(),
 		Log:             ctrl.Log.WithName("controllers").WithName("AgentRun"),
 		PodBuilder:      podBuilder,

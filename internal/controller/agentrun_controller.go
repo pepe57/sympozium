@@ -70,6 +70,10 @@ const DefaultRunHistoryLimit = 50
 // It watches AgentRun CRDs and reconciles them into Kubernetes Jobs/Pods.
 type AgentRunReconciler struct {
 	client.Client
+	// APIReader bypasses the controller cache for reads — needed when we
+	// must see status mutations committed by a concurrent reconcile that
+	// the watch-based cache may not yet have observed.
+	APIReader       client.Reader
 	Scheme          *runtime.Scheme
 	Log             logr.Logger
 	PodBuilder      *orchestrator.PodBuilder
@@ -492,15 +496,26 @@ func (r *AgentRunReconciler) reconcileRunning(ctx context.Context, log logr.Logg
 	}
 	if err := r.Get(ctx, jobName, job); err != nil {
 		if errors.IsNotFound(err) {
-			// Guard against the race where the Job was already deleted (to kill
-			// sidecars) and a concurrent reconcile of startPostRun has already
-			// transitioned the phase to PostRunning or Succeeded. Do a fresh Get
-			// from the API server (not the cache) to check the actual phase before
-			// deciding to fail the run.
+			// Guard against the race where the Job was already deleted (to
+			// kill sidecars) and a concurrent reconcile has already
+			// transitioned the phase to a terminal state. Read with the
+			// non-cached APIReader (the watch cache may not have the
+			// status update yet) — if the run is already terminal, don't
+			// override it with "Job not found".
 			fresh := &sympoziumv1alpha1.AgentRun{}
-			if getErr := r.Get(ctx, client.ObjectKeyFromObject(agentRun), fresh); getErr == nil {
-				if fresh.Status.Phase == sympoziumv1alpha1.AgentRunPhasePostRunning ||
-					fresh.Status.Phase == sympoziumv1alpha1.AgentRunPhaseSucceeded {
+			reader := client.Reader(r.APIReader)
+			if reader == nil {
+				reader = r.Client
+			}
+			if getErr := reader.Get(ctx, client.ObjectKeyFromObject(agentRun), fresh); getErr == nil {
+				switch fresh.Status.Phase {
+				case sympoziumv1alpha1.AgentRunPhaseSucceeded,
+					sympoziumv1alpha1.AgentRunPhaseFailed:
+					// Already terminal — don't override.
+					return ctrl.Result{}, nil
+				case sympoziumv1alpha1.AgentRunPhasePostRunning:
+					// PostRun container is still executing — let the
+					// PostRunning reconcile path handle it.
 					return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 				}
 			}
