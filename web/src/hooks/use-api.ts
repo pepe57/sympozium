@@ -86,7 +86,11 @@ export function usePatchInstance() {
 // ── Runs ─────────────────────────────────────────────────────────────────────
 
 export function useRuns() {
-  return useQuery({ queryKey: ["runs"], queryFn: api.runs.list });
+  return useQuery({
+    queryKey: ["runs"],
+    queryFn: api.runs.list,
+    refetchInterval: 5000,
+  });
 }
 
 export function useRun(name: string) {

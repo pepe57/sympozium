@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { AlertTriangle, Plus, Pencil, Trash2, ExternalLink } from "lucide-react";
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { useRunsSeen } from "@/hooks/use-runs-seen";
 import { formatAge, truncate } from "@/lib/utils";
 import { YamlButton, instanceYamlFromResource } from "@/components/yaml-panel";
 
@@ -49,6 +50,7 @@ export function InstanceDetailPage() {
   const { data: inst, isLoading } = useInstance(name || "");
   const { data: capabilities } = useCapabilities();
   const { data: allRuns } = useRuns();
+  const { isUnseen } = useRunsSeen();
   const instanceRuns = (allRuns || [])
     .filter((r) => r.spec.instanceRef === name)
     .sort((a, b) =>
@@ -178,6 +180,9 @@ export function InstanceDetailPage() {
                       className="flex items-center justify-between rounded-lg border p-3 hover:bg-white/5 transition-colors"
                     >
                       <div className="flex items-center gap-3 min-w-0">
+                        {isUnseen(run) && (
+                          <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" title="New" />
+                        )}
                         <StatusBadge phase={run.status?.phase} />
                         <span className="font-mono text-xs truncate">{run.metadata.name}</span>
                         <span className="text-xs text-muted-foreground truncate max-w-xs hidden sm:inline">

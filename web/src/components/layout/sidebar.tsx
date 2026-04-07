@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRuns } from "@/hooks/use-api";
+import { useRunsSeen } from "@/hooks/use-runs-seen";
 
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; indent?: number; badgeKey?: string };
 type NavSection = { label?: string; items: NavItem[] };
@@ -55,18 +56,18 @@ interface AppSidebarProps {
 
 export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
   const { data: runs } = useRuns();
-  const activeRuns = (runs || []).filter(
-    (r) => r.status?.phase === "Running" || r.status?.phase === "Pending" || r.status?.phase === "PostRunning"
-  ).length;
-  const failedRuns = (runs || []).filter(
-    (r) => r.status?.phase === "Failed"
-  ).length;
+  const { unseenCount } = useRunsSeen();
+  const allRuns = runs || [];
+  const unseen = unseenCount(allRuns);
+  const unseenFailed = unseenCount(
+    allRuns.filter((r) => r.status?.phase === "Failed"),
+  );
 
   const badges: Record<string, { count: number; color: string } | null> = {
-    runs: activeRuns > 0
-      ? { count: activeRuns, color: "bg-blue-500" }
-      : failedRuns > 0
-        ? { count: failedRuns, color: "bg-red-500" }
+    runs: unseenFailed > 0
+      ? { count: unseenFailed, color: "bg-red-500" }
+      : unseen > 0
+        ? { count: unseen, color: "bg-blue-500" }
         : null,
   };
 

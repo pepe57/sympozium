@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -15,11 +16,20 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Clock, Cpu, Zap, AlertTriangle } from "lucide-react";
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { useRunsSeen } from "@/hooks/use-runs-seen";
 import { formatAge } from "@/lib/utils";
 
 export function RunDetailPage() {
   const { name } = useParams<{ name: string }>();
   const { data: run, isLoading } = useRun(name || "");
+  const { markSeenUpTo } = useRunsSeen();
+
+  // Mark this run as seen when viewing its detail page.
+  useEffect(() => {
+    if (run?.metadata.creationTimestamp) {
+      markSeenUpTo(run.metadata.creationTimestamp);
+    }
+  }, [run?.metadata.creationTimestamp, markSeenUpTo]);
 
   if (isLoading) {
     return (

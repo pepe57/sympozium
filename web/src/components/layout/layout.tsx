@@ -3,10 +3,12 @@ import { Outlet } from "react-router-dom";
 import { AppSidebar } from "./sidebar";
 import { Header } from "./header";
 import { FeedPane } from "@/components/feed-pane";
+import { useRunNotifications } from "@/hooks/use-run-notifications";
 
 export function Layout() {
   const [feedOpen, setFeedOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  useRunNotifications();
 
   return (
     <div className="flex h-screen overflow-hidden">

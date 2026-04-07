@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
   useRuns,
@@ -39,6 +39,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Trash2, ExternalLink } from "lucide-react";
 import { formatAge, truncate } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useRunsSeen } from "@/hooks/use-runs-seen";
 
 export function RunsPage() {
   const { data, isLoading } = useRuns();
@@ -48,12 +49,22 @@ export function RunsPage() {
   const createRun = useCreateRun();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const { isUnseen, markAllSeen } = useRunsSeen();
+  const markedRef = useRef(false);
   const [form, setForm] = useState({
     instanceRef: "",
     task: "",
     model: "",
     timeout: "5m",
   });
+
+  // Mark all runs as seen after a short delay so "new" dots are visible briefly.
+  useEffect(() => {
+    if (markedRef.current || isLoading || !data) return;
+    markedRef.current = true;
+    const timer = setTimeout(markAllSeen, 2000);
+    return () => clearTimeout(timer);
+  }, [isLoading, data, markAllSeen]);
 
   const sorted = (data || []).sort(
     (a, b) =>
@@ -288,6 +299,9 @@ export function RunsPage() {
                     to={`/runs/${run.metadata.name}`}
                     className="hover:text-primary flex items-center gap-1"
                   >
+                    {isUnseen(run) && (
+                      <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" title="New" />
+                    )}
                     {truncate(run.metadata.name, 32)}
                     <ExternalLink className="h-3 w-3 opacity-50" />
                   </Link>
