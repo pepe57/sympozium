@@ -3541,7 +3541,7 @@ func hasResponseGateHook(agentRun *sympoziumv1alpha1.AgentRun) bool {
 // gateVerdict represents the JSON payload a gate hook writes to the
 // sympozium.ai/gate-verdict annotation on the AgentRun CR.
 type gateVerdict struct {
-	Action   string `json:"action"`            // approve, reject, rewrite
+	Action   string `json:"action"`             // approve, reject, rewrite
 	Response string `json:"response,omitempty"` // replacement text for reject/rewrite
 	Reason   string `json:"reason,omitempty"`   // audit trail
 }

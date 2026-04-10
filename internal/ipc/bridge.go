@@ -32,12 +32,12 @@ const (
 
 // Bridge is the IPC bridge sidecar process.
 type Bridge struct {
-	BasePath       string // Root IPC path (e.g., /ipc)
-	AgentRunID     string
-	InstanceName   string
-	EventBus       eventbus.EventBus
-	Log            logr.Logger
-	Watcher        *Watcher
+	BasePath           string // Root IPC path (e.g., /ipc)
+	AgentRunID         string
+	InstanceName       string
+	EventBus           eventbus.EventBus
+	Log                logr.Logger
+	Watcher            *Watcher
 	agentDone          chan struct{} // signalled when result.json is received
 	processedFiles     sync.Map      // dedup fsnotify Create+Write for the same file
 	SuppressCompletion bool          // when true, do not publish TopicAgentRunCompleted (gate mode)
