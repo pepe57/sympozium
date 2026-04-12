@@ -64,7 +64,7 @@ func init() {
 // (single-GPU, request queuing) where per-request timeouts matter.
 func isLocalProvider(provider string) bool {
 	switch provider {
-	case "ollama", "lm-studio", "unsloth", "vllm", "llamacpp", "local":
+	case "ollama", "lm-studio", "llama-server", "unsloth", "vllm", "llamacpp", "local":
 		return true
 	}
 	return false

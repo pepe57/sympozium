@@ -179,6 +179,7 @@ export function InstancesPage() {
                     const base = inst.spec.agents?.default?.baseURL || "";
                     if (base.includes("ollama") || base.includes(":11434")) return "ollama";
                     if (base.includes("lm-studio") || base.includes(":1234")) return "lm-studio";
+                    if (base.includes("llama-server")) return "llama-server";
                     if (base.includes("unsloth") || base.includes(":8080")) return "unsloth";
                     if (base) return "custom";
                     return "—";

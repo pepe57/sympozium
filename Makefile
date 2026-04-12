@@ -208,7 +208,7 @@ web-clean: ## Remove frontend build artifacts
 
 SYMPOZIUM_TOKEN ?= $(shell t=$$(kubectl get secret -n sympozium-system -l app.kubernetes.io/component=apiserver -o jsonpath='{.items[0].data.token}' 2>/dev/null | base64 -d 2>/dev/null); [ -n "$$t" ] && echo "$$t" || echo dev-token)
 SYMPOZIUM_NAMESPACE ?= sympozium-system
-API_ADDR ?= :8080
+API_ADDR ?= :8081
 VITE_PORT ?= 5173
 
 API_LOCAL_PORT ?= 8081

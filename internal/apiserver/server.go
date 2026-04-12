@@ -816,6 +816,8 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 			provider = "ollama"
 		} else if strings.Contains(inst.Spec.Agents.Default.BaseURL, "lm-studio") || strings.Contains(inst.Spec.Agents.Default.BaseURL, ":1234") {
 			provider = "lm-studio"
+		} else if strings.Contains(inst.Spec.Agents.Default.BaseURL, "llama-server") {
+			provider = "llama-server"
 		} else {
 			provider = "custom"
 		}
@@ -1766,6 +1768,8 @@ func defaultProviderBaseURL(provider string) string {
 		return "http://ollama.default.svc:11434/v1"
 	case "lm-studio":
 		return "http://localhost:1234/v1"
+	case "llama-server":
+		return "http://localhost:8080/v1"
 	default:
 		return ""
 	}

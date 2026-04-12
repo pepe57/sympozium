@@ -616,9 +616,10 @@ func runOnboard() error {
 	fmt.Println("    3) Azure OpenAI")
 	fmt.Println("    4) Ollama          (local, no API key needed)")
 	fmt.Println("    5) LM Studio       (local, optional API key)")
-	fmt.Println("    6) AWS Bedrock     (Claude, Nova, etc.)")
-	fmt.Println("    7) Other / OpenAI-compatible")
-	providerChoice := prompt(reader, "  Choice [1-7]", "1")
+	fmt.Println("    6) llama-server    (local, no API key needed)")
+	fmt.Println("    7) AWS Bedrock     (Claude, Nova, etc.)")
+	fmt.Println("    8) Other / OpenAI-compatible")
+	providerChoice := prompt(reader, "  Choice [1-8]", "1")
 
 	var providerName, secretEnvKey, modelName, baseURL string
 	switch providerChoice {
@@ -644,6 +645,12 @@ func runOnboard() error {
 		modelName = prompt(reader, "  Model name", "")
 		fmt.Println("  💡 No API key needed for LM Studio.")
 	case "6":
+		providerName = "llama-server"
+		secretEnvKey = ""
+		baseURL = prompt(reader, "  llama-server URL", "http://localhost:8080/v1")
+		modelName = prompt(reader, "  Model name", "")
+		fmt.Println("  💡 No API key needed for llama-server.")
+	case "7":
 		providerName = "bedrock"
 		secretEnvKey = "" // Bedrock uses multiple AWS credential keys, handled below.
 		awsRegion := prompt(reader, "  AWS Region", "us-east-1")
@@ -675,7 +682,7 @@ func runOnboard() error {
 		if err := kubectl(args...); err != nil {
 			return fmt.Errorf("create Bedrock provider secret: %w", err)
 		}
-	case "7":
+	case "8":
 		providerName = prompt(reader, "  Provider name", "custom")
 		secretEnvKey = prompt(reader, "  API key env var name (empty if none)", "API_KEY")
 		baseURL = prompt(reader, "  API base URL", "")
@@ -1823,6 +1830,7 @@ var providerSuggestions = []suggestion{
 	{"anthropic", "Anthropic (Claude)"},
 	{"azure-openai", "Azure OpenAI Service"},
 	{"ollama", "Ollama (local)"},
+	{"llama-server", "llama-server (llama.cpp local)"},
 	{"bedrock", "AWS Bedrock (Claude, Nova, etc.)"},
 	{"openai-compatible", "OpenAI-compatible endpoint"},
 }
@@ -2206,6 +2214,7 @@ const (
 	wizStepWhatsAppQR                        // auto — stream QR from pod logs
 	wizStepDone                              // auto — show result
 	wizStepLMStudioAPIKeyRequired            // y/n: LM Studio requires API key?
+	wizStepLlamaServerAPIKeyRequired         // y/n: llama-server requires API key?
 	wizStepAWSRegion                         // text: AWS region for Bedrock
 	wizStepAWSAccessKeyID                    // text: AWS Access Key ID
 	wizStepAWSSecretAccessKey                // text: AWS Secret Access Key
@@ -2215,7 +2224,8 @@ const (
 	wizStepPersonaPick                   // menu: select a persona pack
 	wizStepPersonaProvider               // menu 1-6: provider
 	wizStepPersonaBaseURL                // text: base URL
-	wizStepPersonaLMStudioAPIKeyRequired // y/n: LM Studio requires API key?
+	wizStepPersonaLMStudioAPIKeyRequired     // y/n: LM Studio requires API key?
+	wizStepPersonaLlamaServerAPIKeyRequired  // y/n: llama-server requires API key?
 	wizStepPersonaAPIKey                 // text: API key
 	wizStepPersonaModel                  // text: model name
 	wizStepPersonaGithubRepo             // text: GitHub repo (owner/repo)
@@ -6042,6 +6052,9 @@ func resolveInstanceProvider(inst sympoziumv1alpha1.SympoziumInstance) string {
 		if strings.Contains(u, "lm-studio") || strings.Contains(u, ":1234") {
 			return "lm-studio"
 		}
+		if strings.Contains(u, "llama-server") {
+			return "llama-server"
+		}
 		return "custom"
 	}
 	return "-"
@@ -8019,6 +8032,8 @@ func tuiCreateRun(ns, instance, task string) (string, error) {
 			provider = "ollama"
 		} else if strings.Contains(inst.Spec.Agents.Default.BaseURL, "lm-studio") || strings.Contains(inst.Spec.Agents.Default.BaseURL, ":1234") {
 			provider = "lm-studio"
+		} else if strings.Contains(inst.Spec.Agents.Default.BaseURL, "llama-server") {
+			provider = "llama-server"
 		} else {
 			provider = "custom"
 		}
@@ -8692,7 +8707,7 @@ func (m tuiModel) advanceWizard(val string) (tea.Model, tea.Cmd) {
 		}
 		w.instanceName = val
 		w.step = wizStepProvider
-		m.input.Placeholder = "Choice [1-7] (default: 1 — OpenAI)"
+		m.input.Placeholder = "Choice [1-8] (default: 1 — OpenAI)"
 		return m, nil
 
 	case wizStepProvider:
@@ -8727,12 +8742,18 @@ func (m tuiModel) advanceWizard(val string) (tea.Model, tea.Cmd) {
 			m.input.Placeholder = "LM Studio URL (default: http://localhost:1234/v1)"
 			return m, nil
 		case "6":
+			w.providerName = "llama-server"
+			w.secretEnvKey = ""
+			w.step = wizStepBaseURL
+			m.input.Placeholder = "llama-server URL (default: http://localhost:8080/v1)"
+			return m, nil
+		case "7":
 			w.providerName = "bedrock"
 			w.secretEnvKey = ""
 			w.step = wizStepAWSRegion
 			m.input.Placeholder = "AWS Region (default: us-east-1)"
 			return m, nil
-		case "7":
+		case "8":
 			w.providerName = "custom"
 			w.secretEnvKey = "API_KEY"
 			w.step = wizStepBaseURL
@@ -8754,11 +8775,20 @@ func (m tuiModel) advanceWizard(val string) (tea.Model, tea.Cmd) {
 		if val == "" && w.providerName == "lm-studio" {
 			val = "http://localhost:1234/v1"
 		}
+		if val == "" && w.providerName == "llama-server" {
+			val = "http://localhost:8080/v1"
+		}
 		w.baseURL = val
 		if w.providerName == "lm-studio" {
 			// LM Studio — ask if API key is required.
 			w.step = wizStepLMStudioAPIKeyRequired
 			m.input.Placeholder = "Does LM Studio require an API key? [Y/n]"
+			return m, nil
+		}
+		if w.providerName == "llama-server" {
+			// llama-server — ask if API key is required.
+			w.step = wizStepLlamaServerAPIKeyRequired
+			m.input.Placeholder = "Does llama-server require an API key? [Y/n]"
 			return m, nil
 		}
 		if w.secretEnvKey == "" {
@@ -8782,6 +8812,21 @@ func (m tuiModel) advanceWizard(val string) (tea.Model, tea.Cmd) {
 		default:
 			// User skips API key - show warning
 			m.addLog(tuiErrorStyle.Render("⚠  Warning: Ensure your LM Studio server is running without authentication"))
+			w.step = wizStepModel
+			m.input.Placeholder = "Model name (default: llama3)"
+		}
+		return m, nil
+
+	case wizStepLlamaServerAPIKeyRequired:
+		w.step = wizStepModel // default fallback
+		switch strings.ToLower(val) {
+		case "y", "yes":
+			w.secretEnvKey = "API_KEY"
+			w.step = wizStepAPIKey
+			m.input.Placeholder = "Please enter the API key for llama-server:"
+		default:
+			// User skips API key - show warning
+			m.addLog(tuiErrorStyle.Render("⚠  Warning: Ensure your llama-server is running without authentication"))
 			w.step = wizStepModel
 			m.input.Placeholder = "Model name (default: llama3)"
 		}
@@ -9069,7 +9114,7 @@ func (m tuiModel) advanceWizard(val string) (tea.Model, tea.Cmd) {
 		}
 
 		w.step = wizStepPersonaProvider
-		m.input.Placeholder = "Choice [1-7] (default: 1 — OpenAI)"
+		m.input.Placeholder = "Choice [1-8] (default: 1 — OpenAI)"
 		return m, nil
 
 	case wizStepPersonaProvider:
@@ -9103,12 +9148,18 @@ func (m tuiModel) advanceWizard(val string) (tea.Model, tea.Cmd) {
 			m.input.Placeholder = "LM Studio URL (default: http://localhost:1234/v1)"
 			return m, nil
 		case "6":
+			w.providerName = "llama-server"
+			w.secretEnvKey = ""
+			w.step = wizStepPersonaBaseURL
+			m.input.Placeholder = "llama-server URL (default: http://localhost:8080/v1)"
+			return m, nil
+		case "7":
 			w.providerName = "bedrock"
 			w.secretEnvKey = ""
 			w.step = wizStepAWSRegion
 			m.input.Placeholder = "AWS Region (default: us-east-1)"
 			return m, nil
-		case "7":
+		case "8":
 			w.providerName = "custom"
 			w.secretEnvKey = "API_KEY"
 			w.step = wizStepPersonaBaseURL
@@ -9129,11 +9180,20 @@ func (m tuiModel) advanceWizard(val string) (tea.Model, tea.Cmd) {
 		if val == "" && w.providerName == "lm-studio" {
 			val = "http://localhost:1234/v1"
 		}
+		if val == "" && w.providerName == "llama-server" {
+			val = "http://localhost:8080/v1"
+		}
 		w.baseURL = val
 		if w.providerName == "lm-studio" {
 			// LM Studio — ask if API key is required.
 			w.step = wizStepPersonaLMStudioAPIKeyRequired
 			m.input.Placeholder = "Does LM Studio require an API key? [Y/n]"
+			return m, nil
+		}
+		if w.providerName == "llama-server" {
+			// llama-server — ask if API key is required.
+			w.step = wizStepPersonaLlamaServerAPIKeyRequired
+			m.input.Placeholder = "Does llama-server require an API key? [Y/n]"
 			return m, nil
 		}
 		if w.secretEnvKey == "" {
@@ -9156,6 +9216,21 @@ func (m tuiModel) advanceWizard(val string) (tea.Model, tea.Cmd) {
 		default:
 			// User skips API key - show warning
 			m.addLog(tuiErrorStyle.Render("⚠  Warning: Ensure your LM Studio server is running without authentication"))
+			w.step = wizStepPersonaModel
+			m.input.Placeholder = "Model name (default: llama3)"
+		}
+		return m, nil
+
+	case wizStepPersonaLlamaServerAPIKeyRequired:
+		w.step = wizStepPersonaModel // default fallback
+		switch strings.ToLower(val) {
+		case "y", "yes":
+			w.secretEnvKey = "API_KEY"
+			w.step = wizStepPersonaAPIKey
+			m.input.Placeholder = "Please enter the API key for llama-server:"
+		default:
+			// User skips API key - show warning
+			m.addLog(tuiErrorStyle.Render("⚠  Warning: Ensure your llama-server is running without authentication"))
 			w.step = wizStepPersonaModel
 			m.input.Placeholder = "Model name (default: llama3)"
 		}
@@ -9492,8 +9567,9 @@ func (m tuiModel) renderWizardPanel(h int) string {
 		lines = append(lines, menuNumStyle.Render("  3)")+menuStyle.Render(" Azure OpenAI"))
 		lines = append(lines, menuNumStyle.Render("  4)")+menuStyle.Render(" Ollama          (local, no API key needed)"))
 		lines = append(lines, menuNumStyle.Render("  5)")+menuStyle.Render(" LM Studio       (local, optional API key)"))
-		lines = append(lines, menuNumStyle.Render("  6)")+menuStyle.Render(" AWS Bedrock     (Claude, Nova, etc.)"))
-		lines = append(lines, menuNumStyle.Render("  7)")+menuStyle.Render(" Other / OpenAI-compatible"))
+		lines = append(lines, menuNumStyle.Render("  6)")+menuStyle.Render(" llama-server    (local, no API key needed)"))
+		lines = append(lines, menuNumStyle.Render("  7)")+menuStyle.Render(" AWS Bedrock     (Claude, Nova, etc.)"))
+		lines = append(lines, menuNumStyle.Render("  8)")+menuStyle.Render(" Other / OpenAI-compatible"))
 
 	case wizStepBaseURL:
 		lines = append(lines, stepStyle.Render("  📋 Step 3/9 — AI Provider (continued)"))
@@ -9873,8 +9949,9 @@ func (m tuiModel) renderPersonaWizardPanel(h int,
 		lines = append(lines, menuNumStyle.Render("  [3]")+menuStyle.Render(" Azure OpenAI")+hintStyle.Render(" — Enterprise Azure"))
 		lines = append(lines, menuNumStyle.Render("  [4]")+menuStyle.Render(" Ollama")+hintStyle.Render(" — Local models"))
 		lines = append(lines, menuNumStyle.Render("  [5]")+menuStyle.Render(" LM Studio")+hintStyle.Render(" — Local models"))
-		lines = append(lines, menuNumStyle.Render("  [6]")+menuStyle.Render(" AWS Bedrock")+hintStyle.Render(" — Claude, Nova, etc."))
-		lines = append(lines, menuNumStyle.Render("  [7]")+menuStyle.Render(" Custom")+hintStyle.Render(" — Any OpenAI-compatible API"))
+		lines = append(lines, menuNumStyle.Render("  [6]")+menuStyle.Render(" llama-server")+hintStyle.Render(" — Local models (llama.cpp)"))
+		lines = append(lines, menuNumStyle.Render("  [7]")+menuStyle.Render(" AWS Bedrock")+hintStyle.Render(" — Claude, Nova, etc."))
+		lines = append(lines, menuNumStyle.Render("  [8]")+menuStyle.Render(" Custom")+hintStyle.Render(" — Any OpenAI-compatible API"))
 		lines = append(lines, "")
 
 	case wizStepPersonaBaseURL:

@@ -53,6 +53,7 @@ export const PROVIDERS = [
   { value: "azure-openai", label: "Azure OpenAI", defaultModel: "gpt-4o", defaultBaseURL: "" },
   { value: "ollama", label: "Ollama", defaultModel: "llama3", defaultBaseURL: "http://ollama.default.svc:11434/v1" },
   { value: "lm-studio", label: "LM Studio", defaultModel: "", defaultBaseURL: "http://localhost:1234/v1" },
+  { value: "llama-server", label: "llama-server", defaultModel: "", defaultBaseURL: "http://localhost:8080/v1" },
   { value: "unsloth", label: "Unsloth", defaultModel: "", defaultBaseURL: "http://localhost:8080/v1" },
   { value: "bedrock", label: "AWS Bedrock", defaultModel: "anthropic.claude-sonnet-4-20250514-v1:0", defaultBaseURL: "" },
   { value: "custom", label: "Custom", defaultModel: "", defaultBaseURL: "" },
@@ -341,7 +342,7 @@ export function OnboardingWizard({
   const [showYaml, setShowYaml] = useState(false);
   const { data: capabilities } = useCapabilities();
 
-  const isLocalProvider = form.provider === "ollama" || form.provider === "lm-studio" || form.provider === "unsloth" || form.provider === "custom";
+  const isLocalProvider = form.provider === "ollama" || form.provider === "lm-studio" || form.provider === "llama-server" || form.provider === "unsloth" || form.provider === "custom";
   // Unsloth is served via llama.cpp's llama-server or vLLM, both of which
   // are already probed by node-probe under their own target names. When the
   // user picks "unsloth" in the UI, match nodes that expose either of those.
@@ -349,6 +350,9 @@ export function OnboardingWizard({
     if (form.provider === "custom") return true;
     if (form.provider === "unsloth") {
       return probeName === "unsloth" || probeName === "llama-cpp" || probeName === "vllm";
+    }
+    if (form.provider === "llama-server") {
+      return probeName === "llama-cpp";
     }
     return probeName === form.provider;
   };
@@ -365,7 +369,7 @@ export function OnboardingWizard({
       case "provider":
         return !!form.provider;
       case "apikey":
-        if (form.provider === "ollama" || form.provider === "lm-studio" || form.provider === "unsloth") return true;
+        if (form.provider === "ollama" || form.provider === "lm-studio" || form.provider === "llama-server" || form.provider === "unsloth") return true;
         if (form.provider === "bedrock") return !!form.secretName || !!form.awsRegion;
         return !!form.secretName || !!form.apiKey;
       case "model":
@@ -691,6 +695,7 @@ export function OnboardingWizard({
             {form.provider !== "bedrock" &&
               form.provider !== "ollama" &&
               form.provider !== "lm-studio" &&
+              form.provider !== "llama-server" &&
               form.provider !== "unsloth" && (
               <div className="space-y-2">
                 <Label>API Key</Label>

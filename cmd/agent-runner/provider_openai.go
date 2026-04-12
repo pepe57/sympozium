@@ -61,6 +61,8 @@ func newOpenAIProvider(provider, apiKey, baseURL, model, systemPrompt, task stri
 			opts = append(opts, openaioption.WithBaseURL("http://ollama.default.svc:11434/v1"))
 		} else if provider == "lm-studio" {
 			opts = append(opts, openaioption.WithBaseURL("http://localhost:1234/v1"))
+		} else if provider == "llama-server" {
+			opts = append(opts, openaioption.WithBaseURL("http://localhost:8080/v1"))
 		} else if provider == "unsloth" {
 			opts = append(opts, openaioption.WithBaseURL("http://localhost:8080/v1"))
 		}

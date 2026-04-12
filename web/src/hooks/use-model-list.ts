@@ -101,7 +101,7 @@ export function useModelList(
   baseURL?: string,
   bedrockCredentials?: BedrockCredentials,
 ) {
-  const isLocalProvider = provider === "ollama" || provider === "lm-studio" || provider === "unsloth" || provider === "custom";
+  const isLocalProvider = provider === "ollama" || provider === "lm-studio" || provider === "llama-server" || provider === "unsloth" || provider === "custom";
   const canFetchLocal = isLocalProvider && !!baseURL;
   const canFetchCloud = !!apiKey && (provider === "openai" || provider === "anthropic");
   const canFetchBedrock =

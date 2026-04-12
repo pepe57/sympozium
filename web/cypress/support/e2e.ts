@@ -32,6 +32,11 @@ declare global {
         name: string,
         opts?: { skills?: string[] },
       ): Chainable<void>;
+      /** Create a minimal llama-server SympoziumInstance via API. */
+      createLlamaServerInstance(
+        name: string,
+        opts?: { skills?: string[] },
+      ): Chainable<void>;
       /** Dispatch an ad-hoc run against an instance via API. Returns the created run name. */
       dispatchRun(
         instanceRef: string,
@@ -123,6 +128,31 @@ Cypress.Commands.add("createLMStudioInstance", (name: string, opts) => {
     if (resp.status >= 400 && resp.status !== 409) {
       throw new Error(
         `createLMStudioInstance failed (${resp.status}): ${JSON.stringify(resp.body)}`,
+      );
+    }
+  });
+});
+
+Cypress.Commands.add("createLlamaServerInstance", (name: string, opts) => {
+  const body: Record<string, unknown> = {
+    name,
+    provider: "llama-server",
+    model: "default",
+    baseURL: "http://host.docker.internal:8080/v1",
+  };
+  if (opts?.skills?.length) {
+    body.skills = opts.skills.map((s) => ({ skillPackRef: s }));
+  }
+  cy.request({
+    method: "POST",
+    url: "/api/v1/instances?namespace=default",
+    headers: authHeaders(),
+    body,
+    failOnStatusCode: false,
+  }).then((resp) => {
+    if (resp.status >= 400 && resp.status !== 409) {
+      throw new Error(
+        `createLlamaServerInstance failed (${resp.status}): ${JSON.stringify(resp.body)}`,
       );
     }
   });
