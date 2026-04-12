@@ -82,6 +82,7 @@ Sympozium takes the agentic control model and rebuilds it on Kubernetes primitiv
 | [Writing Tools](guides/writing-tools.md) | Add new tools to the agent runner |
 | [Ollama & Local Inference](guides/ollama.md) | Node-based and in-cluster Ollama setup with auto-discovery |
 | [LM Studio](guides/lm-studio.md) | Local GGUF model serving with desktop GUI |
+| [llama-server](guides/llama-server.md) | llama.cpp server with full GPU control and node auto-discovery |
 | [Unsloth](guides/unsloth.md) | Fine-tuned models served via llama.cpp or vLLM |
 | [AWS Bedrock](guides/aws-bedrock.md) | Amazon Bedrock setup with Claude, Nova, and other foundation models |
 
