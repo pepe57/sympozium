@@ -1452,6 +1452,8 @@ type PatchPersonaPackRequest struct {
 	Personas             []PersonaPatchSpec                                 `json:"personas,omitempty"`
 	ChannelAccessControl map[string]*sympoziumv1alpha1.ChannelAccessControl `json:"channelAccessControl,omitempty"`
 	AgentSandbox         *sympoziumv1alpha1.AgentSandboxInstanceSpec        `json:"agentSandbox,omitempty"`
+	Relationships        []sympoziumv1alpha1.PersonaRelationship            `json:"relationships,omitempty"`
+	WorkflowType         string                                             `json:"workflowType,omitempty"`
 }
 
 // PersonaPatchSpec allows partial updates to individual personas by name.
@@ -1635,6 +1637,14 @@ func (s *Server) patchPersonaPack(w http.ResponseWriter, r *http.Request) {
 
 	if req.AgentSandbox != nil {
 		pp.Spec.AgentSandbox = req.AgentSandbox
+	}
+
+	if req.Relationships != nil {
+		pp.Spec.Relationships = req.Relationships
+	}
+
+	if req.WorkflowType != "" {
+		pp.Spec.WorkflowType = req.WorkflowType
 	}
 
 	// Store GitHub token as a cluster secret when provided inline.

@@ -59,6 +59,15 @@ type SpawnRequest struct {
 	Skills []sympoziumv1alpha1.SkillRef `json:"skills,omitempty"`
 
 	ImagePullSecrets []corev1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
+
+	// TargetPersona is the name of a persona within the same PersonaPack.
+	// When set (along with PackName), the spawner resolves it to the
+	// correct SympoziumInstance, overriding InstanceName.
+	TargetPersona string `json:"targetPersona,omitempty"`
+
+	// PackName is the PersonaPack that owns both the parent and target personas.
+	// Required when TargetPersona is set.
+	PackName string `json:"packName,omitempty"`
 }
 
 // SpawnResult is the result of a spawn operation.
@@ -72,6 +81,16 @@ type SpawnResult struct {
 
 // Spawn creates a new AgentRun CR for a sub-agent.
 func (s *Spawner) Spawn(ctx context.Context, req SpawnRequest) (*SpawnResult, error) {
+	// Resolve persona-targeted delegation: look up the PersonaPack to find
+	// the target persona's installed instance name.
+	if req.TargetPersona != "" && req.PackName != "" {
+		resolved, err := s.resolvePersonaTarget(ctx, req)
+		if err != nil {
+			return &SpawnResult{Error: err.Error()}, err
+		}
+		req = resolved
+	}
+
 	ctx, span := spawnerTracer.Start(ctx, "sympozium.pod.create",
 		trace.WithAttributes(
 			attribute.String("parent.run", req.ParentRunName),
@@ -80,6 +99,13 @@ func (s *Spawner) Spawn(ctx context.Context, req SpawnRequest) (*SpawnResult, er
 		),
 	)
 	defer span.End()
+
+	if req.TargetPersona != "" {
+		span.SetAttributes(
+			attribute.String("target.persona", req.TargetPersona),
+			attribute.String("pack.name", req.PackName),
+		)
+	}
 
 	log := s.Log.WithValues(
 		"parentRun", req.ParentRunName,
@@ -135,4 +161,80 @@ func (s *Spawner) Spawn(ctx context.Context, req SpawnRequest) (*SpawnResult, er
 	}
 
 	return &SpawnResult{RunName: runName}, nil
+}
+
+// resolvePersonaTarget looks up a PersonaPack to find the SympoziumInstance
+// that corresponds to the requested target persona. It also inherits the
+// target persona's system prompt, skills, and model if not already set.
+func (s *Spawner) resolvePersonaTarget(ctx context.Context, req SpawnRequest) (SpawnRequest, error) {
+	var pack sympoziumv1alpha1.PersonaPack
+	if err := s.Client.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: req.PackName}, &pack); err != nil {
+		return req, fmt.Errorf("PersonaPack %q not found: %w", req.PackName, err)
+	}
+
+	// Find the target persona's installed instance.
+	var targetInstanceName string
+	for _, ip := range pack.Status.InstalledPersonas {
+		if ip.Name == req.TargetPersona {
+			targetInstanceName = ip.InstanceName
+			break
+		}
+	}
+	if targetInstanceName == "" {
+		return req, fmt.Errorf("persona %q not found or not installed in PersonaPack %q", req.TargetPersona, req.PackName)
+	}
+
+	// Validate that a relationship edge exists between the personas.
+	if len(pack.Spec.Relationships) > 0 {
+		// Determine the source persona from the parent's instance name.
+		var sourcePersona string
+		for _, ip := range pack.Status.InstalledPersonas {
+			if ip.InstanceName == req.InstanceName {
+				sourcePersona = ip.Name
+				break
+			}
+		}
+		if sourcePersona != "" {
+			edgeExists := false
+			for _, rel := range pack.Spec.Relationships {
+				if rel.Source == sourcePersona && rel.Target == req.TargetPersona &&
+					(rel.Type == "delegation" || rel.Type == "sequential") {
+					edgeExists = true
+					break
+				}
+			}
+			if !edgeExists {
+				return req, fmt.Errorf("no delegation or sequential relationship from %q to %q in PersonaPack %q",
+					sourcePersona, req.TargetPersona, req.PackName)
+			}
+		}
+	}
+
+	req.InstanceName = targetInstanceName
+
+	// Inherit system prompt and skills from the target persona spec if not
+	// explicitly provided in the spawn request.
+	for _, p := range pack.Spec.Personas {
+		if p.Name == req.TargetPersona {
+			if req.SystemPrompt == "" {
+				req.SystemPrompt = p.SystemPrompt
+			}
+			if len(req.Skills) == 0 && len(p.Skills) > 0 {
+				skills := make([]sympoziumv1alpha1.SkillRef, len(p.Skills))
+				for i, sk := range p.Skills {
+					skills[i] = sympoziumv1alpha1.SkillRef{SkillPackRef: sk}
+				}
+				req.Skills = skills
+			}
+			break
+		}
+	}
+
+	s.Log.Info("Resolved persona target",
+		"pack", req.PackName,
+		"targetPersona", req.TargetPersona,
+		"resolvedInstance", targetInstanceName,
+	)
+
+	return req, nil
 }

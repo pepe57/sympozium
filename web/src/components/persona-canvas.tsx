@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState } from "react";
 import {
   ReactFlow,
   Background,
@@ -7,15 +7,19 @@ import {
   type Node,
   type Edge,
   type NodeProps,
+  type Connection,
   Handle,
   Position,
   useNodesState,
   useEdgesState,
   MarkerType,
+  addEdge,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Badge } from "@/components/ui/badge";
-import { useRuns } from "@/hooks/use-api";
+import { Button } from "@/components/ui/button";
+import { useRuns, usePatchPersonaPackRelationships } from "@/hooks/use-api";
+import { Save, Plus, Trash2 } from "lucide-react";
 import type {
   PersonaPack,
   PersonaSpec,
@@ -100,6 +104,8 @@ const nodeTypes = { persona: PersonaNode };
 
 // ── Edge styling ────────────────────────────────────────────────────────────
 
+const EDGE_TYPES = ["delegation", "sequential", "supervision"] as const;
+
 const edgeStyles: Record<string, { stroke: string; strokeDasharray?: string }> = {
   delegation: { stroke: "#3b82f6" },
   sequential: { stroke: "#f59e0b", strokeDasharray: "6 3" },
@@ -115,8 +121,6 @@ const edgeLabels: Record<string, string> = {
 // ── Layout helper ───────────────────────────────────────────────────────────
 
 function layoutNodes(personas: PersonaSpec[], relationships: PersonaRelationship[]): Node<PersonaNodeData>[] {
-  // Simple grid layout with relationship-aware ordering.
-  // Personas with only outgoing edges go to the top; only incoming to the bottom.
   const outDegree = new Map<string, number>();
   const inDegree = new Map<string, number>();
   for (const r of relationships) {
@@ -124,7 +128,6 @@ function layoutNodes(personas: PersonaSpec[], relationships: PersonaRelationship
     inDegree.set(r.target, (inDegree.get(r.target) || 0) + 1);
   }
 
-  // Sort: higher out-degree first (sources at top), then by name
   const sorted = [...personas].sort((a, b) => {
     const aScore = (outDegree.get(a.name) || 0) - (inDegree.get(a.name) || 0);
     const bScore = (outDegree.get(b.name) || 0) - (inDegree.get(b.name) || 0);
@@ -147,22 +150,85 @@ function layoutNodes(personas: PersonaSpec[], relationships: PersonaRelationship
   }));
 }
 
-function buildEdges(relationships: PersonaRelationship[]): Edge[] {
-  return relationships.map((rel, i) => {
-    const style = edgeStyles[rel.type] || edgeStyles.delegation;
-    return {
-      id: `e-${i}-${rel.source}-${rel.target}`,
-      source: rel.source,
-      target: rel.target,
-      label: edgeLabels[rel.type] || rel.type,
-      style,
-      markerEnd: rel.type !== "supervision"
+function styledEdge(
+  id: string,
+  source: string,
+  target: string,
+  relType: string,
+): Edge {
+  const style = edgeStyles[relType] || edgeStyles.delegation;
+  return {
+    id,
+    source,
+    target,
+    label: edgeLabels[relType] || relType,
+    style,
+    data: { relType },
+    markerEnd:
+      relType !== "supervision"
         ? { type: MarkerType.ArrowClosed, color: style.stroke }
         : undefined,
-      labelStyle: { fontSize: 10, fill: "#9ca3af" },
-      animated: rel.type === "delegation",
-    };
-  });
+    labelStyle: { fontSize: 10, fill: "#9ca3af" },
+    animated: relType === "delegation",
+  };
+}
+
+function buildEdges(relationships: PersonaRelationship[]): Edge[] {
+  return relationships.map((rel, i) =>
+    styledEdge(`e-${i}-${rel.source}-${rel.target}`, rel.source, rel.target, rel.type),
+  );
+}
+
+/** Convert ReactFlow edges back to PersonaRelationship[] for the CRD. */
+function edgesToRelationships(edges: Edge[]): PersonaRelationship[] {
+  return edges.map((e) => ({
+    source: e.source,
+    target: e.target,
+    type: (e.data?.relType as PersonaRelationship["type"]) || "delegation",
+  }));
+}
+
+// ── Edge type picker (inline popover) ───────────────────────────────────────
+
+function EdgeTypePicker({
+  onSelect,
+  onCancel,
+}: {
+  onSelect: (type: string) => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 flex gap-1 rounded-lg border border-border/60 bg-card shadow-lg p-2">
+      <span className="text-xs text-muted-foreground self-center mr-1">
+        Type:
+      </span>
+      {EDGE_TYPES.map((t) => (
+        <Button
+          key={t}
+          variant="ghost"
+          size="sm"
+          className="text-xs capitalize h-7 px-2"
+          onClick={() => onSelect(t)}
+          type="button"
+        >
+          <span
+            className="w-2 h-2 rounded-full mr-1.5"
+            style={{ backgroundColor: edgeStyles[t].stroke }}
+          />
+          {t}
+        </Button>
+      ))}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="text-xs h-7 px-2 text-muted-foreground"
+        onClick={onCancel}
+        type="button"
+      >
+        Cancel
+      </Button>
+    </div>
+  );
 }
 
 // ── Main component ──────────────────────────────────────────────────────────
@@ -173,8 +239,18 @@ interface PersonaCanvasProps {
 
 export function PersonaCanvas({ pack }: PersonaCanvasProps) {
   const { data: runs } = useRuns();
+  const patchMutation = usePatchPersonaPackRelationships();
   const relationships = pack.spec.relationships || [];
   const personas = pack.spec.personas || [];
+
+  // Pending connection awaiting type selection
+  const [pendingConnection, setPendingConnection] = useState<Connection | null>(
+    null,
+  );
+  // Track unsaved changes
+  const [dirty, setDirty] = useState(false);
+  // Selected edge for deletion
+  const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
 
   // Map persona name → latest run phase
   const runPhaseMap = useMemo(() => {
@@ -216,11 +292,73 @@ export function PersonaCanvas({ pack }: PersonaCanvasProps) {
   );
 
   const [nodes, , onNodesChange] = useNodesState(initialNodes);
-  const [edges, , onEdgesChange] = useEdgesState(initialEdges);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
-  const onInit = useCallback(() => {
-    // could fitView here
+  // When user drags a connection between two nodes, show type picker
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      if (!connection.source || !connection.target) return;
+      if (connection.source === connection.target) return;
+      // Check for duplicate
+      const exists = edges.some(
+        (e) =>
+          e.source === connection.source && e.target === connection.target,
+      );
+      if (exists) return;
+      setPendingConnection(connection);
+    },
+    [edges],
+  );
+
+  // User picks an edge type from the picker
+  const handleEdgeTypeSelect = useCallback(
+    (relType: string) => {
+      if (!pendingConnection?.source || !pendingConnection?.target) return;
+      const id = `e-new-${pendingConnection.source}-${pendingConnection.target}-${Date.now()}`;
+      const newEdge = styledEdge(
+        id,
+        pendingConnection.source,
+        pendingConnection.target,
+        relType,
+      );
+      setEdges((eds) => addEdge(newEdge, eds));
+      setPendingConnection(null);
+      setDirty(true);
+    },
+    [pendingConnection, setEdges],
+  );
+
+  // Delete selected edge
+  const handleDeleteSelected = useCallback(() => {
+    if (!selectedEdge) return;
+    setEdges((eds) => eds.filter((e) => e.id !== selectedEdge));
+    setSelectedEdge(null);
+    setDirty(true);
+  }, [selectedEdge, setEdges]);
+
+  // Save relationships to the CRD
+  const handleSave = useCallback(() => {
+    const newRelationships = edgesToRelationships(edges);
+    patchMutation.mutate(
+      { name: pack.metadata.name, relationships: newRelationships },
+      { onSuccess: () => setDirty(false) },
+    );
+  }, [edges, pack.metadata.name, patchMutation]);
+
+  // Track edge selection
+  const onEdgeClick = useCallback((_: React.MouseEvent, edge: Edge) => {
+    setSelectedEdge((prev) => (prev === edge.id ? null : edge.id));
   }, []);
+
+  // Handle keyboard delete
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedEdge) {
+        handleDeleteSelected();
+      }
+    },
+    [selectedEdge, handleDeleteSelected],
+  );
 
   if (personas.length === 0) {
     return (
@@ -231,32 +369,80 @@ export function PersonaCanvas({ pack }: PersonaCanvasProps) {
   }
 
   return (
-    <div className="h-[500px] w-full rounded-lg border border-border/40 bg-background">
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onInit={onInit}
-        nodeTypes={nodeTypes}
-        fitView
-        fitViewOptions={{ padding: 0.3 }}
-        minZoom={0.3}
-        maxZoom={1.5}
-        proOptions={{ hideAttribution: true }}
-        colorMode="dark"
+    <div className="space-y-3">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">
+          <Plus className="h-3 w-3 inline mr-1" />
+          Drag from one persona to another to create a relationship.
+          {selectedEdge && " Press Delete to remove selected edge."}
+        </p>
+        <div className="flex items-center gap-2">
+          {selectedEdge && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDeleteSelected}
+              type="button"
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-1" />
+              Delete Edge
+            </Button>
+          )}
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={!dirty || patchMutation.isPending}
+            type="button"
+          >
+            <Save className="h-3.5 w-3.5 mr-1" />
+            {patchMutation.isPending ? "Saving..." : "Save"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Canvas */}
+      <div
+        className="h-[500px] w-full rounded-lg border border-border/40 bg-background relative"
+        onKeyDown={onKeyDown}
+        tabIndex={0}
       >
-        <Background gap={20} size={1} color="#ffffff08" />
-        <Controls
-          showInteractive={false}
-          className="!bg-card !border-border/40 !shadow-md [&>button]:!bg-card [&>button]:!border-border/40 [&>button]:!text-muted-foreground [&>button:hover]:!bg-white/5"
-        />
-        <MiniMap
-          nodeColor="#3b82f6"
-          maskColor="rgba(0,0,0,0.7)"
-          className="!bg-card !border-border/40"
-        />
-      </ReactFlow>
+        {pendingConnection && (
+          <EdgeTypePicker
+            onSelect={handleEdgeTypeSelect}
+            onCancel={() => setPendingConnection(null)}
+          />
+        )}
+        <ReactFlow
+          nodes={nodes}
+          edges={edges.map((e) => ({
+            ...e,
+            selected: e.id === selectedEdge,
+          }))}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onEdgeClick={onEdgeClick}
+          nodeTypes={nodeTypes}
+          fitView
+          fitViewOptions={{ padding: 0.3 }}
+          minZoom={0.3}
+          maxZoom={1.5}
+          proOptions={{ hideAttribution: true }}
+          colorMode="dark"
+        >
+          <Background gap={20} size={1} color="#ffffff08" />
+          <Controls
+            showInteractive={false}
+            className="!bg-card !border-border/40 !shadow-md [&>button]:!bg-card [&>button]:!border-border/40 [&>button]:!text-muted-foreground [&>button:hover]:!bg-white/5"
+          />
+          <MiniMap
+            nodeColor="#3b82f6"
+            maskColor="rgba(0,0,0,0.7)"
+            className="!bg-card !border-border/40"
+          />
+        </ReactFlow>
+      </div>
     </div>
   );
 }

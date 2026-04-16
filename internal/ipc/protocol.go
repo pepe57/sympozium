@@ -50,6 +50,14 @@ type SpawnRequest struct {
 	SystemPrompt string   `json:"systemPrompt,omitempty"`
 	AgentID      string   `json:"agentId"`
 	Skills       []string `json:"skills,omitempty"`
+
+	// TargetPersona enables persona-aware delegation. When set, the spawner
+	// resolves this to the correct SympoziumInstance via the PersonaPack.
+	TargetPersona string `json:"targetPersona,omitempty"`
+
+	// PackName is the PersonaPack containing both the source and target personas.
+	// Required when TargetPersona is set.
+	PackName string `json:"packName,omitempty"`
 }
 
 // ExecRequest is written to /ipc/tools/exec-request-*.json for sandbox execution.

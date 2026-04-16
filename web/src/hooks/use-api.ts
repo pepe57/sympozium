@@ -326,6 +326,26 @@ export function useActivatePersonaPack() {
   });
 }
 
+export function usePatchPersonaPackRelationships() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      name,
+      relationships,
+      workflowType,
+    }: {
+      name: string;
+      relationships: import("@/lib/api").PersonaRelationship[];
+      workflowType?: string;
+    }) => api.personaPacks.patch(name, { relationships, workflowType }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["personaPacks"] });
+      toast.success("Workflow updated");
+    },
+    onError: toastError,
+  });
+}
+
 export function useInstallDefaultPersonaPacks() {
   const qc = useQueryClient();
   return useMutation({

@@ -833,6 +833,8 @@ export const api = {
           skills?: string[];
         }>;
         agentSandbox?: { enabled: boolean; runtimeClass?: string };
+        relationships?: PersonaRelationship[];
+        workflowType?: string;
       },
     ) =>
       apiFetch<PersonaPack>(`/api/v1/personapacks/${name}`, {
