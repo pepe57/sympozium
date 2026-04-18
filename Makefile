@@ -71,12 +71,12 @@ test-integration: ## Run integration tests (requires Kind cluster + API keys)
 	./test/integration/test-mcp-bridge.sh
 	./test/integration/test-lifecycle-hooks.sh
 
-integration-tests: ## Run API smoke regression tests (PersonaPacks, ad-hoc Instances, Skills, Policies, Schedules)
+integration-tests: ## Run API smoke regression tests (Ensembles, ad-hoc Instances, Skills, Policies, Schedules)
 	bash ./test/integration/test-api-smoke.sh
-	bash ./test/integration/test-api-personapack-provider-switch.sh
-	bash ./test/integration/test-api-personapack-adhoc-correctness.sh
+	bash ./test/integration/test-api-ensemble-provider-switch.sh
+	bash ./test/integration/test-api-ensemble-adhoc-correctness.sh
 	bash ./test/integration/test-api-agentrun-container-shape.sh
-	bash ./test/integration/test-api-personapack-provisioning.sh
+	bash ./test/integration/test-api-ensemble-provisioning.sh
 	bash ./test/integration/test-api-schedule-dispatch.sh
 	bash ./test/integration/test-api-observability.sh
 	bash ./test/integration/test-api-web-endpoint.sh

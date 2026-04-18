@@ -258,36 +258,36 @@ export function useDeleteSchedule() {
   });
 }
 
-// ── PersonaPacks ─────────────────────────────────────────────────────────────
+// ── Ensembles ─────────────────────────────────────────────────────────────
 
-export function usePersonaPacks() {
+export function useEnsembles() {
   return useQuery({
-    queryKey: ["personaPacks"],
-    queryFn: api.personaPacks.list,
+    queryKey: ["ensembles"],
+    queryFn: api.ensembles.list,
   });
 }
 
-export function usePersonaPack(name: string) {
+export function useEnsemble(name: string) {
   return useQuery({
-    queryKey: ["personaPacks", name],
-    queryFn: () => api.personaPacks.get(name),
+    queryKey: ["ensembles", name],
+    queryFn: () => api.ensembles.get(name),
     enabled: !!name,
   });
 }
 
-export function useDeletePersonaPack() {
+export function useDeleteEnsemble() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: api.personaPacks.delete,
+    mutationFn: api.ensembles.delete,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["personaPacks"] });
+      qc.invalidateQueries({ queryKey: ["ensembles"] });
       toast.success("Persona pack deleted");
     },
     onError: toastError,
   });
 }
 
-export function useActivatePersonaPack() {
+export function useActivateEnsemble() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
@@ -317,16 +317,16 @@ export function useActivatePersonaPack() {
         skills?: string[];
       }>;
       agentSandbox?: { enabled: boolean; runtimeClass?: string };
-    }) => api.personaPacks.patch(name, data),
+    }) => api.ensembles.patch(name, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["personaPacks"] });
+      qc.invalidateQueries({ queryKey: ["ensembles"] });
       toast.success("Persona pack updated");
     },
     onError: toastError,
   });
 }
 
-export function usePatchPersonaPackRelationships() {
+export function usePatchEnsembleRelationships() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
@@ -337,21 +337,21 @@ export function usePatchPersonaPackRelationships() {
       name: string;
       relationships: import("@/lib/api").PersonaRelationship[];
       workflowType?: string;
-    }) => api.personaPacks.patch(name, { relationships, workflowType }),
+    }) => api.ensembles.patch(name, { relationships, workflowType }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["personaPacks"] });
+      qc.invalidateQueries({ queryKey: ["ensembles"] });
       toast.success("Workflow updated");
     },
     onError: toastError,
   });
 }
 
-export function useInstallDefaultPersonaPacks() {
+export function useInstallDefaultEnsembles() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: api.personaPacks.installDefaults,
+    mutationFn: api.ensembles.installDefaults,
     onSuccess: (result) => {
-      qc.invalidateQueries({ queryKey: ["personaPacks"] });
+      qc.invalidateQueries({ queryKey: ["ensembles"] });
       const copied = result.copied.length;
       const existing = result.alreadyPresent.length;
       toast.success(
@@ -359,6 +359,31 @@ export function useInstallDefaultPersonaPacks() {
           ? `Installed ${copied} default pack${copied === 1 ? "" : "s"} (${existing} already present)`
           : `No packs installed (${existing} already present)`,
       );
+    },
+    onError: toastError,
+  });
+}
+
+export function useCreateEnsemble() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: api.ensembles.create,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ensembles"] });
+      toast.success("Ensemble created");
+    },
+    onError: toastError,
+  });
+}
+
+export function useCloneEnsemble() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sourceName, newName }: { sourceName: string; newName: string }) =>
+      api.ensembles.clone(sourceName, newName),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ensembles"] });
+      toast.success("Ensemble cloned");
     },
     onError: toastError,
   });

@@ -4,7 +4,7 @@
 #   - Namespaces
 #   - Skills (list/get)
 #   - Policies (list/get)
-#   - PersonaPacks (install-defaults/list/get)
+#   - Ensembles (install-defaults/list/get)
 #   - Ad-hoc Instances (create/list/get/delete)
 #   - Schedules (create/list/get/delete)
 
@@ -263,17 +263,17 @@ main() {
   api_get "/api/v1/policies/${first_policy}?namespace=${first_policy_ns}" >/dev/null
   pass "Policies list/get OK"
 
-  # 4) PersonaPacks install-defaults + list/get
-  api_post /api/v1/personapacks/install-defaults >/dev/null
-  packs_json="$(api_get /api/v1/personapacks)"
+  # 4) Ensembles install-defaults + list/get
+  api_post /api/v1/ensembles/install-defaults >/dev/null
+  packs_json="$(api_get /api/v1/ensembles)"
   packs_count="$(printf "%s" "$packs_json" | json_len)"
-  if [[ "$packs_count" -ne 4 ]]; then
-    fail "Expected 4 default PersonaPacks, got ${packs_count}"
+  if [[ "$packs_count" -ne 5 ]]; then
+    fail "Expected 5 default Ensembles, got ${packs_count}"
     exit 1
   fi
   first_pack="$(printf "%s" "$packs_json" | json_first_name)"
-  api_get "/api/v1/personapacks/${first_pack}" >/dev/null
-  pass "PersonaPacks install/list/get OK"
+  api_get "/api/v1/ensembles/${first_pack}" >/dev/null
+  pass "Ensembles install/list/get OK"
 
   # 5) Ad-hoc Instance create/list/get
   create_instance_body="$(cat <<EOF

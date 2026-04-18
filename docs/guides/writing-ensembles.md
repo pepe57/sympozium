@@ -1,26 +1,26 @@
-# Writing PersonaPacks
+# Writing Ensembles
 
-A PersonaPack bundles multiple agent personas into a single CRD. When activated,
-the PersonaPack controller stamps out all the Kubernetes resources — SympoziumInstances,
+A Ensemble bundles multiple agent personas into a single CRD. When activated,
+the Ensemble controller stamps out all the Kubernetes resources — SympoziumInstances,
 SympoziumSchedules, and memory seeds — automatically.
 
-This guide walks through creating a custom PersonaPack from scratch.
+This guide walks through creating a custom Ensemble from scratch.
 
 ---
 
 ## Prerequisites
 
 - Sympozium installed (`sympozium install`)
-- Familiarity with [PersonaPacks concepts](../concepts/personapacks.md)
+- Familiarity with [Ensembles concepts](../concepts/ensembles.md)
 - An API key for your chosen provider (or a local inference server)
 
 ---
 
-## Anatomy of a PersonaPack
+## Anatomy of a Ensemble
 
 ```yaml
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: my-team
 spec:
@@ -68,7 +68,7 @@ SympoziumInstance when the pack is activated.
 
 ```yaml
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: data-team
 spec:
@@ -284,7 +284,7 @@ This deploys the `web-endpoint` skill with a web-proxy sidecar. See the
 
 ```yaml
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: data-team
 spec:
@@ -381,7 +381,7 @@ kubectl create secret generic data-team-key \
   --from-literal=OPENAI_API_KEY=sk-...
 
 # Patch the pack to activate
-kubectl patch personapack data-team --type=merge -p '{
+kubectl patch ensemble data-team --type=merge -p '{
   "spec": {
     "enabled": true,
     "authRefs": [{"provider": "openai", "secret": "data-team-key"}]
@@ -392,19 +392,19 @@ kubectl patch personapack data-team --type=merge -p '{
 ### Verify
 
 ```bash
-kubectl get sympoziuminstance -l sympozium.ai/persona-pack=data-team
-kubectl get sympoziumschedule -l sympozium.ai/persona-pack=data-team
+kubectl get sympoziuminstance -l sympozium.ai/ensemble=data-team
+kubectl get sympoziumschedule -l sympozium.ai/ensemble=data-team
 ```
 
 ---
 
 ## What the controller creates
 
-When a PersonaPack is activated, the controller stamps out resources for each
+When a Ensemble is activated, the controller stamps out resources for each
 persona:
 
 ```
-PersonaPack "data-team" (2 personas)
+Ensemble "data-team" (2 personas)
   │
   ├── Secret: data-team-key (created by user)
   │
@@ -418,7 +418,7 @@ PersonaPack "data-team" (2 personas)
 ```
 
 All generated resources have `ownerReferences` pointing back to the
-PersonaPack — delete the pack and everything gets garbage-collected.
+Ensemble — delete the pack and everything gets garbage-collected.
 
 ---
 
@@ -456,7 +456,7 @@ skill sidecar.
 Disable individual personas without deleting the pack:
 
 ```bash
-kubectl patch personapack data-team --type=merge -p '{
+kubectl patch ensemble data-team --type=merge -p '{
   "spec": {
     "excludePersonas": ["schema-auditor"]
   }
@@ -472,8 +472,8 @@ keeping the rest active.
 
 | Issue | Check |
 |-------|-------|
-| Pack not appearing in TUI | `kubectl get personapack` — is the CRD applied? |
+| Pack not appearing in TUI | `kubectl get ensemble` — is the CRD applied? |
 | Instances not created | Is `spec.enabled: true`? Are `authRefs` set? |
 | Schedule not firing | `kubectl get sympoziumschedule` — check the cron expression and last run time |
-| Memory not seeded | `kubectl get configmap -l sympozium.ai/persona-pack=<name>` |
+| Memory not seeded | `kubectl get configmap -l sympozium.ai/ensemble=<name>` |
 | Wrong model | Set `model` on individual personas, or check the onboarding-time default |

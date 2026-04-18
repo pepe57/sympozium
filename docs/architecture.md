@@ -9,7 +9,7 @@ graph TB
     ADMIN(["Operator / SRE"]) -- "TUI · Web UI · kubectl" --> CP
 
     subgraph CP["Control Plane"]
-        CM["Controller Manager<br/><small>SympoziumInstance · AgentRun<br/>PersonaPack · SkillPack<br/>SympoziumPolicy · MCPServer</small>"]
+        CM["Controller Manager<br/><small>SympoziumInstance · AgentRun<br/>Ensemble · SkillPack<br/>SympoziumPolicy · MCPServer</small>"]
         API["API Server<br/><small>HTTP + WebSocket</small>"]
         WH["Admission Webhook<br/><small>Policy enforcement</small>"]
         NATS[("NATS JetStream<br/><small>Event bus</small>")]
@@ -149,7 +149,7 @@ graph LR
 
 ```mermaid
 graph TB
-    subgraph PACK["PersonaPack 'research-team'"]
+    subgraph PACK["Ensemble 'research-team'"]
         direction TB
         LEAD["Lead<br/><small>coordinates team</small>"]
         RES["Researcher<br/><small>gathers findings</small>"]
@@ -178,7 +178,7 @@ graph TB
     style RT stroke:#e94560,stroke-width:2px
 ```
 
-Agents in a PersonaPack can delegate tasks to other personas using the `delegate_to_persona` tool. The spawner resolves persona names to SympoziumInstances via the PersonaPack CRD and validates that a relationship edge permits the delegation.
+Agents in a Ensemble can delegate tasks to other personas using the `delegate_to_persona` tool. The spawner resolves persona names to SympoziumInstances via the Ensemble CRD and validates that a relationship edge permits the delegation.
 
 ## How It Works
 
@@ -223,11 +223,11 @@ Agents in a PersonaPack can delegate tasks to other personas using the `delegate
 | **NetworkPolicy isolation** | NetworkPolicy | Agent pods get deny-all egress; only the IPC bridge connects to the event bus — agents cannot reach the internet or other pods |
 | **Policy-as-CRD** | Admission Webhook | `SympoziumPolicy` resources gate tools, sandboxes, and features — enforced at admission time, not at runtime |
 | **Memory-as-SQLite** | PersistentVolume + sidecar | Persistent agent memory uses SQLite with FTS5 full-text search on a PVC — supports semantic search via `memory_search`, tagging via `memory_store`, and is upgradeable to vector search. Legacy ConfigMap fallback preserved for migration |
-| **Shared Workflow Memory** | PVC + Deployment + Service per PersonaPack | Pack-level shared memory pool enables cross-persona knowledge sharing. Same `skill-memory` binary, separate PVC. Per-persona access control (read-write / read-only) enforced client-side. Auto-tagged with source persona for attribution |
+| **Shared Workflow Memory** | PVC + Deployment + Service per Ensemble | Pack-level shared memory pool enables cross-persona knowledge sharing. Same `skill-memory` binary, separate PVC. Per-persona access control (read-write / read-only) enforced client-side. Auto-tagged with source persona for attribution |
 | **Schedule-as-CRD** | CronJob analogy | `SympoziumSchedule` resources define recurring tasks with cron expressions — the controller creates AgentRuns, not the user |
 | **Skills-as-ConfigMap** | ConfigMap volume | SkillPacks generate ConfigMaps mounted into agent pods — portable, versionable, namespace-scoped |
 | **Skill sidecars with auto-RBAC** | Role / ClusterRole | SkillPacks can declare sidecar containers with RBAC rules — the controller injects the container and provisions ephemeral, least-privilege RBAC per run |
-| **PersonaPacks** | Operator Bundle | Pre-configured agent bundles — the controller stamps out SympoziumInstances, Schedules, and memory ConfigMaps. Activating a pack is a single TUI action |
+| **Ensembles** | Operator Bundle | Pre-configured agent bundles — the controller stamps out SympoziumInstances, Schedules, and memory ConfigMaps. Activating a pack is a single TUI action |
 | **MCP servers as CRD** | Deployment + Service | `MCPServer` resources declare external tool providers — the controller manages deployment lifecycle, probes for tools, and the bridge sidecar translates MCP protocol to agent tool calls. Prefixed tool names prevent collisions across providers |
 | **Node probe DaemonSet** | DaemonSet | Discovers host-installed inference providers (Ollama, vLLM) by probing localhost ports — annotates nodes so the control plane can offer model selection and node pinning without manual configuration |
 
@@ -270,7 +270,7 @@ sympozium/
 │   ├── network/            # NetworkPolicy for agent isolation
 │   ├── nats/               # NATS JetStream deployment
 │   ├── cert/               # TLS certificate resources
-│   ├── personas/           # Built-in PersonaPack definitions
+│   ├── personas/           # Built-in Ensemble definitions
 │   ├── skills/             # Built-in SkillPack definitions
 │   ├── policies/           # Default SympoziumPolicy presets
 │   └── samples/            # Example CRs

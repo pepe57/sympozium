@@ -16,7 +16,7 @@ interface WhatsAppQRModalProps {
   open: boolean;
   onClose: () => void;
   instanceName?: string;
-  personaPackName?: string;
+  ensembleName?: string;
 }
 
 function extractQRLines(logs: string): string[] {
@@ -43,7 +43,7 @@ export function WhatsAppQRModal({
   open,
   onClose,
   instanceName,
-  personaPackName,
+  ensembleName,
 }: WhatsAppQRModalProps) {
   const [state, setState] = useState<QRState>("waiting");
   const [status, setStatus] = useState("Waiting for WhatsApp channel pod…");
@@ -53,9 +53,9 @@ export function WhatsAppQRModal({
 
   const targetLabel = useMemo(() => {
     if (instanceName) return `instance ${instanceName}`;
-    if (personaPackName) return `persona pack ${personaPackName}`;
+    if (ensembleName) return `persona pack ${ensembleName}`;
     return "target";
-  }, [instanceName, personaPackName]);
+  }, [instanceName, ensembleName]);
 
   useEffect(() => {
     if (!open) return;
@@ -69,7 +69,7 @@ export function WhatsAppQRModal({
         if (labels["sympozium.ai/channel"] !== "whatsapp") return false;
         const inst = labels["sympozium.ai/instance"] || p.instanceRef || "";
         if (instanceName) return inst === instanceName;
-        if (personaPackName) return inst.startsWith(`${personaPackName}-`);
+        if (ensembleName) return inst.startsWith(`${ensembleName}-`);
         return false;
       });
     };
@@ -161,7 +161,7 @@ export function WhatsAppQRModal({
       setQrLines([]);
       setError("");
     };
-  }, [open, instanceName, personaPackName]);
+  }, [open, instanceName, ensembleName]);
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>

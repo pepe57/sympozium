@@ -266,8 +266,8 @@ spec:
 ### Run without a schedule (one-off)
 
 Every AgentRun is one-off by default. If you want recurring runs, create a
-SympoziumSchedule or use a PersonaPack with a schedule — see
-[Writing PersonaPacks](./writing-personapacks.md).
+SympoziumSchedule or use a Ensemble with a schedule — see
+[Writing Ensembles](./writing-ensembles.md).
 
 ---
 
@@ -315,7 +315,7 @@ SympoziumSchedule or use a PersonaPack with a schedule — see
 
 ## Next steps
 
-- [Writing PersonaPacks](./writing-personapacks.md) — bundle agents into reusable teams
+- [Writing Ensembles](./writing-ensembles.md) — bundle agents into reusable teams
 - [Writing Skills](./writing-skills.md) — create custom tools for your agents
 - [LM Studio guide](./lm-studio.md) / [Ollama guide](./ollama.md) — use local inference
 - [Agent Sandboxing](../concepts/agent-sandboxing.md) — isolate agent execution

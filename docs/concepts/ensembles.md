@@ -1,15 +1,15 @@
-# PersonaPacks
+# Ensembles
 
-PersonaPacks are the **recommended way to get started** with Sympozium. A PersonaPack is a CRD that bundles multiple pre-configured agent personas — each with a system prompt, skills, tool policy, schedule, and memory seeds. Activating a pack is a single action: the PersonaPack controller stamps out all the Kubernetes resources automatically.
+Ensembles are the **recommended way to get started** with Sympozium. A Ensemble is a CRD that bundles multiple pre-configured agent personas — each with a system prompt, skills, tool policy, schedule, and memory seeds. Activating a pack is a single action: the Ensemble controller stamps out all the Kubernetes resources automatically.
 
-## Why PersonaPacks?
+## Why Ensembles?
 
-Without PersonaPacks, setting up even one agent requires creating a Secret, SympoziumInstance, SympoziumSchedule, and memory ConfigMap by hand. PersonaPacks collapse that into: pick a pack → enter your API key → done.
+Without Ensembles, setting up even one agent requires creating a Secret, SympoziumInstance, SympoziumSchedule, and memory ConfigMap by hand. Ensembles collapse that into: pick a pack → enter your API key → done.
 
 ## How It Works
 
 ```
-PersonaPack "platform-team" (3 personas)
+Ensemble "platform-team" (3 personas)
   │
   ├── Activate via TUI or Web UI (wizard → API key → confirm)
   │
@@ -31,11 +31,11 @@ PersonaPack "platform-team" (3 personas)
           └── Service: platform-team-shared-memory
 ```
 
-All generated resources have `ownerReferences` pointing back to the PersonaPack — delete the pack and everything gets garbage-collected.
+All generated resources have `ownerReferences` pointing back to the Ensemble — delete the pack and everything gets garbage-collected.
 
 ## Persona Relationships & Workflows
 
-PersonaPacks support **typed relationships** between personas, enabling coordination patterns beyond independent scheduling:
+Ensembles support **typed relationships** between personas, enabling coordination patterns beyond independent scheduling:
 
 ### Relationship Types
 
@@ -47,7 +47,7 @@ PersonaPacks support **typed relationships** between personas, enabling coordina
 
 ### Workflow Types
 
-The `workflowType` field on a PersonaPack describes the overall orchestration pattern:
+The `workflowType` field on a Ensemble describes the overall orchestration pattern:
 
 | Value | Description |
 |-------|-------------|
@@ -59,7 +59,7 @@ The `workflowType` field on a PersonaPack describes the overall orchestration pa
 
 ```yaml
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: research-team
 spec:
@@ -85,13 +85,13 @@ spec:
 
 ## Shared Workflow Memory
 
-By default, each persona in a PersonaPack has its own **private memory** — an isolated SQLite database that only that persona can access. Shared Workflow Memory adds a second, **pack-level memory pool** that all personas can read from (and optionally write to), enabling cross-persona knowledge sharing.
+By default, each persona in a Ensemble has its own **private memory** — an isolated SQLite database that only that persona can access. Shared Workflow Memory adds a second, **pack-level memory pool** that all personas can read from (and optionally write to), enabling cross-persona knowledge sharing.
 
 ### Enabling Shared Memory
 
 ```yaml
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: research-team
 spec:
@@ -111,13 +111,13 @@ spec:
 
 ### How It Works
 
-When shared memory is enabled, the PersonaPack controller provisions:
+When shared memory is enabled, the Ensemble controller provisions:
 
 - **PVC**: `<pack>-shared-memory-db` — persistent storage for the shared SQLite database
 - **Deployment**: `<pack>-shared-memory` — the same `skill-memory` server image used for private memory
 - **Service**: `<pack>-shared-memory` — ClusterIP service on port 8080
 
-All resources have `ownerReferences` to the PersonaPack and are cleaned up on deletion.
+All resources have `ownerReferences` to the Ensemble and are cleaned up on deletion.
 
 ### Agent Tools
 
@@ -151,7 +151,7 @@ Entries stored via `workflow_memory_store` are automatically tagged with the sou
 
 ### delegate_to_persona Tool
 
-Agents that belong to a PersonaPack automatically receive the `delegate_to_persona` tool. This allows an agent to delegate a task to another persona in the same pack:
+Agents that belong to a Ensemble automatically receive the `delegate_to_persona` tool. This allows an agent to delegate a task to another persona in the same pack:
 
 ```
 Tool: delegate_to_persona
@@ -167,7 +167,7 @@ The tool writes a spawn request to the IPC protocol. The spawner resolves the ta
 The Web UI provides two canvas views for visualising persona relationships:
 
 - **Per-pack canvas** (Persona detail page → Workflow tab): editable — drag to connect personas, pick relationship type, save back to the CRD
-- **Global canvas** (Persona Packs list page → Canvas view): read-only — shows all enabled packs together with live run status
+- **Global canvas** (Ensembles list page → Canvas view): read-only — shows all enabled packs together with live run status
 - **Dashboard widget** (Team Canvas panel): compact view with pack selector dropdown and live run status highlighting
 
 Persona nodes show live run status with animated indicators:
@@ -190,7 +190,7 @@ Persona nodes show live run status with animated indicators:
 
 ## Activating a Pack in the Web UI
 
-1. Navigate to **Persona Packs** in the sidebar
+1. Navigate to **Ensembles** in the sidebar
 2. Click **Enable** on a pack to open the onboarding wizard
 3. Choose your AI provider and paste an API key
 4. Optionally bind channels (Telegram, Slack, Discord, WhatsApp)
@@ -203,8 +203,8 @@ Persona nodes show live run status with animated indicators:
 kubectl create secret generic my-pack-openai-key \
   --from-literal=OPENAI_API_KEY=sk-...
 
-# 2. Patch the PersonaPack with authRefs to trigger activation
-kubectl patch personapack platform-team --type=merge -p '{
+# 2. Patch the Ensemble with authRefs to trigger activation
+kubectl patch ensemble platform-team --type=merge -p '{
   "spec": {
     "authRefs": [{"provider": "openai", "secret": "my-pack-openai-key"}]
   }
@@ -213,11 +213,11 @@ kubectl patch personapack platform-team --type=merge -p '{
 
 The controller detects the `authRefs` change and reconciles — creating SympoziumInstances, Schedules, and memory ConfigMaps for each persona.
 
-## Writing Your Own PersonaPack
+## Writing Your Own Ensemble
 
 ```yaml
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: my-team
 spec:
@@ -254,4 +254,4 @@ spec:
 Apply it with `kubectl apply -f my-team.yaml`, then activate through the Web UI or TUI.
 
 !!! tip
-    See the [Developer Team Pack](../skills/developer-team.md) for a detailed example of a complex PersonaPack with seven collaborating agents.
+    See the [Developer Team Pack](../skills/developer-team.md) for a detailed example of a complex Ensemble with seven collaborating agents.

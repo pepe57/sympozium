@@ -30,7 +30,7 @@ Multi-tenant. Horizontally scalable. Safe by design.
 Then deploy to your cluster and activate your first agents:
 
 ```bash
-sympozium install          # deploys CRDs, controllers, and built-in PersonaPacks
+sympozium install          # deploys CRDs, controllers, and built-in Ensembles
 sympozium                  # launch the TUI — go to Personas tab, press Enter to onboard
 sympozium serve            # open the web dashboard (port-forwards to the in-cluster UI)
 ```
@@ -55,7 +55,7 @@ Sympozium takes the agentic control model and rebuilds it on Kubernetes primitiv
 
 - **Ephemeral agent pods** — each agent run is an isolated Kubernetes Job with its own security context
 - **Skill sidecars** — every skill runs in its own container with auto-provisioned, least-privilege RBAC
-- **PersonaPacks** — pre-configured bundles of agents that activate with a few keypresses
+- **Ensembles** — pre-configured bundles of agents that activate with a few keypresses
 - **Multiple interfaces** — k9s-style TUI, full web dashboard, or CLI
 - **Channel integrations** — Telegram, Slack, Discord, WhatsApp
 - **Persistent memory** — agents retain context across runs via ConfigMap-backed memory
@@ -74,7 +74,7 @@ Sympozium takes the agentic control model and rebuilds it on Kubernetes primitiv
 | [Getting Started](getting-started.md) | Install, deploy, and onboard your first agent |
 | [Architecture](architecture.md) | System design and how it all fits together |
 | [Custom Resources](concepts/custom-resources.md) | The six CRDs that model every agentic concept |
-| [PersonaPacks](concepts/personapacks.md) | Pre-configured agent bundles |
+| [Ensembles](concepts/ensembles.md) | Pre-configured agent bundles |
 | [Skills & Sidecars](concepts/skills.md) | Isolated tool containers with ephemeral RBAC |
 | [Lifecycle Hooks](concepts/lifecycle-hooks.md) | PreRun and postRun containers for setup and teardown |
 | [Security](concepts/security.md) | Defence-in-depth at every layer |

@@ -1196,7 +1196,7 @@ func newInstallCmd() *cobra.Command {
 		Short: "Install Sympozium into the current Kubernetes cluster",
 		Long: `Installs Sympozium using the embedded Helm chart. This sets up CRDs,
 the controller manager, API server, admission webhook, RBAC rules,
-network policies, and default SkillPacks/Policies/PersonaPacks.
+network policies, and default SkillPacks/Policies/Ensembles.
 
 Use --image-tag to override the container image tag, for example when
 you have sideloaded images into Kind with a custom tag.
@@ -1417,7 +1417,7 @@ func runUninstall() error {
 	// Strip finalizers from all Sympozium CRD instances BEFORE deleting the
 	// controller, so resources don't get stuck in Terminating state.
 	fmt.Println("  Removing finalizers from Sympozium resources...")
-	resources := []string{"agentruns", "sympoziuminstances", "sympoziumpolicies", "skillpacks", "sympoziumschedules", "personapacks"}
+	resources := []string{"agentruns", "sympoziuminstances", "sympoziumpolicies", "skillpacks", "sympoziumschedules", "ensembles"}
 	for _, res := range resources {
 		stripFinalizers(res)
 	}
@@ -1771,7 +1771,7 @@ type dataRefreshMsg struct {
 	channels      *[]channelRow
 	pods          *[]podRow
 	schedules     *[]sympoziumv1alpha1.SympoziumSchedule
-	personaPacks  *[]sympoziumv1alpha1.PersonaPack
+	ensembles  *[]sympoziumv1alpha1.Ensemble
 	gatewayConfig *sympoziumv1alpha1.SympoziumConfig
 	fetchErr      string
 }
@@ -1800,8 +1800,8 @@ var slashCommandSuggestions = []suggestion{
 	{"/delete", "Delete: /delete <type> <name>"},
 	{"/schedule", "Create schedule: /schedule <inst> <cron> <task>"},
 	{"/schedules", "View schedules"},
-	{"/personas", "View PersonaPacks"},
-	{"/persona", "Manage persona pack: /persona delete <name>"},
+	{"/personas", "View Ensembles"},
+	{"/persona", "Manage ensemble: /persona delete <name>"},
 	{"/memory", "View memory: /memory <inst>"},
 	{"/ns", "Switch namespace: /ns <name>"},
 	{"/onboard", "Interactive setup wizard"},
@@ -1814,7 +1814,7 @@ var deleteTypeSuggestions = []suggestion{
 	{"run", "Delete an AgentRun"},
 	{"policy", "Delete a SympoziumPolicy"},
 	{"schedule", "Delete a SympoziumSchedule"},
-	{"persona", "Delete a PersonaPack"},
+	{"persona", "Delete a Ensemble"},
 	{"channel", "Remove a channel from instance"},
 }
 
@@ -2221,7 +2221,7 @@ const (
 	wizStepAWSSessionToken                      // text: AWS Session Token (optional)
 
 	// Persona wizard steps
-	wizStepPersonaPick                      // menu: select a persona pack
+	wizStepPersonaPick                      // menu: select a ensemble
 	wizStepPersonaProvider                  // menu 1-6: provider
 	wizStepPersonaBaseURL                   // text: base URL
 	wizStepPersonaLMStudioAPIKeyRequired    // y/n: LM Studio requires API key?
@@ -2286,7 +2286,7 @@ type wizardState struct {
 
 	// Persona wizard state
 	personaMode       bool                   // true when running persona wizard instead of onboard
-	personaPackName   string                 // which pack we're installing
+	ensembleName   string                 // which pack we're installing
 	personaChannels   []personaChannelChoice // channels the user is toggling
 	personaChannelIdx int                    // which channel we're collecting a token for
 	packDetailScroll  int                    // scroll offset for the pack detail pane
@@ -2335,7 +2335,7 @@ type tuiModel struct {
 	channels      []channelRow
 	pods          []podRow
 	schedules     []sympoziumv1alpha1.SympoziumSchedule
-	personaPacks  []sympoziumv1alpha1.PersonaPack
+	ensembles  []sympoziumv1alpha1.Ensemble
 	gatewayConfig *sympoziumv1alpha1.SympoziumConfig
 
 	// Input
@@ -2398,7 +2398,7 @@ type tuiModel struct {
 	editLifecycleHookIsPost bool                // true if editing postRun, false for preRun
 	editGateway             editGatewayForm     // gateway config
 	showGatewayEditModal    bool                // separate modal for gateway
-	editPersonaPackName     string              // non-empty when editing a PersonaPack
+	editEnsembleName     string              // non-empty when editing a Ensemble
 	editPersonas            []editPersonaItem   // toggleable personas list
 	editPersonaHeartbeatIdx int                 // index into personaHeartbeatOptions
 
@@ -2467,7 +2467,7 @@ type editGatewayForm struct {
 
 var editGatewayFieldCount = 7
 
-// editPersonaItem represents a toggleable persona in the PersonaPack edit modal.
+// editPersonaItem represents a toggleable persona in the Ensemble edit modal.
 type editPersonaItem struct {
 	name        string // persona name within the pack
 	displayName string // human-readable name
@@ -2502,7 +2502,7 @@ var editHeartbeatFieldCount = 6 // schedule, task, type, concurrencyPolicy, incl
 var editTabNames = []string{"Memory", "Heartbeat", "Skills", "Channels", "Web Endpoint", "Lifecycle"}
 var availableChannelTypes = []string{"telegram", "slack", "discord", "whatsapp"}
 
-// personaHeartbeatOptions defines the selectable intervals for PersonaPack editing.
+// personaHeartbeatOptions defines the selectable intervals for Ensemble editing.
 var personaHeartbeatOptions = []struct {
 	label    string
 	interval string // value written to PersonaSchedule.Interval
@@ -2802,7 +2802,7 @@ func refreshDataCmd() tea.Cmd {
 			pols      sympoziumv1alpha1.SympoziumPolicyList
 			skls      sympoziumv1alpha1.SkillPackList
 			scheds    sympoziumv1alpha1.SympoziumScheduleList
-			packs     sympoziumv1alpha1.PersonaPackList
+			packs     sympoziumv1alpha1.EnsembleList
 			podList   corev1.PodList
 			gwConfigs sympoziumv1alpha1.SympoziumConfigList
 		)
@@ -2858,7 +2858,7 @@ func refreshDataCmd() tea.Cmd {
 		go func() {
 			defer wg.Done()
 			if err := k8sClient.List(ctx, &packs); err != nil {
-				addErr(fmt.Sprintf("personapacks: %v", err))
+				addErr(fmt.Sprintf("ensembles: %v", err))
 			}
 		}()
 		go func() {
@@ -2891,8 +2891,8 @@ func refreshDataCmd() tea.Cmd {
 		if !containsPrefix(errs, "schedules:") {
 			msg.schedules = &scheds.Items
 		}
-		if !containsPrefix(errs, "personapacks:") {
-			msg.personaPacks = &packs.Items
+		if !containsPrefix(errs, "ensembles:") {
+			msg.ensembles = &packs.Items
 		}
 		if !containsPrefix(errs, "gatewayconfig:") && len(gwConfigs.Items) > 0 {
 			msg.gatewayConfig = &gwConfigs.Items[0]
@@ -3165,26 +3165,26 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "esc":
 				m.showEditModal = false
-				m.editPersonaPackName = ""
+				m.editEnsembleName = ""
 				m.addLog(tuiDimStyle.Render("Edit cancelled"))
 				return m, nil
 			case "tab":
-				if m.editPersonaPackName != "" {
-					return m, nil // no tabs in persona pack mode
+				if m.editEnsembleName != "" {
+					return m, nil // no tabs in ensemble mode
 				}
 				m.editTab = (m.editTab + 1) % len(editTabNames)
 				m.editField = 0
 				return m, nil
 			case "shift+tab":
-				if m.editPersonaPackName != "" {
-					return m, nil // no tabs in persona pack mode
+				if m.editEnsembleName != "" {
+					return m, nil // no tabs in ensemble mode
 				}
 				m.editTab = (m.editTab + len(editTabNames) - 1) % len(editTabNames)
 				m.editField = 0
 				return m, nil
 			case "j", "down":
 				max := editMemoryFieldCount
-				if m.editPersonaPackName != "" {
+				if m.editEnsembleName != "" {
 					max = 1 + len(m.editPersonas) // field 0 = heartbeat, rest = persona toggles
 				} else if m.editTab == 1 {
 					max = editHeartbeatFieldCount
@@ -3208,7 +3208,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			case " ":
 				// Toggle boolean fields
-				if m.editPersonaPackName != "" {
+				if m.editEnsembleName != "" {
 					if m.editField == 0 {
 						// Cycle heartbeat forward on space
 						m.editPersonaHeartbeatIdx = (m.editPersonaHeartbeatIdx + 1) % len(personaHeartbeatOptions)
@@ -3286,7 +3286,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			case "left", "h":
 				// Cycle enum fields backward
-				if m.editPersonaPackName != "" && m.editField == 0 {
+				if m.editEnsembleName != "" && m.editField == 0 {
 					m.editPersonaHeartbeatIdx = (m.editPersonaHeartbeatIdx + len(personaHeartbeatOptions) - 1) % len(personaHeartbeatOptions)
 				} else if m.editTab == 1 {
 					switch m.editField {
@@ -3299,7 +3299,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			case "right", "l":
 				// Cycle enum fields forward
-				if m.editPersonaPackName != "" && m.editField == 0 {
+				if m.editEnsembleName != "" && m.editField == 0 {
 					m.editPersonaHeartbeatIdx = (m.editPersonaHeartbeatIdx + 1) % len(personaHeartbeatOptions)
 				} else if m.editTab == 1 {
 					switch m.editField {
@@ -3345,7 +3345,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			case "enter":
 				// Toggle bools, open task sub-modal, or no-op on text fields.
-				if m.editPersonaPackName != "" {
+				if m.editEnsembleName != "" {
 					if m.editField == 0 {
 						// Cycle heartbeat forward on enter
 						m.editPersonaHeartbeatIdx = (m.editPersonaHeartbeatIdx + 1) % len(personaHeartbeatOptions)
@@ -3441,10 +3441,10 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "ctrl+s":
 				// Apply changes
 				m.showEditModal = false
-				editPackName := m.editPersonaPackName
-				m.editPersonaPackName = ""
+				editPackName := m.editEnsembleName
+				m.editEnsembleName = ""
 				if editPackName != "" {
-					return m, m.applyPersonaPackEdit(editPackName)
+					return m, m.applyEnsembleEdit(editPackName)
 				}
 				return m, m.applyEditModal()
 			default:
@@ -4021,8 +4021,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.schedules != nil {
 			m.schedules = *msg.schedules
 		}
-		if msg.personaPacks != nil {
-			m.personaPacks = *msg.personaPacks
+		if msg.ensembles != nil {
+			m.ensembles = *msg.ensembles
 		}
 		m.gatewayConfig = msg.gatewayConfig
 		if msg.fetchErr != "" {
@@ -4189,7 +4189,7 @@ func (m tuiModel) activeViewCount() int {
 		}
 		return 1 + len(m.gatewayRoutes())
 	case viewPersonas:
-		return len(m.personaPacks)
+		return len(m.ensembles)
 	}
 	return 0
 }
@@ -4296,8 +4296,8 @@ func (m tuiModel) handleRowAction() (tea.Model, tea.Cmd) {
 				s.Name, s.Spec.InstanceRef, s.Spec.Schedule, s.Spec.Type, s.Status.Phase, s.Status.TotalRuns, nextRun))
 		}
 	case viewPersonas:
-		if m.selectedRow < len(m.personaPacks) {
-			pp := m.personaPacks[m.selectedRow]
+		if m.selectedRow < len(m.ensembles) {
+			pp := m.ensembles[m.selectedRow]
 			// Start the persona onboarding wizard with this pack pre-selected.
 			return m.startPersonaWizard(pp.Name)
 		}
@@ -4423,8 +4423,8 @@ func (m tuiModel) handleRowDescribe() (tea.Model, tea.Cmd) {
 			})
 		}
 	case viewPersonas:
-		if m.selectedRow < len(m.personaPacks) {
-			name := m.personaPacks[m.selectedRow].Name
+		if m.selectedRow < len(m.ensembles) {
+			name := m.ensembles[m.selectedRow].Name
 			return m, m.asyncCmd(func() (string, error) {
 				return tuiDescribeResource(m.namespace, "personapack", name)
 			})
@@ -4440,8 +4440,8 @@ func (m tuiModel) handleRowDelete() (tea.Model, tea.Cmd) {
 			inst := m.instances[m.selectedRow]
 			name := inst.Name
 			ns := m.namespace
-			// Check if this instance belongs to a PersonaPack.
-			packName := inst.Labels["sympozium.ai/persona-pack"]
+			// Check if this instance belongs to a Ensemble.
+			packName := inst.Labels["sympozium.ai/ensemble"]
 			personaName := inst.Labels["sympozium.ai/persona"]
 			if packName != "" && personaName != "" {
 				m.confirmDelete = true
@@ -4507,8 +4507,8 @@ func (m tuiModel) handleRowDelete() (tea.Model, tea.Cmd) {
 			m.deleteFunc = func() (string, error) { return tuiDelete(ns, "schedule", name) }
 		}
 	case viewPersonas:
-		if m.selectedRow < len(m.personaPacks) {
-			pack := m.personaPacks[m.selectedRow]
+		if m.selectedRow < len(m.ensembles) {
+			pack := m.ensembles[m.selectedRow]
 			name := pack.Name
 			ns := m.namespace
 			// Collect all persona names to disable.
@@ -4747,11 +4747,11 @@ func (m tuiModel) handleRowEdit() (tea.Model, tea.Cmd) {
 		}
 		m.showEditModal = true
 	case viewPersonas:
-		if m.selectedRow >= len(m.personaPacks) {
+		if m.selectedRow >= len(m.ensembles) {
 			return m, nil
 		}
-		pp := m.personaPacks[m.selectedRow]
-		m.editPersonaPackName = pp.Name
+		pp := m.ensembles[m.selectedRow]
+		m.editEnsembleName = pp.Name
 		m.editInstanceName = ""
 		m.editScheduleName = ""
 		m.editTab = 0
@@ -5118,8 +5118,8 @@ func (m tuiModel) applyGatewayEdit() tea.Cmd {
 	}
 }
 
-// applyPersonaPackEdit saves the persona enable/disable toggles and heartbeat back to the PersonaPack.
-func (m tuiModel) applyPersonaPackEdit(packName string) tea.Cmd {
+// applyEnsembleEdit saves the persona enable/disable toggles and heartbeat back to the Ensemble.
+func (m tuiModel) applyEnsembleEdit(packName string) tea.Cmd {
 	ns := m.namespace
 	personas := make([]editPersonaItem, len(m.editPersonas))
 	copy(personas, m.editPersonas)
@@ -5127,9 +5127,9 @@ func (m tuiModel) applyPersonaPackEdit(packName string) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
-		var pack sympoziumv1alpha1.PersonaPack
+		var pack sympoziumv1alpha1.Ensemble
 		if err := k8sClient.Get(ctx, types.NamespacedName{Name: packName, Namespace: ns}, &pack); err != nil {
-			return cmdResultMsg{err: fmt.Errorf("get PersonaPack %q: %w", packName, err)}
+			return cmdResultMsg{err: fmt.Errorf("get Ensemble %q: %w", packName, err)}
 		}
 
 		// Build new ExcludePersonas list from disabled toggles.
@@ -5152,7 +5152,7 @@ func (m tuiModel) applyPersonaPackEdit(packName string) tea.Cmd {
 		}
 
 		if err := k8sClient.Update(ctx, &pack); err != nil {
-			return cmdResultMsg{err: fmt.Errorf("update PersonaPack %q: %w", packName, err)}
+			return cmdResultMsg{err: fmt.Errorf("update Ensemble %q: %w", packName, err)}
 		}
 
 		enabled := 0
@@ -5161,7 +5161,7 @@ func (m tuiModel) applyPersonaPackEdit(packName string) tea.Cmd {
 				enabled++
 			}
 		}
-		result := tuiSuccessStyle.Render(fmt.Sprintf("✓ PersonaPack %s updated: %d/%d personas enabled", packName, enabled, len(personas)))
+		result := tuiSuccessStyle.Render(fmt.Sprintf("✓ Ensemble %s updated: %d/%d personas enabled", packName, enabled, len(personas)))
 		return cmdResultMsg{output: result}
 	}
 }
@@ -5355,8 +5355,8 @@ func (m *tuiModel) updateSuggestions(input string) tea.Cmd {
 		if argIdx == 1 {
 			var matches []suggestion
 			for _, s := range []suggestion{
-				{"install", "Install a PersonaPack"},
-				{"delete", "Delete a PersonaPack"},
+				{"install", "Install a Ensemble"},
+				{"delete", "Delete a Ensemble"},
 			} {
 				if prefix == "" || strings.HasPrefix(s.text, prefix) {
 					matches = append(matches, s)
@@ -5366,7 +5366,7 @@ func (m *tuiModel) updateSuggestions(input string) tea.Cmd {
 			return nil
 		}
 		if argIdx == 2 {
-			return m.fetchSuggestionsAsync(func() []suggestion { return fetchPersonaPackSuggestions(ns, prefix) })
+			return m.fetchSuggestionsAsync(func() []suggestion { return fetchEnsembleSuggestions(ns, prefix) })
 		}
 	case "/delete":
 		if argIdx == 1 {
@@ -5481,13 +5481,13 @@ func fetchPolicySuggestions(ns, prefix string) []suggestion {
 	return out
 }
 
-func fetchPersonaPackSuggestions(ns, prefix string) []suggestion {
+func fetchEnsembleSuggestions(ns, prefix string) []suggestion {
 	if k8sClient == nil {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	var list sympoziumv1alpha1.PersonaPackList
+	var list sympoziumv1alpha1.EnsembleList
 	if err := k8sClient.List(ctx, &list, client.InNamespace(ns)); err != nil {
 		return nil
 	}
@@ -5513,7 +5513,7 @@ func fetchDeleteTargetSuggestions(ns, resourceType, prefix string) []suggestion 
 	case "policy", "pol":
 		return fetchPolicySuggestions(ns, prefix)
 	case "persona":
-		return fetchPersonaPackSuggestions(ns, prefix)
+		return fetchEnsembleSuggestions(ns, prefix)
 	}
 	return nil
 }
@@ -5620,7 +5620,7 @@ func (m tuiModel) handleCommand(input string) (tea.Model, tea.Cmd) {
 			}
 			packName := args[1]
 			ns := m.namespace
-			return m, m.asyncCmd(func() (string, error) { return tuiDeletePersonaPack(ns, packName) })
+			return m, m.asyncCmd(func() (string, error) { return tuiDeleteEnsemble(ns, packName) })
 		default:
 			m.addLog(tuiErrorStyle.Render("Unknown sub-command. Usage: /persona delete <pack-name>"))
 			m.addLog(tuiDimStyle.Render("  Tip: go to the Personas tab and press Enter on a pack to onboard."))
@@ -5765,7 +5765,7 @@ func (m tuiModel) startPersonaWizard(packName string) (tea.Model, tea.Cmd) {
 	m.wizard.reset()
 	m.wizard.active = true
 	m.wizard.personaMode = true
-	m.wizard.personaPackName = packName
+	m.wizard.ensembleName = packName
 	// Pre-populate channels toggle list.
 	m.wizard.personaChannels = make([]personaChannelChoice, len(defaultPersonaChannels))
 	copy(m.wizard.personaChannels, defaultPersonaChannels)
@@ -5812,7 +5812,7 @@ func (m tuiModel) View() string {
 
 		// When running the persona wizard and the terminal is wide enough,
 		// split the view: wizard on the left, pack details on the right.
-		showPackPane := m.wizard.personaMode && m.width >= 90 && m.wizard.personaPackName != ""
+		showPackPane := m.wizard.personaMode && m.width >= 90 && m.wizard.ensembleName != ""
 		fullWidth := m.width
 		leftW := m.width
 		if showPackPane {
@@ -5837,7 +5837,7 @@ func (m tuiModel) View() string {
 		if showPackPane {
 			rightW := fullWidth - leftW - 1 // 1 for separator
 			paneH := strings.Count(base, "\n")
-			rightPane := m.renderPersonaPackDetailPane(rightW, paneH)
+			rightPane := m.renderEnsembleDetailPane(rightW, paneH)
 			base = joinPanesHorizontally(base, rightPane, leftW, rightW)
 			m.width = fullWidth
 		}
@@ -6646,18 +6646,18 @@ func (m tuiModel) renderPersonasTable(tableH int) string {
 	b.WriteString(tuiColHeaderStyle.Render(padRight(header, m.width)))
 	b.WriteString("\n")
 
-	if len(m.personaPacks) == 0 {
-		b.WriteString(m.renderEmptyTable(tableH-1, "No PersonaPacks found — run 'sympozium install' to add built-in packs"))
+	if len(m.ensembles) == 0 {
+		b.WriteString(m.renderEmptyTable(tableH-1, "No Ensembles found — run 'sympozium install' to add built-in packs"))
 		return b.String()
 	}
 
 	for i := 0; i < tableH-1; i++ {
 		idx := i + m.tableScroll
-		if idx >= len(m.personaPacks) {
+		if idx >= len(m.ensembles) {
 			b.WriteString(strings.Repeat(" ", m.width) + "\n")
 			continue
 		}
-		pp := m.personaPacks[idx]
+		pp := m.ensembles[idx]
 		age := shortDuration(time.Since(pp.CreationTimestamp.Time))
 		phase := pp.Status.Phase
 		if phase == "" {
@@ -7623,8 +7623,8 @@ func (m tuiModel) renderEditModal(base string) string {
 	var content strings.Builder
 
 	// Title
-	if m.editPersonaPackName != "" {
-		content.WriteString(tuiModalTitleStyle.Render("  ✎  Edit PersonaPack " + m.editPersonaPackName))
+	if m.editEnsembleName != "" {
+		content.WriteString(tuiModalTitleStyle.Render("  ✎  Edit Ensemble " + m.editEnsembleName))
 	} else {
 		title := "Edit " + m.editInstanceName
 		if m.editScheduleName != "" {
@@ -7634,8 +7634,8 @@ func (m tuiModel) renderEditModal(base string) string {
 	}
 	content.WriteString("\n\n")
 
-	// Tab bar (not shown for persona pack edit)
-	if m.editPersonaPackName == "" {
+	// Tab bar (not shown for ensemble edit)
+	if m.editEnsembleName == "" {
 		for i, name := range editTabNames {
 			if i == m.editTab {
 				content.WriteString(tuiSuggestSelectedStyle.Render(" " + name + " "))
@@ -7680,8 +7680,8 @@ func (m tuiModel) renderEditModal(base string) string {
 		renderField(idx, name, tog)
 	}
 
-	if m.editPersonaPackName != "" {
-		// PersonaPack edit — heartbeat interval + persona toggles
+	if m.editEnsembleName != "" {
+		// Ensemble edit — heartbeat interval + persona toggles
 
 		// Heartbeat interval selector (field 0)
 		hbLabel := personaHeartbeatOptions[m.editPersonaHeartbeatIdx].label
@@ -7972,7 +7972,7 @@ func (m tuiModel) renderEditModal(base string) string {
 		content.WriteString("  " + tiView)
 		content.WriteString("\n")
 		content.WriteString(tuiDimStyle.Render("  enter next field · esc cancel"))
-	} else if m.editPersonaPackName != "" {
+	} else if m.editEnsembleName != "" {
 		content.WriteString("\n")
 		content.WriteString(tuiDimStyle.Render("  ↑↓ navigate · ←→ cycle heartbeat · space/enter toggle · ctrl+s apply · esc cancel"))
 	} else {
@@ -8042,7 +8042,7 @@ func tuiCreateRun(ns, instance, task string) (string, error) {
 	// Cloud providers require an API key; local providers with a baseURL do not.
 	if authSecret == "" && inst.Spec.Agents.Default.BaseURL == "" {
 		return "", fmt.Errorf("instance %q has no API key configured (authRefs is empty) — "+
-			"activate the persona pack through the TUI onboarding wizard or add an authRef manually", instance)
+			"activate the ensemble through the TUI onboarding wizard or add an authRef manually", instance)
 	}
 
 	runName := fmt.Sprintf("%s-run-%d", instance, time.Now().Unix())
@@ -8255,11 +8255,11 @@ func tuiDelete(ns, resourceType, name string) (string, error) {
 		}
 		return tuiSuccessStyle.Render(fmt.Sprintf("✓ Deleted schedule: %s", name)), nil
 	case "persona":
-		obj := &sympoziumv1alpha1.PersonaPack{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns}}
+		obj := &sympoziumv1alpha1.Ensemble{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns}}
 		if err := k8sClient.Delete(ctx, obj); err != nil {
-			return "", fmt.Errorf("delete persona pack: %w", err)
+			return "", fmt.Errorf("delete ensemble: %w", err)
 		}
-		return tuiSuccessStyle.Render(fmt.Sprintf("✓ Deleted PersonaPack: %s (owned resources will be garbage-collected)", name)), nil
+		return tuiSuccessStyle.Render(fmt.Sprintf("✓ Deleted Ensemble: %s (owned resources will be garbage-collected)", name)), nil
 	default:
 		return "", fmt.Errorf("unknown type: %s (use: instance, run, policy, schedule, persona, channel)", resourceType)
 	}
@@ -8367,42 +8367,42 @@ func tuiCreateSchedule(ns, instanceName, cronExpr, task string) (string, error) 
 	return tuiSuccessStyle.Render(fmt.Sprintf("✓ Created schedule %s (%s)", name, cronExpr)), nil
 }
 
-func tuiInstallPersonaPack(ns, packName string) (string, error) {
+func tuiInstallEnsemble(ns, packName string) (string, error) {
 	ctx := context.Background()
 
 	// Check if pack already exists.
-	var existing sympoziumv1alpha1.PersonaPack
+	var existing sympoziumv1alpha1.Ensemble
 	if err := k8sClient.Get(ctx, types.NamespacedName{Name: packName, Namespace: ns}, &existing); err == nil {
-		return "", fmt.Errorf("PersonaPack %q already exists (phase: %s, %d/%d personas installed)",
+		return "", fmt.Errorf("Ensemble %q already exists (phase: %s, %d/%d personas installed)",
 			packName, existing.Status.Phase, existing.Status.InstalledCount, existing.Status.PersonaCount)
 	}
 
 	// Look for a built-in pack YAML on disk. If not found, create a minimal one.
 	// The user is expected to have applied the pack YAML via kubectl or sympozium install.
-	return "", fmt.Errorf("PersonaPack %q not found in cluster. Apply it first:\n  kubectl apply -f config/personas/%s.yaml", packName, packName)
+	return "", fmt.Errorf("Ensemble %q not found in cluster. Apply it first:\n  kubectl apply -f config/personas/%s.yaml", packName, packName)
 }
 
-func tuiDeletePersonaPack(ns, packName string) (string, error) {
+func tuiDeleteEnsemble(ns, packName string) (string, error) {
 	ctx := context.Background()
 
-	var pack sympoziumv1alpha1.PersonaPack
+	var pack sympoziumv1alpha1.Ensemble
 	if err := k8sClient.Get(ctx, types.NamespacedName{Name: packName, Namespace: ns}, &pack); err != nil {
-		return "", fmt.Errorf("PersonaPack %q not found: %w", packName, err)
+		return "", fmt.Errorf("Ensemble %q not found: %w", packName, err)
 	}
 
 	if err := k8sClient.Delete(ctx, &pack); err != nil {
-		return "", fmt.Errorf("delete PersonaPack %q: %w", packName, err)
+		return "", fmt.Errorf("delete Ensemble %q: %w", packName, err)
 	}
 
-	return tuiSuccessStyle.Render(fmt.Sprintf("✓ Deleted PersonaPack %s (owned resources will be garbage-collected)", packName)), nil
+	return tuiSuccessStyle.Render(fmt.Sprintf("✓ Deleted Ensemble %s (owned resources will be garbage-collected)", packName)), nil
 }
 
 func tuiDisablePackPersona(ns, packName, personaName string) (string, error) {
 	ctx := context.Background()
 
-	var pack sympoziumv1alpha1.PersonaPack
+	var pack sympoziumv1alpha1.Ensemble
 	if err := k8sClient.Get(ctx, types.NamespacedName{Name: packName, Namespace: ns}, &pack); err != nil {
-		return "", fmt.Errorf("PersonaPack %q not found: %w", packName, err)
+		return "", fmt.Errorf("Ensemble %q not found: %w", packName, err)
 	}
 
 	// Check if already excluded.
@@ -8414,7 +8414,7 @@ func tuiDisablePackPersona(ns, packName, personaName string) (string, error) {
 
 	pack.Spec.ExcludePersonas = append(pack.Spec.ExcludePersonas, personaName)
 	if err := k8sClient.Update(ctx, &pack); err != nil {
-		return "", fmt.Errorf("update PersonaPack %q: %w", packName, err)
+		return "", fmt.Errorf("update Ensemble %q: %w", packName, err)
 	}
 
 	return tuiSuccessStyle.Render(fmt.Sprintf("✓ Disabled persona %q in pack %s (controller will clean up resources)", personaName, packName)), nil
@@ -8423,9 +8423,9 @@ func tuiDisablePackPersona(ns, packName, personaName string) (string, error) {
 func tuiDisableAllPackPersonas(ns, packName string, personaNames []string) (string, error) {
 	ctx := context.Background()
 
-	var pack sympoziumv1alpha1.PersonaPack
+	var pack sympoziumv1alpha1.Ensemble
 	if err := k8sClient.Get(ctx, types.NamespacedName{Name: packName, Namespace: ns}, &pack); err != nil {
-		return "", fmt.Errorf("PersonaPack %q not found: %w", packName, err)
+		return "", fmt.Errorf("Ensemble %q not found: %w", packName, err)
 	}
 
 	// Build full exclusion list (deduplicated).
@@ -8442,7 +8442,7 @@ func tuiDisableAllPackPersonas(ns, packName string, personaNames []string) (stri
 	}
 
 	if err := k8sClient.Update(ctx, &pack); err != nil {
-		return "", fmt.Errorf("update PersonaPack %q: %w", packName, err)
+		return "", fmt.Errorf("update Ensemble %q: %w", packName, err)
 	}
 
 	return tuiSuccessStyle.Render(fmt.Sprintf("✓ Disabled all %d personas in pack %s (controller will clean up resources)", len(personaNames), packName)), nil
@@ -9092,7 +9092,7 @@ func (m tuiModel) advanceWizard(val string) (tea.Model, tea.Cmd) {
 		}
 		// Resolve number to name.
 		if idx, err := strconv.Atoi(val); err == nil {
-			packs := m.personaPacks
+			packs := m.ensembles
 			if idx >= 1 && idx <= len(packs) {
 				val = packs[idx-1].Name
 			}
@@ -9100,17 +9100,17 @@ func (m tuiModel) advanceWizard(val string) (tea.Model, tea.Cmd) {
 		// Verify pack exists in cluster.
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		var pack sympoziumv1alpha1.PersonaPack
+		var pack sympoziumv1alpha1.Ensemble
 		if err := k8sClient.Get(ctx, types.NamespacedName{Name: val, Namespace: m.namespace}, &pack); err != nil {
-			w.err = fmt.Sprintf("PersonaPack %q not found in cluster. Have you run 'sympozium install'?", val)
+			w.err = fmt.Sprintf("Ensemble %q not found in cluster. Have you run 'sympozium install'?", val)
 			return m, nil
 		}
 		w.err = ""
-		w.personaPackName = val
+		w.ensembleName = val
 
 		// If already activated, allow re-running the wizard to change auth/model settings.
 		if len(pack.Spec.AuthRefs) > 0 && pack.Status.Phase == "Ready" {
-			m.addLog(tuiDimStyle.Render(fmt.Sprintf("PersonaPack %q is already activated — re-running wizard to update auth/model settings", val)))
+			m.addLog(tuiDimStyle.Render(fmt.Sprintf("Ensemble %q is already activated — re-running wizard to update auth/model settings", val)))
 		}
 
 		w.step = wizStepPersonaProvider
@@ -9298,8 +9298,8 @@ func (m tuiModel) advanceWizard(val string) (tea.Model, tea.Cmd) {
 		w.modelName = val
 		// Check if any persona in the pack uses github-gitops.
 		hasGithub := false
-		for _, pp := range m.personaPacks {
-			if pp.Name == w.personaPackName {
+		for _, pp := range m.ensembles {
+			if pp.Name == w.ensembleName {
 				for _, p := range pp.Spec.Personas {
 					for _, sk := range p.Skills {
 						if sk == "github-gitops" {
@@ -9857,16 +9857,16 @@ func (m tuiModel) renderPersonaWizardPanel(h int,
 
 	lines = append(lines, "")
 	lines = append(lines, titleStyle.Render("  ╔═══════════════════════════════════════════╗"))
-	lines = append(lines, titleStyle.Render("  ║       Sympozium · Persona Pack Wizard       ║"))
+	lines = append(lines, titleStyle.Render("  ║       Sympozium · Ensemble Wizard       ║"))
 	lines = append(lines, titleStyle.Render("  ╚═══════════════════════════════════════════╝"))
 	lines = append(lines, "")
 
 	// Recap completed values.
-	if w.personaPackName != "" && w.step > wizStepPersonaPick {
+	if w.ensembleName != "" && w.step > wizStepPersonaPick {
 		// Show pack info.
-		lines = append(lines, hintStyle.Render("  Pack: ")+valueStyle.Render(w.personaPackName))
-		for _, pp := range m.personaPacks {
-			if pp.Name == w.personaPackName {
+		lines = append(lines, hintStyle.Render("  Pack: ")+valueStyle.Render(w.ensembleName))
+		for _, pp := range m.ensembles {
+			if pp.Name == w.ensembleName {
 				lines = append(lines, hintStyle.Render("  Category: ")+valueStyle.Render(pp.Spec.Category)+
 					hintStyle.Render("  Personas: ")+valueStyle.Render(fmt.Sprintf("%d", len(pp.Spec.Personas))))
 				for _, p := range pp.Spec.Personas {
@@ -9922,13 +9922,13 @@ func (m tuiModel) renderPersonaWizardPanel(h int,
 	switch w.step {
 	case wizStepPersonaPick:
 		stepNum := 1
-		lines = append(lines, stepStyle.Render(fmt.Sprintf("  Step %d: Select a PersonaPack", stepNum)))
+		lines = append(lines, stepStyle.Render(fmt.Sprintf("  Step %d: Select a Ensemble", stepNum)))
 		lines = append(lines, "")
-		if len(m.personaPacks) == 0 {
-			lines = append(lines, hintStyle.Render("  No PersonaPacks found in cluster."))
+		if len(m.ensembles) == 0 {
+			lines = append(lines, hintStyle.Render("  No Ensembles found in cluster."))
 			lines = append(lines, hintStyle.Render("  Run 'sympozium install' to install built-in packs."))
 		} else {
-			for i, pp := range m.personaPacks {
+			for i, pp := range m.ensembles {
 				activated := ""
 				if len(pp.Spec.AuthRefs) > 0 && pp.Status.Phase == "Ready" {
 					activated = " ✓ activated"
@@ -10054,7 +10054,7 @@ func (m tuiModel) renderPersonaWizardPanel(h int,
 		lines = append(lines, stepStyle.Render("  Step 9: Confirm"))
 		lines = append(lines, "")
 		lines = append(lines, labelStyle.Render("  Summary:"))
-		lines = append(lines, hintStyle.Render("  Pack:      ")+valueStyle.Render(w.personaPackName))
+		lines = append(lines, hintStyle.Render("  Pack:      ")+valueStyle.Render(w.ensembleName))
 		lines = append(lines, hintStyle.Render("  Provider:  ")+valueStyle.Render(w.providerName))
 		lines = append(lines, hintStyle.Render("  Model:     ")+valueStyle.Render(w.modelName))
 		if w.githubRepo != "" {
@@ -10089,11 +10089,11 @@ func (m tuiModel) renderPersonaWizardPanel(h int,
 		lines = append(lines, "")
 
 	case wizStepPersonaApplying:
-		lines = append(lines, labelStyle.Render("  Activating persona pack..."))
+		lines = append(lines, labelStyle.Render("  Activating ensemble..."))
 
 	case wizStepPersonaDone:
 		lines = append(lines, "")
-		lines = append(lines, labelStyle.Render("  ✅ Persona pack activated!"))
+		lines = append(lines, labelStyle.Render("  ✅ Ensemble activated!"))
 		lines = append(lines, "")
 		if len(w.resultMsgs) > 0 {
 			for _, msg := range w.resultMsgs {
@@ -10127,19 +10127,19 @@ func (m tuiModel) renderPersonaWizardPanel(h int,
 	return strings.Join(lines, "\n") + "\n"
 }
 
-// renderPersonaPackDetailPane renders the right-hand detail pane showing
-// the contents of the selected PersonaPack during the persona wizard.
-func (m tuiModel) renderPersonaPackDetailPane(w, h int) string {
+// renderEnsembleDetailPane renders the right-hand detail pane showing
+// the contents of the selected Ensemble during the persona wizard.
+func (m tuiModel) renderEnsembleDetailPane(w, h int) string {
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#E94560"))
 	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#74C7EC")).Bold(true)
 	valueStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#A6E3A1"))
 	dimStyle := tuiDimStyle
 	skillStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FAB387"))
 
-	var pack *sympoziumv1alpha1.PersonaPack
-	for i := range m.personaPacks {
-		if m.personaPacks[i].Name == m.wizard.personaPackName {
-			pack = &m.personaPacks[i]
+	var pack *sympoziumv1alpha1.Ensemble
+	for i := range m.ensembles {
+		if m.ensembles[i].Name == m.wizard.ensembleName {
+			pack = &m.ensembles[i]
 			break
 		}
 	}
@@ -10316,14 +10316,14 @@ func (m tuiModel) renderPersonaPackDetailPane(w, h int) string {
 	return strings.Join(lines, "\n")
 }
 
-// tuiPersonaApply activates a PersonaPack by creating the auth secret,
+// tuiPersonaApply activates a Ensemble by creating the auth secret,
 // patching the pack with authRefs + channel config, and letting the
 // controller reconciler stamp out instances.
 func tuiPersonaApply(ns string, w *wizardState) (string, error) {
 	ctx := context.Background()
 	var msgs []string
 
-	secretName := fmt.Sprintf("%s-%s-key", w.personaPackName, w.providerName)
+	secretName := fmt.Sprintf("%s-%s-key", w.ensembleName, w.providerName)
 
 	// 1. Create AI provider secret.
 	if w.providerName == "bedrock" && w.awsRegion != "" {
@@ -10371,7 +10371,7 @@ func tuiPersonaApply(ns string, w *wizardState) (string, error) {
 		if !ch.enabled || ch.token == "" {
 			continue
 		}
-		chSecretName := fmt.Sprintf("%s-%s-secret", w.personaPackName, ch.chType)
+		chSecretName := fmt.Sprintf("%s-%s-secret", w.ensembleName, ch.chType)
 		existing := &corev1.Secret{}
 		if err := k8sClient.Get(ctx, types.NamespacedName{Name: chSecretName, Namespace: ns}, existing); err == nil {
 			_ = k8sClient.Delete(ctx, existing)
@@ -10386,10 +10386,10 @@ func tuiPersonaApply(ns string, w *wizardState) (string, error) {
 		msgs = append(msgs, tuiSuccessStyle.Render(fmt.Sprintf("✓ Created secret: %s", chSecretName)))
 	}
 
-	// 3. Patch the PersonaPack with authRefs and channel config.
-	var pack sympoziumv1alpha1.PersonaPack
-	if err := k8sClient.Get(ctx, types.NamespacedName{Name: w.personaPackName, Namespace: ns}, &pack); err != nil {
-		return "", fmt.Errorf("get PersonaPack: %w", err)
+	// 3. Patch the Ensemble with authRefs and channel config.
+	var pack sympoziumv1alpha1.Ensemble
+	if err := k8sClient.Get(ctx, types.NamespacedName{Name: w.ensembleName, Namespace: ns}, &pack); err != nil {
+		return "", fmt.Errorf("get Ensemble: %w", err)
 	}
 
 	// Enable the pack — this is the explicit activation step.
@@ -10442,7 +10442,7 @@ func tuiPersonaApply(ns string, w *wizardState) (string, error) {
 		if ch.enabled {
 			enabledChannels = append(enabledChannels, ch.chType)
 			if ch.token != "" {
-				channelConfigs[ch.chType] = fmt.Sprintf("%s-%s-secret", w.personaPackName, ch.chType)
+				channelConfigs[ch.chType] = fmt.Sprintf("%s-%s-secret", w.ensembleName, ch.chType)
 			}
 		}
 	}
@@ -10467,9 +10467,9 @@ func tuiPersonaApply(ns string, w *wizardState) (string, error) {
 	}
 
 	if err := k8sClient.Update(ctx, &pack); err != nil {
-		return "", fmt.Errorf("update PersonaPack: %w", err)
+		return "", fmt.Errorf("update Ensemble: %w", err)
 	}
-	msgs = append(msgs, tuiSuccessStyle.Render(fmt.Sprintf("✓ Activated PersonaPack: %s (%d personas)", w.personaPackName, len(pack.Spec.Personas))))
+	msgs = append(msgs, tuiSuccessStyle.Render(fmt.Sprintf("✓ Activated Ensemble: %s (%d personas)", w.ensembleName, len(pack.Spec.Personas))))
 	msgs = append(msgs, tuiDimStyle.Render("  Controller will create instances shortly..."))
 
 	return strings.Join(msgs, "\n"), nil

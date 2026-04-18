@@ -107,7 +107,7 @@ export function InstanceDetailPage() {
       <div className="space-y-1">
         <Breadcrumbs
           items={[
-            { label: "Persona Packs", to: "/personas" },
+            { label: "Ensembles", to: "/ensembles" },
             { label: "Instances", to: "/instances" },
             { label: inst.metadata.name },
           ]}

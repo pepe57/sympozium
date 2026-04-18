@@ -170,14 +170,14 @@ kubectl apply -f config/network/policies.yaml
 
 ---
 
-## Using with PersonaPacks
+## Using with Ensembles
 
-You can point an entire PersonaPack at LM Studio by setting `baseURL` during
+You can point an entire Ensemble at LM Studio by setting `baseURL` during
 onboarding:
 
 ```yaml
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: my-team
 spec:

@@ -1,8 +1,8 @@
 ---
-# Platform Team PersonaPack — ships with Sympozium.
+# Platform Team Ensemble — ships with Sympozium.
 # Provides three core agents: Security Guardian, SRE Watchdog, Platform Engineer.
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: platform-team
   namespace: sympozium-system

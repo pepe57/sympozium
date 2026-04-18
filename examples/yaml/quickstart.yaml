@@ -1,6 +1,6 @@
 ---
 # Quick Start Example - Copy-paste this entire file
-# This creates a complete working setup: PersonaPack + AgentRun
+# This creates a complete working setup: Ensemble + AgentRun
 # 
 # Prerequisites:
 #   1. Install Sympozium: sympozium install
@@ -11,11 +11,11 @@
 #   kubectl apply -f quickstart.yaml
 #
 # Then watch the agent run:
-#   kubectl get agentrun -l sympozium.ai/personapack=quickstart-demo -w
+#   kubectl get agentrun -l sympozium.ai/ensemble=quickstart-demo -w
 ---
-# Step 1: Create a PersonaPack with one simple persona
+# Step 1: Create a Ensemble with one simple persona
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: quickstart-demo
   namespace: default
@@ -50,7 +50,7 @@ metadata:
   name: quickstart-run
   namespace: default
   labels:
-    sympozium.ai/personapack: quickstart-demo
+    sympozium.ai/ensemble: quickstart-demo
 spec:
   instanceRef: assistant
   agentID: primary

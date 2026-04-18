@@ -1,4 +1,4 @@
-// PersonaPack channel binding: enable a pack with a channel configured →
+// Ensemble channel binding: enable a pack with a channel configured →
 // verify the channel binding shows up on the stamped instance detail page
 // and persists across a reload.
 
@@ -6,15 +6,15 @@ const PACK = `cy-ppch-${Date.now()}`;
 const PERSONA = "notifier";
 const STAMPED_INSTANCE = `${PACK}-${PERSONA}`;
 
-describe("PersonaPack — channel binding", () => {
+describe("Ensemble — channel binding", () => {
   after(() => {
-    cy.deletePersonaPack(PACK);
+    cy.deleteEnsemble(PACK);
     cy.deleteInstance(STAMPED_INSTANCE);
   });
 
   it("stamps a persona with a channel binding and surfaces it on instance detail", () => {
     const manifest = `apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: ${PACK}
   namespace: default

@@ -2,7 +2,7 @@
 
 Cypress specs in `web/cypress/e2e/` verify the React web UI end-to-end
 against a running Sympozium cluster. They cover wizard flows, list/detail
-pages, run dispatching, deletion, persona-pack lifecycle, and regression
+pages, run dispatching, deletion, ensemble lifecycle, and regression
 guards for UX-visible bugs.
 
 ## Prerequisites
@@ -55,7 +55,7 @@ secret in the `sympozium-system` namespace and wire it into Cypress via
 | Area | Spec |
 |---|---|
 | Instance wizard (adhoc + LM Studio) | `instance-create-adhoc.cy.ts`, `instance-create-lmstudio.cy.ts`, `instance-multi-run-lmstudio.cy.ts` |
-| PersonaPack activation + lifecycle | `personapack-enable.cy.ts`, `personapack-full-lifecycle.cy.ts`, `personapack-channel-bind.cy.ts` |
+| Ensemble activation + lifecycle | `ensemble-enable.cy.ts`, `ensemble-full-lifecycle.cy.ts`, `ensemble-channel-bind.cy.ts` |
 | Run detail regression guards | `run-detail-response-visible.cy.ts`, `run-thinking-indicator.cy.ts` |
 | Deletion flows | `instance-delete-with-running-runs.cy.ts`, `run-delete-and-disappear.cy.ts`, `schedule-delete.cy.ts` |
 | Runs list | `runs-filter-and-sort.cy.ts` |
@@ -74,7 +74,7 @@ boilerplate:
 | `cy.dispatchRun(instanceRef, task)` | POST to `/api/v1/runs`; resolves with the created AgentRun name |
 | `cy.waitForRunTerminal(runName)` | Polls `/api/v1/runs/:name` until `status.phase` is `Succeeded` or `Failed` |
 | `cy.waitForDeleted(path)` | Polls until a GET returns 404 (handles finalizer delays) |
-| `cy.deleteInstance(name)` / `cy.deleteRun(name)` / `cy.deleteSchedule(name)` / `cy.deletePersonaPack(name)` | API-level cleanup helpers |
+| `cy.deleteInstance(name)` / `cy.deleteRun(name)` / `cy.deleteSchedule(name)` / `cy.deleteEnsemble(name)` | API-level cleanup helpers |
 | `cy.wizardNext()` / `cy.wizardBack()` | Click Next/Back buttons in onboarding wizards |
 
 Minimal template for a live-cluster spec:
@@ -115,7 +115,7 @@ export {};
 - **Prefer `cy.waitForDeleted()` over direct 404 assertions** — finalizers
   can delay GC and a naïve `expect(200).to.eq(404)` is racey.
 - **For operations without an apiserver endpoint** (e.g. schedule
-  suspend, PersonaPack creation), fall back to `cy.exec("kubectl ...")`
+  suspend, Ensemble creation), fall back to `cy.exec("kubectl ...")`
   via manifests written with `cy.writeFile("cypress/tmp/…yaml", …)`.
 - **Don't block on the "thinking" indicator inside tight loops** — short
   tasks may finish before Cypress can observe the transient phase.

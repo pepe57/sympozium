@@ -64,7 +64,7 @@ Sympozium takes the best of both:
   │   └──────────────┘  └───────┬────────┘  └──────────────────────────┘  │
   │                             │                                          │
   │   ┌──────────────────────┐  │  ┌───────────────────────────────────┐  │
-  │   │  PersonaPack         │  │  │  Reconcilers: Instance, Policy,  │  │
+  │   │  Ensemble         │  │  │  Reconcilers: Instance, Policy,  │  │
   │   │  Controller          │  │  │  Schedule, SkillPack, AgentRun   │  │
   │   │  (stamp out agents)  │  │  │                                   │  │
   │   └──────────────────────┘  │  └───────────────────────────────────┘  │
@@ -139,7 +139,7 @@ spec:
   # Agent configuration
   agents:
     default:
-      model: gpt-4o     # overridable per-persona; see PersonaPack activation
+      model: gpt-4o     # overridable per-persona; see Ensemble activation
       thinking: high
       sandbox:
         enabled: true
@@ -446,18 +446,18 @@ spec:
         verbs: ["get", "list", "watch"]
 ```
 
-### 3.5 `PersonaPack` — pre-configured agent bundles
+### 3.5 `Ensemble` — pre-configured agent bundles
 
-PersonaPacks are the highest-level abstraction in Sympozium. A single
-PersonaPack CRD bundles multiple agent personas — each with a system prompt,
+Ensembles are the highest-level abstraction in Sympozium. A single
+Ensemble CRD bundles multiple agent personas — each with a system prompt,
 skills, tool policy, schedule, and memory seeds — into a one-click installable
 package. Think of them as **Helm Charts for AI agents**.
 
-When a PersonaPack is activated (via the TUI wizard or kubectl), the controller
+When a Ensemble is activated (via the TUI wizard or kubectl), the controller
 stamps out all the underlying resources automatically:
 
 ```
-PersonaPack CR (spec.personas[])
+Ensemble CR (spec.personas[])
   │
   ├─ For each persona:
   │   ├─ Create SympoziumInstance (inherits model, authRefs, policyRef)
@@ -465,7 +465,7 @@ PersonaPack CR (spec.personas[])
   │   └─ Create ConfigMap (<name>-memory, from persona.memory.seeds)
   │
   ├─ Set ownerReferences on all generated resources
-  │   └─ Deleting the PersonaPack cascades to all children
+  │   └─ Deleting the Ensemble cascades to all children
   │
   └─ Update status:
       ├─ status.personaCount = len(spec.personas)
@@ -478,7 +478,7 @@ PersonaPack CR (spec.personas[])
 
 | Phase | Meaning |
 |-------|---------|
-| `Pending` | PersonaPack exists but `authRefs` are empty — waiting for activation |
+| `Pending` | Ensemble exists but `authRefs` are empty — waiting for activation |
 | `Ready` | All personas successfully stamped out |
 | `Error` | One or more personas failed to reconcile |
 
@@ -486,7 +486,7 @@ PersonaPack CR (spec.personas[])
 
 ```yaml
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: platform-team
 spec:
@@ -525,18 +525,18 @@ spec:
 ```
 
 **Ownership model:** All generated resources (Instances, Schedules, ConfigMaps)
-carry an `ownerReference` pointing back to the PersonaPack. This gives
-Kubernetes-native cascading deletion — removing the PersonaPack removes
+carry an `ownerReference` pointing back to the Ensemble. This gives
+Kubernetes-native cascading deletion — removing the Ensemble removes
 everything it created. The controller uses `controllerutil.SetControllerReference`
 to establish the owner chain.
 
-**TUI activation flow:** The TUI Personas tab lists all PersonaPacks in the
+**TUI activation flow:** The TUI Personas tab lists all Ensembles in the
 cluster. Pressing Enter on a pack launches a wizard that collects provider,
-API key, and model selection, then creates a Secret and patches the PersonaPack's
+API key, and model selection, then creates a Secret and patches the Ensemble's
 `spec.authRefs`. The controller detects the authRef and reconciles all personas
 into running instances.
 
-**Built-in packs:** Sympozium ships with two PersonaPacks in `config/personas/`:
+**Built-in packs:** Sympozium ships with two Ensembles in `config/personas/`:
 
 | Pack | Personas | Focus |
 |------|----------|-------|
@@ -1172,7 +1172,7 @@ the IPC bridge flushes them to the database in batches.
 | Per-group isolation | Group folder + session dir | Per-`AgentRun` pod with isolated volumes |
 | Credential filtering | `readSecrets()` | K8s Secrets mounted only into authorized pods |
 | `OUTPUT_START/END_MARKER` | `container-runner.ts` | IPC bridge structured JSON protocol |
-| N/A | N/A | **`PersonaPack` CRD** — bundles multiple agent personas into one installable unit; stamps out Instances, Schedules, and memory automatically |
+| N/A | N/A | **`Ensemble` CRD** — bundles multiple agent personas into one installable unit; stamps out Instances, Schedules, and memory automatically |
 
 ---
 

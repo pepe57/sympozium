@@ -1,11 +1,11 @@
 ---
-# How to Activate a PersonaPack
+# How to Activate a Ensemble
 # 
-# Step 1: Apply the PersonaPack (creates the definition)
-#   kubectl apply -f personapack-example.yaml
+# Step 1: Apply the Ensemble (creates the definition)
+#   kubectl apply -f ensemble-example.yaml
 #
 # Step 2: Wait for it to appear in Pending phase
-#   kubectl get personapack example-team -w
+#   kubectl get ensemble example-team -w
 #
 # Step 3: Activate via TUI (interactive wizard)
 #   sympozium
@@ -14,7 +14,7 @@
 #   - Select your API key secret
 #
 # OR activate programmatically (headless/CI):
-#   kubectl patch personapack example-team --type=merge -p '{
+#   kubectl patch ensemble example-team --type=merge -p '{
 #     "spec": {
 #       "authRefs": [{"secret": "my-openai-key"}]
 #     }
@@ -26,11 +26,11 @@
 # - ConfigMaps (seeded memory)
 #
 # View created resources:
-#   kubectl get sympoziuminstance,sympoziumschedule -l sympozium.ai/personapack=example-team
+#   kubectl get sympoziuminstance,sympoziumschedule -l sympozium.ai/ensemble=example-team
 ---
 # Example: Quick activation via kubectl patch
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: quick-activate
   namespace: default

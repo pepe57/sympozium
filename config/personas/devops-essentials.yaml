@@ -1,8 +1,8 @@
 ---
-# DevOps PersonaPack — development workflow agents.
+# DevOps Ensemble — development workflow agents.
 # Provides agents for CI/CD monitoring, incident response, and cost analysis.
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: devops-essentials
   namespace: sympozium-system

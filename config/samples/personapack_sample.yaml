@@ -1,7 +1,7 @@
 ---
-# Example PersonaPack
+# Example Ensemble
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: my-team
   namespace: default

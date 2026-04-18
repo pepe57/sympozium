@@ -1,6 +1,6 @@
-# Developer Team PersonaPack
+# Developer Team Ensemble
 
-The `developer-team` PersonaPack provides a 2-pizza software development team (7 agents) that collaborates on a single GitHub repository. Each agent has a distinct role, schedule, and set of responsibilities — coordinating through GitHub issues, pull requests, and code reviews.
+The `developer-team` Ensemble provides a 2-pizza software development team (7 agents) that collaborates on a single GitHub repository. Each agent has a distinct role, schedule, and set of responsibilities — coordinating through GitHub issues, pull requests, and code reviews.
 
 ## Agents
 
@@ -36,7 +36,7 @@ sympozium
 ### Via kubectl
 
 ```bash
-# 1. Apply the PersonaPack
+# 1. Apply the Ensemble
 kubectl apply -f config/personas/developer-team.yaml
 
 # 2. Create the AI provider secret
@@ -50,7 +50,7 @@ kubectl create secret generic github-gitops-token \
   -n sympozium-system
 
 # 4. Activate the pack
-kubectl patch personapack developer-team -n sympozium-system --type=merge -p '{
+kubectl patch ensemble developer-team -n sympozium-system --type=merge -p '{
   "spec": {
     "enabled": true,
     "authRefs": [{"provider": "openai", "secret": "dev-team-openai-key"}]
@@ -138,7 +138,7 @@ When using the TUI onboarding wizard, you'll be prompted for the target reposito
 You can disable specific agents without removing the entire pack:
 
 ```bash
-kubectl patch personapack developer-team --type=merge -p '{
+kubectl patch ensemble developer-team --type=merge -p '{
   "spec": {
     "excludePersonas": ["docs-writer", "devops-engineer"]
   }
@@ -149,7 +149,7 @@ Or toggle them in the TUI by pressing Enter on the pack and using Space to toggl
 
 ### Adjusting schedules
 
-Edit the PersonaPack YAML to change intervals:
+Edit the Ensemble YAML to change intervals:
 
 ```yaml
 personas:
@@ -186,7 +186,7 @@ The developer-team pack is included in the Helm chart and installed by default:
 ```yaml
 # values.yaml
 defaultPersonas:
-  enabled: true   # Installs PersonaPack CRDs (disabled until activated)
+  enabled: true   # Installs Ensemble CRDs (disabled until activated)
 ```
 
 The pack is installed in a disabled state. Activate it via the TUI or kubectl after setting up auth.

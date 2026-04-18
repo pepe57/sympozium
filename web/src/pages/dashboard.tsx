@@ -16,7 +16,7 @@ import {
   useClusterInfo,
   useObservabilityMetrics,
   useGateVerdict,
-  usePersonaPacks,
+  useEnsembles,
 } from "@/hooks/use-api";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { formatAge, truncate } from "@/lib/utils";
@@ -42,7 +42,7 @@ import {
   X,
   Users,
 } from "lucide-react";
-import { DashboardPersonaCanvas } from "@/components/persona-canvas";
+import { DashboardEnsembleCanvas } from "@/components/ensemble-canvas";
 import { Button } from "@/components/ui/button";
 import { ResponsiveGridLayout, useContainerWidth } from "react-grid-layout";
 import type { Layout, ResponsiveLayouts } from "react-grid-layout";
@@ -1426,7 +1426,7 @@ export function DashboardPage() {
           {/* ---- Team Canvas ---- */}
           <div key="teamCanvas">
             <PanelWrapper title="Team Canvas" icon={Users} locked={locked}>
-              <DashboardPersonaCanvas />
+              <DashboardEnsembleCanvas />
             </PanelWrapper>
           </div>
         </ResponsiveGridLayout>

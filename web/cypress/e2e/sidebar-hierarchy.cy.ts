@@ -12,7 +12,7 @@ describe("Sidebar — grouped navigation", () => {
     // All nav links should be present.
     cy.get("aside").contains("Dashboard").should("exist");
     cy.get("aside").contains("Gateway").should("exist");
-    cy.get("aside").contains("Persona Packs").should("exist");
+    cy.get("aside").contains("Ensembles").should("exist");
     cy.get("aside").contains("Instances").should("exist");
     cy.get("aside").contains("Runs").should("exist");
     cy.get("aside").contains("Schedules").should("exist");
@@ -24,9 +24,9 @@ describe("Sidebar — grouped navigation", () => {
   it("navigates to the correct pages via sidebar links", () => {
     cy.visit("/dashboard");
 
-    // Click Persona Packs in sidebar.
-    cy.get("aside").contains("a", "Persona Packs").click();
-    cy.url().should("include", "/personas");
+    // Click Ensembles in sidebar.
+    cy.get("aside").contains("a", "Ensembles").click();
+    cy.url().should("include", "/ensembles");
 
     // Click Instances in sidebar.
     cy.get("aside").contains("a", "Instances").click();

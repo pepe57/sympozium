@@ -1,4 +1,4 @@
-// End-to-end regression: create a PersonaPack with a scheduled persona,
+// End-to-end regression: create a Ensemble with a scheduled persona,
 // verify the controller stamps an Instance + Schedule, force the schedule
 // to trigger immediately (by clearing its lastRunTime so the cron
 // scheduler computes "next run" in the past), and assert that a real
@@ -7,7 +7,7 @@
 //
 // This is the regression guard for the "ghost run" bug where the
 // scheduler was silently claiming success due to run-name collisions
-// after a PersonaPack disable/re-enable cycle. If that bug ever comes
+// after a Ensemble disable/re-enable cycle. If that bug ever comes
 // back, this test fails because no new AgentRun will actually appear.
 
 const PACK = `cy-ppsched-${Date.now()}`;
@@ -22,9 +22,9 @@ function authHeaders(): Record<string, string> {
   return h;
 }
 
-describe("PersonaPack — scheduled run fires and produces a response", () => {
+describe("Ensemble — scheduled run fires and produces a response", () => {
   after(() => {
-    cy.deletePersonaPack(PACK);
+    cy.deleteEnsemble(PACK);
     cy.deleteInstance(INSTANCE);
     // The schedule + runs are owned by the pack/instance and should GC,
     // but clean up defensively in case of leftover resources.
@@ -39,13 +39,13 @@ describe("PersonaPack — scheduled run fires and produces a response", () => {
   });
 
   it("stamps resources, triggers the schedule immediately, and renders the run's response", () => {
-    // ── Step 1: create a PersonaPack with a scheduled persona ──────────────
+    // ── Step 1: create a Ensemble with a scheduled persona ──────────────
     // Use a cron that only fires hourly so the test controls timing
     // (otherwise the schedule might fire on its natural cadence during
     // the test and create a confusing duplicate). We'll force-trigger
     // the initial run via status patch below.
     const manifest = `apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: ${PACK}
   namespace: default

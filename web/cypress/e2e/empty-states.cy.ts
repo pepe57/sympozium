@@ -29,7 +29,7 @@ describe("Empty States — contextual guidance", () => {
   });
 
   it("shows contextual empty state on persona packs page", () => {
-    cy.visit("/personas");
+    cy.visit("/ensembles");
 
     cy.get("input[placeholder*='Search']", { timeout: 20000 })
       .clear()

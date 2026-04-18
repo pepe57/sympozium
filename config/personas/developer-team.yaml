@@ -1,9 +1,9 @@
 ---
-# Developer Team PersonaPack — a 2-pizza dev team for GitHub repositories.
+# Developer Team Ensemble — a 2-pizza dev team for GitHub repositories.
 # Provides seven agents that collaborate on a single repository through PRs,
 # issues, code review, testing, and documentation.
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: developer-team
   namespace: sympozium-system

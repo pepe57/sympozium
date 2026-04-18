@@ -10,7 +10,7 @@ import { FileCode, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toYaml, type YamlValue } from "@/lib/yaml";
 import type { WizardResult } from "@/components/onboarding-wizard";
-import type { SympoziumInstance, PersonaPack } from "@/lib/api";
+import type { SympoziumInstance, Ensemble } from "@/lib/api";
 
 // ── YAML builders ─────────────────────────────────────────────────────────────
 
@@ -73,9 +73,9 @@ export function instanceYamlFromWizard(result: WizardResult): string {
   return toYaml(obj);
 }
 
-/** Build a PersonaPack activation YAML (the full PersonaPack CR is already in the cluster;
+/** Build a Ensemble activation YAML (the full Ensemble CR is already in the cluster;
  *  this shows a kubectl-patch equivalent as a full resource). */
-export function personaPackYamlFromWizard(
+export function ensembleYamlFromWizard(
   packName: string,
   result: WizardResult,
   personaCount?: number,
@@ -119,7 +119,7 @@ export function personaPackYamlFromWizard(
 
   const obj: Record<string, YamlValue> = {
     apiVersion: "sympozium.ai/v1alpha1",
-    kind: "PersonaPack",
+    kind: "Ensemble",
     metadata: { name: packName },
     spec,
   };
@@ -156,8 +156,8 @@ export function instanceYamlFromResource(inst: SympoziumInstance): string {
   return toYaml(obj);
 }
 
-/** Build a PersonaPack YAML from an existing API resource. */
-export function personaPackYamlFromResource(pack: PersonaPack): string {
+/** Build a Ensemble YAML from an existing API resource. */
+export function ensembleYamlFromResource(pack: Ensemble): string {
   const spec: Record<string, YamlValue> = {};
 
   if (pack.spec.enabled !== undefined) spec.enabled = pack.spec.enabled;
@@ -198,7 +198,7 @@ export function personaPackYamlFromResource(pack: PersonaPack): string {
 
   const obj: Record<string, YamlValue> = {
     apiVersion: "sympozium.ai/v1alpha1",
-    kind: "PersonaPack",
+    kind: "Ensemble",
     metadata: {
       name: pack.metadata.name,
       ...(pack.metadata.labels && Object.keys(pack.metadata.labels).length > 0

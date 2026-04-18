@@ -1,4 +1,4 @@
-// PersonaPack lifecycle: enable pack → stamped Instance + Schedule appear →
+// Ensemble lifecycle: enable pack → stamped Instance + Schedule appear →
 // disable pack → both disappear. Verifies cascade semantics end to end.
 
 const PACK = `cy-pplc-${Date.now()}`;
@@ -7,7 +7,7 @@ const STAMPED_INSTANCE = `${PACK}-${PERSONA}`;
 
 function applyPackKubectl() {
   const manifest = `apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: ${PACK}
   namespace: default
@@ -30,9 +30,9 @@ spec:
   cy.exec(`kubectl apply -f cypress/tmp/${PACK}.yaml`);
 }
 
-describe("PersonaPack — full lifecycle", () => {
+describe("Ensemble — full lifecycle", () => {
   after(() => {
-    cy.deletePersonaPack(PACK);
+    cy.deleteEnsemble(PACK);
     cy.deleteInstance(STAMPED_INSTANCE);
   });
 
@@ -46,7 +46,7 @@ describe("PersonaPack — full lifecycle", () => {
     // Disable via apiserver PATCH (this endpoint DOES exist).
     cy.request({
       method: "PATCH",
-      url: `/api/v1/personapacks/${PACK}?namespace=default`,
+      url: `/api/v1/ensembles/${PACK}?namespace=default`,
       headers: {
         "Content-Type": "application/json",
         ...(Cypress.env("API_TOKEN")

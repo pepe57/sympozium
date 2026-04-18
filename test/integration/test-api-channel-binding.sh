@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# API integration test: channel binding via ad-hoc instance and PersonaPack.
+# API integration test: channel binding via ad-hoc instance and Ensemble.
 # Validates:
 #   1) Ad-hoc instance with channel spec → channel Deployment created with correct labels
-#   2) PersonaPack with channelConfigs → stamped instance gets channel → Deployment created
+#   2) Ensemble with channelConfigs → stamped instance gets channel → Deployment created
 #   3) Instance status reports channel status
 #   4) Removing channel (instance delete) cleans up channel Deployment
 
@@ -55,13 +55,13 @@ stop_port_forward() {
 
 cleanup() {
   info "Cleaning up channel-binding test resources..."
-  kubectl patch personapack "$PACK_NAME" -n "$NAMESPACE" --type=merge -p '{"spec":{"enabled":false}}' >/dev/null 2>&1 || true
+  kubectl patch ensemble "$PACK_NAME" -n "$NAMESPACE" --type=merge -p '{"spec":{"enabled":false}}' >/dev/null 2>&1 || true
   sleep 2
   kubectl delete agentrun -n "$NAMESPACE" -l "sympozium.ai/instance=${ADHOC_INSTANCE}" --ignore-not-found >/dev/null 2>&1 || true
   kubectl delete agentrun -n "$NAMESPACE" -l "sympozium.ai/instance=${PACK_INSTANCE}" --ignore-not-found >/dev/null 2>&1 || true
   kubectl delete sympoziuminstance "$ADHOC_INSTANCE" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
   kubectl delete sympoziuminstance "$PACK_INSTANCE" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
-  kubectl delete personapack "$PACK_NAME" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
+  kubectl delete ensemble "$PACK_NAME" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
   kubectl delete secret "$ADHOC_SECRET" "$ADHOC_CHANNEL_SECRET" "$PACK_SECRET" "$PACK_CHANNEL_SECRET" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
   sleep 3
   kubectl delete deploy -n "$NAMESPACE" -l "sympozium.ai/instance=${ADHOC_INSTANCE}" --ignore-not-found >/dev/null 2>&1 || true
@@ -266,9 +266,9 @@ EOF
   fi
 
   # ════════════════════════════════════════════════════════════
-  # Part 2: PersonaPack with channel config
+  # Part 2: Ensemble with channel config
   # ════════════════════════════════════════════════════════════
-  info "--- Part 2: PersonaPack with channel config ---"
+  info "--- Part 2: Ensemble with channel config ---"
 
   kubectl create secret generic "$PACK_SECRET" \
     --from-literal=OPENAI_API_KEY="${OPENAI_API_KEY}" \
@@ -276,7 +276,7 @@ EOF
 
   cat <<EOF | kubectl apply -f - >/dev/null
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: ${PACK_NAME}
   namespace: ${NAMESPACE}
@@ -298,12 +298,12 @@ spec:
         interval: "10m"
         task: "send notification"
 EOF
-  pass "Created PersonaPack '${PACK_NAME}' with channel config"
+  pass "Created Ensemble '${PACK_NAME}' with channel config"
 
   # ── Enable the pack ──
-  api_request PATCH "/api/v1/personapacks/${PACK_NAME}" \
+  api_request PATCH "/api/v1/ensembles/${PACK_NAME}" \
     "{\"enabled\":true,\"provider\":\"openai\",\"secretName\":\"${PACK_SECRET}\",\"model\":\"gpt-4o-mini\"}" >/dev/null
-  pass "Enabled PersonaPack"
+  pass "Enabled Ensemble"
 
   # ── Wait for stamped instance ──
   elapsed=0
@@ -313,10 +313,10 @@ EOF
     elapsed=$((elapsed + 3))
   done
   if [[ "$elapsed" -ge "$TIMEOUT" ]]; then
-    fail "Timed out waiting for PersonaPack instance '${PACK_INSTANCE}'"
+    fail "Timed out waiting for Ensemble instance '${PACK_INSTANCE}'"
     exit 1
   fi
-  pass "PersonaPack stamped instance '${PACK_INSTANCE}'"
+  pass "Ensemble stamped instance '${PACK_INSTANCE}'"
 
   # ── Verify stamped instance has channel spec ──
   pack_inst_json="$(api_request GET "/api/v1/instances/${PACK_INSTANCE}")"
@@ -325,11 +325,11 @@ EOF
     fail "Stamped instance missing telegram channel (got '${pack_chan_type}')"
     exit 1
   fi
-  pass "PersonaPack stamped instance has telegram channel binding"
+  pass "Ensemble stamped instance has telegram channel binding"
 
   # ── Wait for channel Deployment from pack instance ──
   pack_deploy="${PACK_INSTANCE}-channel-telegram"
-  wait_for_deployment "$pack_deploy" "PersonaPack telegram" || true
+  wait_for_deployment "$pack_deploy" "Ensemble telegram" || true
 
   # ════════════════════════════════════════════════════════════
   # Part 3: Cleanup verification

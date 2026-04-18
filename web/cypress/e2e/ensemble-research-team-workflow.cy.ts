@@ -1,5 +1,5 @@
 /**
- * Research Team PersonaPack — end-to-end test for the default research-team
+ * Research Team Ensemble — end-to-end test for the default research-team
  * pack that demonstrates all three relationship types (delegation, sequential,
  * supervision) on the workflow canvas.
  */
@@ -23,7 +23,7 @@ describe("Research Team — default pack with relationships", () => {
     );
     // Wait for API to serve it
     cy.request({
-      url: `/api/v1/personapacks/${PACK}?namespace=${NS}`,
+      url: `/api/v1/ensembles/${PACK}?namespace=${NS}`,
       headers: apiHeaders(),
       retryOnStatusCodeFailure: true,
     }).then((resp) => {
@@ -32,17 +32,17 @@ describe("Research Team — default pack with relationships", () => {
   });
 
   after(() => {
-    cy.exec(`kubectl delete personapack ${PACK} -n ${NS}`, {
+    cy.exec(`kubectl delete ensemble ${PACK} -n ${NS}`, {
       failOnNonZeroExit: false,
     });
-    cy.exec(`kubectl delete personapack ${PACK} -n sympozium-system`, {
+    cy.exec(`kubectl delete ensemble ${PACK} -n sympozium-system`, {
       failOnNonZeroExit: false,
     });
   });
 
   it("has the correct personas and relationships via API", () => {
     cy.request({
-      url: `/api/v1/personapacks/${PACK}?namespace=${NS}`,
+      url: `/api/v1/ensembles/${PACK}?namespace=${NS}`,
       headers: apiHeaders(),
     }).then((resp) => {
       const spec = resp.body.spec;
@@ -85,7 +85,7 @@ describe("Research Team — default pack with relationships", () => {
   });
 
   it("renders all 4 persona nodes on the workflow canvas", () => {
-    cy.visit(`/personas/${PACK}?tab=workflow`);
+    cy.visit(`/ensembles/${PACK}?tab=workflow`);
     cy.contains("Research Lead", { timeout: 10000 }).should("be.visible");
     cy.contains("Researcher").should("be.visible");
     cy.contains("Writer").should("be.visible");
@@ -93,33 +93,33 @@ describe("Research Team — default pack with relationships", () => {
   });
 
   it("shows the correct relationship count in the description", () => {
-    cy.visit(`/personas/${PACK}?tab=workflow`);
+    cy.visit(`/ensembles/${PACK}?tab=workflow`);
     cy.contains("4 personas with 5 relationships", { timeout: 10000 }).should(
       "be.visible",
     );
   });
 
   it("canvas has ReactFlow controls and minimap", () => {
-    cy.visit(`/personas/${PACK}?tab=workflow`);
+    cy.visit(`/ensembles/${PACK}?tab=workflow`);
     // ReactFlow controls exist in the DOM (may be off-viewport on small screens)
     cy.get(".react-flow__controls", { timeout: 10000 }).should("exist");
     cy.get(".react-flow__minimap").should("exist");
   });
 
   it("shows delegation workflow type in the header area", () => {
-    cy.visit(`/personas/${PACK}`);
+    cy.visit(`/ensembles/${PACK}`);
     // The header displays workflow type for non-autonomous packs
     cy.contains("delegation", { timeout: 10000 }).should("exist");
   });
 
   it("shows pack description and category", () => {
-    cy.visit(`/personas/${PACK}`);
+    cy.visit(`/ensembles/${PACK}`);
     cy.contains("research coordination team").should("be.visible");
     cy.contains("research").should("be.visible");
   });
 
   it("overview tab shows all 4 personas", () => {
-    cy.visit(`/personas/${PACK}`);
+    cy.visit(`/ensembles/${PACK}`);
     cy.contains("Personas (4)").should("be.visible");
     cy.contains("Research Lead").should("be.visible");
     cy.contains("Researcher").should("be.visible");
@@ -130,7 +130,7 @@ describe("Research Team — default pack with relationships", () => {
   it("can update relationships via PATCH and see changes on canvas", () => {
     // Add a new relationship: reviewer → researcher (feedback loop)
     cy.request({
-      url: `/api/v1/personapacks/${PACK}?namespace=${NS}`,
+      url: `/api/v1/ensembles/${PACK}?namespace=${NS}`,
       headers: apiHeaders(),
     }).then((resp) => {
       const existingRels = resp.body.spec.relationships || [];
@@ -141,7 +141,7 @@ describe("Research Team — default pack with relationships", () => {
 
       cy.request({
         method: "PATCH",
-        url: `/api/v1/personapacks/${PACK}?namespace=${NS}`,
+        url: `/api/v1/ensembles/${PACK}?namespace=${NS}`,
         headers: apiHeaders(),
         body: { relationships: updatedRels },
       }).then((patchResp) => {
@@ -151,7 +151,7 @@ describe("Research Team — default pack with relationships", () => {
     });
 
     // Verify the canvas shows the updated count
-    cy.visit(`/personas/${PACK}?tab=workflow`);
+    cy.visit(`/ensembles/${PACK}?tab=workflow`);
     cy.contains("4 personas with 6 relationships", { timeout: 10000 }).should(
       "be.visible",
     );
@@ -159,7 +159,7 @@ describe("Research Team — default pack with relationships", () => {
     // Restore original relationships
     cy.request({
       method: "PATCH",
-      url: `/api/v1/personapacks/${PACK}?namespace=${NS}`,
+      url: `/api/v1/ensembles/${PACK}?namespace=${NS}`,
       headers: apiHeaders(),
       body: {
         relationships: [

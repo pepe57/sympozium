@@ -6,7 +6,7 @@ Running `sympozium` with no arguments launches a **k9s-style interactive termina
 
 | Key | View | Description |
 |-----|------|-------------|
-| `1` | Personas | PersonaPack list — press Enter to activate a pack and create agents |
+| `1` | Personas | Ensemble list — press Enter to activate a pack and create agents |
 | `2` | Instances | SympoziumInstance list with status, channels, memory config |
 | `3` | Runs | AgentRun list with phase, duration, result preview |
 | `4` | Policies | SympoziumPolicy list with feature gates |
@@ -36,6 +36,6 @@ Running `sympozium` with no arguments launches a **k9s-style interactive termina
 | `/run <task>` | Create and submit an AgentRun |
 | `/schedule <instance> <cron> <task>` | Create a SympoziumSchedule |
 | `/memory <instance>` | View persistent memory for an instance |
-| `/personas` | Switch to PersonaPacks view |
+| `/personas` | Switch to Ensembles view |
 | `/instances` `/runs` `/channels` `/schedules` | Switch views |
 | `/delete <type> <name>` | Delete a resource with confirmation |

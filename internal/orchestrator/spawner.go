@@ -60,12 +60,12 @@ type SpawnRequest struct {
 
 	ImagePullSecrets []corev1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
 
-	// TargetPersona is the name of a persona within the same PersonaPack.
+	// TargetPersona is the name of a persona within the same Ensemble.
 	// When set (along with PackName), the spawner resolves it to the
 	// correct SympoziumInstance, overriding InstanceName.
 	TargetPersona string `json:"targetPersona,omitempty"`
 
-	// PackName is the PersonaPack that owns both the parent and target personas.
+	// PackName is the Ensemble that owns both the parent and target personas.
 	// Required when TargetPersona is set.
 	PackName string `json:"packName,omitempty"`
 }
@@ -81,7 +81,7 @@ type SpawnResult struct {
 
 // Spawn creates a new AgentRun CR for a sub-agent.
 func (s *Spawner) Spawn(ctx context.Context, req SpawnRequest) (*SpawnResult, error) {
-	// Resolve persona-targeted delegation: look up the PersonaPack to find
+	// Resolve persona-targeted delegation: look up the Ensemble to find
 	// the target persona's installed instance name.
 	if req.TargetPersona != "" && req.PackName != "" {
 		resolved, err := s.resolvePersonaTarget(ctx, req)
@@ -163,13 +163,13 @@ func (s *Spawner) Spawn(ctx context.Context, req SpawnRequest) (*SpawnResult, er
 	return &SpawnResult{RunName: runName}, nil
 }
 
-// resolvePersonaTarget looks up a PersonaPack to find the SympoziumInstance
+// resolvePersonaTarget looks up a Ensemble to find the SympoziumInstance
 // that corresponds to the requested target persona. It also inherits the
 // target persona's system prompt, skills, and model if not already set.
 func (s *Spawner) resolvePersonaTarget(ctx context.Context, req SpawnRequest) (SpawnRequest, error) {
-	var pack sympoziumv1alpha1.PersonaPack
+	var pack sympoziumv1alpha1.Ensemble
 	if err := s.Client.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: req.PackName}, &pack); err != nil {
-		return req, fmt.Errorf("PersonaPack %q not found: %w", req.PackName, err)
+		return req, fmt.Errorf("Ensemble %q not found: %w", req.PackName, err)
 	}
 
 	// Find the target persona's installed instance.
@@ -181,7 +181,7 @@ func (s *Spawner) resolvePersonaTarget(ctx context.Context, req SpawnRequest) (S
 		}
 	}
 	if targetInstanceName == "" {
-		return req, fmt.Errorf("persona %q not found or not installed in PersonaPack %q", req.TargetPersona, req.PackName)
+		return req, fmt.Errorf("persona %q not found or not installed in Ensemble %q", req.TargetPersona, req.PackName)
 	}
 
 	// Validate that a relationship edge exists between the personas.
@@ -204,7 +204,7 @@ func (s *Spawner) resolvePersonaTarget(ctx context.Context, req SpawnRequest) (S
 				}
 			}
 			if !edgeExists {
-				return req, fmt.Errorf("no delegation or sequential relationship from %q to %q in PersonaPack %q",
+				return req, fmt.Errorf("no delegation or sequential relationship from %q to %q in Ensemble %q",
 					sourcePersona, req.TargetPersona, req.PackName)
 			}
 		}

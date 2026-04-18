@@ -145,11 +145,11 @@ spec:
         command: ["kubectl", "delete", "configmap", "agent-scratch"]
 ```
 
-### PersonaPack with lifecycle hooks
+### Ensemble with lifecycle hooks
 
 ```yaml
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: oncall-team
 spec:

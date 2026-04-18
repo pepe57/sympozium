@@ -45,7 +45,7 @@ import { useCapabilities } from "@/hooks/use-api";
 import {
   YamlModal,
   instanceYamlFromWizard,
-  personaPackYamlFromWizard,
+  ensembleYamlFromWizard,
 } from "@/components/yaml-panel";
 
 // ── Shared constants ─────────────────────────────────────────────────────────
@@ -1542,7 +1542,7 @@ export function OnboardingWizard({
               yaml={
                 mode === "instance"
                   ? instanceYamlFromWizard(form)
-                  : personaPackYamlFromWizard(
+                  : ensembleYamlFromWizard(
                       targetName || "<pack-name>",
                       form,
                       personaCount,
@@ -1551,7 +1551,7 @@ export function OnboardingWizard({
               title={
                 mode === "instance"
                   ? `SympoziumInstance — ${form.name || "<instance>"}`
-                  : `PersonaPack — ${targetName || "<pack>"}`
+                  : `Ensemble — ${targetName || "<pack>"}`
               }
             />
           </div>

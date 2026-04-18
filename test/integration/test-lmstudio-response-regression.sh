@@ -2,7 +2,7 @@
 # Integration test: LM Studio response-propagation regression guard.
 #
 # Proves that `.status.result` is populated (non-empty) across three flows:
-#   A) PersonaPack activation → stamped instance → dispatched AgentRun
+#   A) Ensemble activation → stamped instance → dispatched AgentRun
 #   B) Ad-hoc SympoziumInstance + AgentRun with tool-calling (k8s-ops skill)
 #   C) Ad-hoc SympoziumInstance with multiple (3) sequential AgentRuns
 #
@@ -106,7 +106,7 @@ cleanup() {
     [[ -n "$r" ]] && kubectl delete sympoziuminstance "$r" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
   done
   for r in "${RESOURCES_PERSONAPACK[@]}"; do
-    [[ -n "$r" ]] && kubectl delete personapack "$r" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
+    [[ -n "$r" ]] && kubectl delete ensemble "$r" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
   done
   for r in "${RESOURCES_SECRET[@]}"; do
     [[ -n "$r" ]] && kubectl delete secret "$r" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
@@ -304,11 +304,11 @@ for i in 0 1 2; do
 done
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# SCENARIO A: PersonaPack activation → stamped instance → AgentRun
+# SCENARIO A: Ensemble activation → stamped instance → AgentRun
 # ═══════════════════════════════════════════════════════════════════════════════
 
 info ""
-info "── Scenario A: PersonaPack → stamped instance run ────────────────────"
+info "── Scenario A: Ensemble → stamped instance run ────────────────────"
 
 A_PACK="lms-regr-pack-${SUFFIX}"
 A_PERSONA="analyst"
@@ -320,7 +320,7 @@ RESOURCES_AGENTRUN+=("$A_RUN")
 
 cat <<EOF | kubectl apply -f - >/dev/null 2>&1
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: ${A_PACK}
   namespace: ${NAMESPACE}
@@ -340,10 +340,10 @@ spec:
       model: ${LMS_MODEL}
 EOF
 
-pass "Scenario A: PersonaPack ${A_PACK} created (enabled=true)"
+pass "Scenario A: Ensemble ${A_PACK} created (enabled=true)"
 info "Scenario A: waiting for controller to stamp instance ${A_INSTANCE}..."
 
-# Wait for the PersonaPack to stamp out the instance.
+# Wait for the Ensemble to stamp out the instance.
 elapsed=0
 while [[ "$elapsed" -lt 60 ]]; do
   if kubectl get sympoziuminstance "$A_INSTANCE" -n "$NAMESPACE" >/dev/null 2>&1; then

@@ -23,11 +23,11 @@ examples/
 ├── SETUP.md               # Detailed setup guide (secrets, prerequisites)
 └── yaml/                  # YAML manifests (copy-paste ready)
     ├── quickstart.yaml               # All-in-one quick start
-    ├── personapack-example.yaml      # Team of agents
+    ├── ensemble-example.yaml      # Team of agents
     ├── sympoziuminstance-example.yaml  # Single agent
     ├── agentrun-example.yaml         # One-off task
     ├── sympoziumschedule-example.yaml  # Recurring task
-    ├── personapack-activate.yaml     # Activation examples
+    ├── ensemble-activate.yaml     # Activation examples
     ├── agentrun-trigger.yaml         # Multiple trigger methods
     ├── skillpack-example.yaml        # Custom skills
     └── sympoziumpolicy-example.yaml  # Tool access rules
@@ -37,7 +37,7 @@ examples/
 
 | Resource | Purpose | When to Use |
 |----------|---------|-------------|
-| **PersonaPack** | Bundle multiple personas with skills & schedules | Setting up teams of agents |
+| **Ensemble** | Bundle multiple personas with skills & schedules | Setting up teams of agents |
 | **SympoziumInstance** | Single agent with channels & auth | Custom single-agent setups |
 | **AgentRun** | One-off task execution | Ad-hoc requests, testing |
 | **SympoziumSchedule** | Recurring heartbeat/cron tasks | Monitoring, periodic checks |
@@ -49,7 +49,7 @@ examples/
 ### Deploy a Team of Agents
 
 ```bash
-kubectl apply -f yaml/personapack-example.yaml
+kubectl apply -f yaml/ensemble-example.yaml
 sympozium  # Select Personas tab, press Enter on pack name
 ```
 

@@ -956,7 +956,7 @@ func TestCoerceScalar(t *testing.T) {
 
 // TestCallOpenAI_QwenToolCallRecovery: end-to-end, when reasoning_content
 // carries qwen-native <tool_call> blocks, those become structured ToolCalls
-// that the loop will dispatch. Regression guard for the persona-pack-early-
+// that the loop will dispatch. Regression guard for the ensemble-early-
 // termination bug.
 func TestCallOpenAI_QwenToolCallRecovery(t *testing.T) {
 	callCount := 0

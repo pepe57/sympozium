@@ -2,7 +2,7 @@
 # API integration test: GitHub repo onboarding flow.
 # Validates:
 #  1) Ad-hoc instance created via API with github-gitops skill and repo param.
-#  2) PersonaPack with github-gitops skill propagates skillParams to stamped instances.
+#  2) Ensemble with github-gitops skill propagates skillParams to stamped instances.
 #  3) Skill params (repo) survive through instance creation and run creation.
 
 set -euo pipefail
@@ -66,9 +66,9 @@ cleanup() {
 
   api_request DELETE "/api/v1/instances/${ADHOC_INSTANCE_NAME}" >/dev/null 2>&1 || true
   api_request DELETE "/api/v1/instances/${PACK_INSTANCE_NAME}" >/dev/null 2>&1 || true
-  api_request DELETE "/api/v1/personapacks/${PACK_NAME}" >/dev/null 2>&1 || true
+  api_request DELETE "/api/v1/ensembles/${PACK_NAME}" >/dev/null 2>&1 || true
 
-  kubectl delete personapack "$PACK_NAME" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
+  kubectl delete ensemble "$PACK_NAME" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
   kubectl delete secret "$PACK_SECRET_NAME" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
   kubectl delete secret "$ADHOC_SECRET_NAME" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
 
@@ -248,13 +248,13 @@ main() {
   fi
 
   # ──────────────────────────────────────────────────────────────
-  # Part 2: PersonaPack with github-gitops + skillParams
+  # Part 2: Ensemble with github-gitops + skillParams
   # ──────────────────────────────────────────────────────────────
-  info "Part 2: PersonaPack with skillParams for github-gitops"
+  info "Part 2: Ensemble with skillParams for github-gitops"
 
   cat <<EOF | kubectl apply -f - >/dev/null
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: ${PACK_NAME}
   namespace: ${NAMESPACE}
@@ -280,7 +280,7 @@ spec:
         cron: "*/10 * * * *"
         task: "test github task"
 EOF
-  pass "Created temporary PersonaPack '${PACK_NAME}' with skillParams"
+  pass "Created temporary Ensemble '${PACK_NAME}' with skillParams"
 
   # Create auth secret.
   kubectl create secret generic "$PACK_SECRET_NAME" \
@@ -289,7 +289,7 @@ EOF
     --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
   # Enable the pack.
-  api_request PATCH "/api/v1/personapacks/${PACK_NAME}" \
+  api_request PATCH "/api/v1/ensembles/${PACK_NAME}" \
     "{\"enabled\":true,\"provider\":\"openai\",\"secretName\":\"${PACK_SECRET_NAME}\",\"model\":\"${MODEL_NAME}\"}" >/dev/null
 
   # Wait for the controller to stamp out the instance.
@@ -302,10 +302,10 @@ EOF
     elapsed=$((elapsed + 5))
   done
   if [[ "$elapsed" -ge "$TIMEOUT" ]]; then
-    fail "Timed out waiting for PersonaPack instance '${PACK_INSTANCE_NAME}'"
+    fail "Timed out waiting for Ensemble instance '${PACK_INSTANCE_NAME}'"
     exit 1
   fi
-  pass "PersonaPack controller created instance '${PACK_INSTANCE_NAME}'"
+  pass "Ensemble controller created instance '${PACK_INSTANCE_NAME}'"
 
   # Verify instance has github-gitops with repo param.
   pack_inst_json="$(api_request GET "/api/v1/instances/${PACK_INSTANCE_NAME}")"
@@ -335,8 +335,8 @@ EOF
     pass "Pack run inherited github-gitops repo param"
   fi
 
-  # Verify taskOverride is persisted on the PersonaPack.
-  pack_json="$(kubectl get personapack "$PACK_NAME" -n "$NAMESPACE" -o json)"
+  # Verify taskOverride is persisted on the Ensemble.
+  pack_json="$(kubectl get ensemble "$PACK_NAME" -n "$NAMESPACE" -o json)"
   got_task="$(printf "%s" "$pack_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("spec",{}).get("taskOverride",""))')"
   if [[ "$got_task" != "$TEAM_TASK" ]]; then
     fail "Pack taskOverride mismatch (got '${got_task}', want '${TEAM_TASK}')"

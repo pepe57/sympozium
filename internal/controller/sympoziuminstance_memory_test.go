@@ -180,12 +180,12 @@ func TestInstanceMemory_AdhocInstance_GrowsAcrossPrompts(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Test: PersonaPack-created instance memory grows across successive prompts
+// Test: Ensemble-created instance memory grows across successive prompts
 // ---------------------------------------------------------------------------
 
-func TestInstanceMemory_PersonaPackInstance_GrowsAcrossPrompts(t *testing.T) {
-	// A PersonaPack creates instances named "<pack>-<persona>".
-	// This test simulates the instance that would be created by a PersonaPack
+func TestInstanceMemory_EnsembleInstance_GrowsAcrossPrompts(t *testing.T) {
+	// A Ensemble creates instances named "<pack>-<persona>".
+	// This test simulates the instance that would be created by a Ensemble
 	// with a "devops-assistant" persona.
 	instance := &sympoziumv1alpha1.SympoziumInstance{
 		ObjectMeta: metav1.ObjectMeta{

@@ -67,7 +67,7 @@ export function RunDetailPage() {
       <div className="space-y-1">
         <Breadcrumbs
           items={[
-            { label: "Persona Packs", to: "/personas" },
+            { label: "Ensembles", to: "/ensembles" },
             {
               label: run.spec.instanceRef,
               to: `/instances/${run.spec.instanceRef}`,

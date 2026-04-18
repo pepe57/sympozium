@@ -145,7 +145,7 @@ defaultSkills:
   # -- List of SkillPack specs
   skills: []
 
-# -- Default PersonaPacks to install (developer-team)
+# -- Default Ensembles to install (developer-team)
 defaultPersonas:
   # -- Install built-in persona pack definitions (disabled by default, must be activated after install)
   enabled: true

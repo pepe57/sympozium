@@ -160,12 +160,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := (&controller.PersonaPackReconciler{
+	if err := (&controller.EnsembleReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
-		Log:    ctrl.Log.WithName("controllers").WithName("PersonaPack"),
+		Log:    ctrl.Log.WithName("controllers").WithName("Ensemble"),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "PersonaPack")
+		setupLog.Error(err, "unable to create controller", "controller", "Ensemble")
 		os.Exit(1)
 	}
 

@@ -38,11 +38,11 @@ spec:
     - skillPackRef: memory
 ```
 
-Or reference it from a PersonaPack:
+Or reference it from a Ensemble:
 
 ```yaml
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: sre-watchdog
 spec:
@@ -93,13 +93,13 @@ kubectl exec <pod> -c memory-server -- sqlite3 /data/memory.db "SELECT content, 
 
 ## Shared Workflow Memory
 
-When agents work together in a **PersonaPack**, each persona has its own private memory by default. **Shared Workflow Memory** adds a pack-level memory pool that all personas can access, enabling team knowledge accumulation.
+When agents work together in a **Ensemble**, each persona has its own private memory by default. **Shared Workflow Memory** adds a pack-level memory pool that all personas can access, enabling team knowledge accumulation.
 
 ### Private vs Shared Memory
 
 | Aspect | Private Memory | Shared Workflow Memory |
 |--------|---------------|----------------------|
-| **Scope** | One instance | All personas in a PersonaPack |
+| **Scope** | One instance | All personas in a Ensemble |
 | **Storage** | `<instance>-memory-db` PVC | `<pack>-shared-memory-db` PVC |
 | **Tools** | `memory_search`, `memory_store`, `memory_list` | `workflow_memory_search`, `workflow_memory_store`, `workflow_memory_list` |
 | **Access** | Always read-write | Per-persona: `read-write` or `read-only` |
@@ -108,11 +108,11 @@ When agents work together in a **PersonaPack**, each persona has its own private
 
 ### Enabling
 
-Add `sharedMemory` to the PersonaPack spec:
+Add `sharedMemory` to the Ensemble spec:
 
 ```yaml
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: research-team
 spec:
@@ -128,7 +128,7 @@ spec:
 
 ### Infrastructure
 
-The PersonaPack controller provisions three Kubernetes resources:
+The Ensemble controller provisions three Kubernetes resources:
 
 ```mermaid
 graph LR
@@ -164,7 +164,7 @@ Query the shared memory via the API:
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:9090/api/v1/personapacks/research-team/shared-memory
+  http://localhost:9090/api/v1/ensembles/research-team/shared-memory
 ```
 
 Or exec into the shared memory pod:

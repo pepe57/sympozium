@@ -78,7 +78,7 @@ nav:
   - Architecture: architecture.md
   - Concepts:
     - Custom Resources: concepts/custom-resources.md
-    - PersonaPacks: concepts/personapacks.md
+    - Ensembles: concepts/ensembles.md
     - Skills & Sidecars: concepts/skills.md
     - Lifecycle Hooks: concepts/lifecycle-hooks.md
     - Channels: concepts/channels.md
@@ -94,7 +94,7 @@ nav:
     - Unsloth: guides/unsloth.md
     - AWS Bedrock: guides/aws-bedrock.md
     - Serving Mode: guides/serving-mode.md
-    - Writing PersonaPacks: guides/writing-personapacks.md
+    - Writing Ensembles: guides/writing-ensembles.md
     - Writing Skills: guides/writing-skills.md
     - Writing Tools: guides/writing-tools.md
     - Writing Integration Tests: guides/writing-integration-tests.md

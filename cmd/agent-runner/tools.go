@@ -193,17 +193,17 @@ func defaultTools() []ToolDef {
 		},
 		{
 			Name: ToolDelegateToPersona,
-			Description: "Delegate a task to another persona in your team (PersonaPack). " +
+			Description: "Delegate a task to another persona in your team (Ensemble). " +
 				"Use this when your task requires expertise from another team member. " +
 				"The target persona will receive the task, execute it, and the result will be " +
-				"delivered back to you. Only personas defined in the same PersonaPack with a " +
+				"delivered back to you. Only personas defined in the same Ensemble with a " +
 				"delegation or sequential relationship can be targeted.",
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"targetPersona": map[string]any{
 						"type":        "string",
-						"description": "The name of the persona to delegate to (e.g. 'writer', 'reviewer'). Must be a persona in the same PersonaPack.",
+						"description": "The name of the persona to delegate to (e.g. 'writer', 'reviewer'). Must be a persona in the same Ensemble.",
 					},
 					"task": map[string]any{
 						"type":        "string",
@@ -381,10 +381,10 @@ func delegateToPersonaTool(args map[string]any) string {
 		return "Error: 'task' is required — describe what the target persona should do"
 	}
 
-	packName := os.Getenv("PERSONA_PACK_NAME")
+	packName := os.Getenv("ENSEMBLE_NAME")
 	if packName == "" {
-		return "Error: this agent is not part of a PersonaPack — delegation requires a pack context. " +
-			"PERSONA_PACK_NAME environment variable is not set."
+		return "Error: this agent is not part of a Ensemble — delegation requires a pack context. " +
+			"ENSEMBLE_NAME environment variable is not set."
 	}
 
 	req := struct {

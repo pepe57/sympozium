@@ -63,12 +63,48 @@ async function fetchAnthropicModels(apiKey: string): Promise<string[]> {
   return (data.data as { id: string }[]).map((m) => m.id).sort();
 }
 
+async function fetchProviderModelsDirect(
+  baseURL: string,
+): Promise<string[]> {
+  // Try fetching directly from the browser (works when the provider is on the
+  // local network / same machine and CORS allows it or isn't enforced).
+  const modelsURL = baseURL.replace(/\/+$/, "") + "/models";
+  const res = await fetch(modelsURL, { signal: AbortSignal.timeout(3000) });
+  if (!res.ok) throw new Error(`Direct fetch failed: ${res.status}`);
+  const data = await res.json();
+  // OpenAI-compatible format: { data: [{ id: "model-name" }, ...] }
+  if (Array.isArray(data?.data)) {
+    return (data.data as { id: string }[]).map((m) => m.id).sort();
+  }
+  // llama-server may return { models: [...] } or similar
+  if (Array.isArray(data?.models)) {
+    return (data.models as { id?: string; name?: string }[])
+      .map((m) => m.id || m.name || "")
+      .filter(Boolean)
+      .sort();
+  }
+  throw new Error("Unrecognized model list format");
+}
+
 async function fetchProviderModelsViaProxy(
   baseURL: string,
   apiKey?: string,
 ): Promise<string[]> {
   const res = await api.providers.models(baseURL, apiKey);
   return res.models;
+}
+
+async function fetchLocalProviderModels(
+  baseURL: string,
+  apiKey?: string,
+): Promise<string[]> {
+  // Try direct browser fetch first (works for LAN / localhost providers).
+  // Falls back to in-cluster proxy if direct fails (CORS, network, etc.).
+  try {
+    return await fetchProviderModelsDirect(baseURL);
+  } catch {
+    return fetchProviderModelsViaProxy(baseURL, apiKey);
+  }
 }
 
 async function fetchBedrockModels(
@@ -132,7 +168,7 @@ export function useModelList(
     ],
     queryFn: async () => {
       if (canFetchLocal)
-        return fetchProviderModelsViaProxy(baseURL!, apiKey || undefined);
+        return fetchLocalProviderModels(baseURL!, apiKey || undefined);
       if (canFetchBedrock) return fetchBedrockModels(bedrockCredentials!);
       if (provider === "openai" && apiKey) return fetchOpenAIModels(apiKey);
       if (provider === "anthropic" && apiKey)

@@ -1,5 +1,5 @@
 ---
-# Example: Developer Team PersonaPack pointed at a GitHub repository.
+# Example: Developer Team Ensemble pointed at a GitHub repository.
 #
 # This activates the built-in developer-team pack with:
 #   - A target GitHub repo for all agents to collaborate on
@@ -15,10 +15,10 @@
 #      kubectl create secret generic github-gitops-token \
 #        --from-literal=github-token=ghp_... \
 #        -n sympozium-system
-#   4. Apply this file:  kubectl apply -f personapack-developer-team-github.yaml
+#   4. Apply this file:  kubectl apply -f ensemble-developer-team-github.yaml
 #
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: developer-team
   namespace: default

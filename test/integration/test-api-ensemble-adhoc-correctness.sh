@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# API integration test: PersonaPack + ad-hoc correctness checks.
+# API integration test: Ensemble + ad-hoc correctness checks.
 # Validates:
-#  1) PersonaPack enablement propagates authRef/provider/model/skills to stamped instances (and runs).
+#  1) Ensemble enablement propagates authRef/provider/model/skills to stamped instances (and runs).
 #  2) Ad-hoc instances behave equivalently for auth/provider/model/skills inheritance.
-#  3) PersonaPack deactivation removes stamped instances.
+#  3) Ensemble deactivation removes stamped instances.
 
 set -euo pipefail
 
@@ -62,21 +62,21 @@ stop_port_forward() {
 }
 
 cleanup() {
-  info "Cleaning up PersonaPack/ad-hoc correctness resources..."
+  info "Cleaning up Ensemble/ad-hoc correctness resources..."
   [[ -n "$PACK_RUN_NAME" ]] && api_request DELETE "/api/v1/runs/${PACK_RUN_NAME}" >/dev/null 2>&1 || true
   [[ -n "$ADHOC_RUN_NAME" ]] && api_request DELETE "/api/v1/runs/${ADHOC_RUN_NAME}" >/dev/null 2>&1 || true
 
   api_request DELETE "/api/v1/schedules/${PACK_INSTANCE_NAME}-schedule" >/dev/null 2>&1 || true
   api_request DELETE "/api/v1/instances/${PACK_INSTANCE_NAME}" >/dev/null 2>&1 || true
   api_request DELETE "/api/v1/instances/${ADHOC_INSTANCE_NAME}" >/dev/null 2>&1 || true
-  api_request DELETE "/api/v1/personapacks/${PACK_NAME}" >/dev/null 2>&1 || true
+  api_request DELETE "/api/v1/ensembles/${PACK_NAME}" >/dev/null 2>&1 || true
 
   # kubectl fallback: agentruns, schedules, instances, pack, secrets, configmaps
   kubectl delete agentrun -n "$NAMESPACE" -l "sympozium.ai/instance=${PACK_INSTANCE_NAME}" --ignore-not-found --wait=false >/dev/null 2>&1 || true
   kubectl delete agentrun -n "$NAMESPACE" -l "sympozium.ai/instance=${ADHOC_INSTANCE_NAME}" --ignore-not-found --wait=false >/dev/null 2>&1 || true
   kubectl delete sympoziumschedule "${PACK_INSTANCE_NAME}-schedule" -n "$NAMESPACE" --ignore-not-found --wait=false >/dev/null 2>&1 || true
   kubectl delete sympoziuminstance "$PACK_INSTANCE_NAME" "$ADHOC_INSTANCE_NAME" -n "$NAMESPACE" --ignore-not-found --wait=false >/dev/null 2>&1 || true
-  kubectl delete personapack "$PACK_NAME" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
+  kubectl delete ensemble "$PACK_NAME" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
   kubectl delete secret "$PACK_EXPECTED_SECRET" "$ADHOC_EXPECTED_SECRET" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
   kubectl delete configmap -n "$NAMESPACE" -l "sympozium.ai/instance=${PACK_INSTANCE_NAME}" --ignore-not-found >/dev/null 2>&1 || true
   kubectl delete configmap -n "$NAMESPACE" -l "sympozium.ai/instance=${ADHOC_INSTANCE_NAME}" --ignore-not-found >/dev/null 2>&1 || true
@@ -240,7 +240,7 @@ main() {
   require_cmd curl
   require_cmd python3
 
-  info "Running PersonaPack/ad-hoc correctness API test in namespace '${NAMESPACE}'"
+  info "Running Ensemble/ad-hoc correctness API test in namespace '${NAMESPACE}'"
 
   if [[ -z "${OPENAI_API_KEY:-}" ]]; then
     fail "OPENAI_API_KEY environment variable is required but not set"
@@ -250,10 +250,10 @@ main() {
   start_port_forward_if_needed
   resolve_apiserver_token
 
-  # Create a dedicated temporary PersonaPack (disabled by default).
+  # Create a dedicated temporary Ensemble (disabled by default).
   cat <<EOF | kubectl apply -f - >/dev/null
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: ${PACK_NAME}
   namespace: ${NAMESPACE}
@@ -275,16 +275,16 @@ spec:
         cron: "*/10 * * * *"
         task: "integration task"
 EOF
-  pass "Created temporary PersonaPack '${PACK_NAME}'"
+  pass "Created temporary Ensemble '${PACK_NAME}'"
 
-  # Pre-create auth secret and patch PersonaPack to use it explicitly.
+  # Pre-create auth secret and patch Ensemble to use it explicitly.
   kubectl create secret generic "$PACK_EXPECTED_SECRET" \
     --from-literal=OPENAI_API_KEY="${OPENAI_API_KEY}" \
     -n "$NAMESPACE" \
     --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
-  # (1) Enable PersonaPack with auth/model propagation.
-  api_request PATCH "/api/v1/personapacks/${PACK_NAME}" "{\"enabled\":true,\"provider\":\"openai\",\"secretName\":\"${PACK_EXPECTED_SECRET}\",\"model\":\"${MODEL_NAME}\"}" >/dev/null
+  # (1) Enable Ensemble with auth/model propagation.
+  api_request PATCH "/api/v1/ensembles/${PACK_NAME}" "{\"enabled\":true,\"provider\":\"openai\",\"secretName\":\"${PACK_EXPECTED_SECRET}\",\"model\":\"${MODEL_NAME}\"}" >/dev/null
 
   elapsed=0
   while [[ "$elapsed" -lt "$TIMEOUT" ]]; do
@@ -295,18 +295,18 @@ EOF
     elapsed=$((elapsed + 5))
   done
   if [[ "$elapsed" -ge "$TIMEOUT" ]]; then
-    fail "Timed out waiting for PersonaPack instance '${PACK_INSTANCE_NAME}'"
+    fail "Timed out waiting for Ensemble instance '${PACK_INSTANCE_NAME}'"
     exit 1
   fi
 
   pack_inst_json="$(api_request GET "/api/v1/instances/${PACK_INSTANCE_NAME}")"
-  assert_instance_fields "$pack_inst_json" "$PACK_EXPECTED_SECRET" "$MODEL_NAME" "openai" "$EXPECTED_SKILLS_CSV" "PersonaPack instance"
-  pass "PersonaPack instance propagated auth/provider/model/skills"
+  assert_instance_fields "$pack_inst_json" "$PACK_EXPECTED_SECRET" "$MODEL_NAME" "openai" "$EXPECTED_SKILLS_CSV" "Ensemble instance"
+  pass "Ensemble instance propagated auth/provider/model/skills"
 
   pack_run_json="$(api_request POST "/api/v1/runs" "{\"instanceRef\":\"${PACK_INSTANCE_NAME}\",\"task\":\"pack run correctness\"}")"
   PACK_RUN_NAME="$(printf "%s" "$pack_run_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("metadata",{}).get("name",""))')"
-  assert_run_fields "$pack_run_json" "$PACK_EXPECTED_SECRET" "$MODEL_NAME" "openai" "$EXPECTED_SKILLS_CSV" "PersonaPack run"
-  pass "PersonaPack run inherited provider/model/auth/skills"
+  assert_run_fields "$pack_run_json" "$PACK_EXPECTED_SECRET" "$MODEL_NAME" "openai" "$EXPECTED_SKILLS_CSV" "Ensemble run"
+  pass "Ensemble run inherited provider/model/auth/skills"
 
   # (2) Ad-hoc instance parity.
   api_request POST "/api/v1/instances" "{\"name\":\"${ADHOC_INSTANCE_NAME}\",\"provider\":\"openai\",\"model\":\"${MODEL_NAME}\",\"apiKey\":\"${OPENAI_API_KEY}\",\"skills\":[{\"skillPackRef\":\"code-review\"},{\"skillPackRef\":\"k8s-ops\"},{\"skillPackRef\":\"memory\"}]}" >/dev/null
@@ -321,7 +321,7 @@ EOF
   pass "Ad-hoc run inherited provider/model/auth/skills"
 
   # (3) Deactivation cleanup removes stamped instances.
-  api_request PATCH "/api/v1/personapacks/${PACK_NAME}" "{\"enabled\":false}" >/dev/null
+  api_request PATCH "/api/v1/ensembles/${PACK_NAME}" "{\"enabled\":false}" >/dev/null
 
   elapsed=0
   while [[ "$elapsed" -lt "$TIMEOUT" ]]; do
@@ -332,12 +332,12 @@ EOF
     elapsed=$((elapsed + 5))
   done
   if [[ "$elapsed" -ge "$TIMEOUT" ]]; then
-    fail "Timed out waiting for PersonaPack deactivation cleanup of instance '${PACK_INSTANCE_NAME}'"
+    fail "Timed out waiting for Ensemble deactivation cleanup of instance '${PACK_INSTANCE_NAME}'"
     exit 1
   fi
 
-  pass "PersonaPack deactivation removed stamped instance(s)"
-  pass "PersonaPack/ad-hoc correctness API test passed"
+  pass "Ensemble deactivation removed stamped instance(s)"
+  pass "Ensemble/ad-hoc correctness API test passed"
 }
 
 main "$@"

@@ -319,9 +319,9 @@ func (r *AgentRunReconciler) reconcilePending(ctx context.Context, log logr.Logg
 		}
 		mcpServers = instance.Spec.MCPServers
 
-		// Extract the owning PersonaPack name for persona-aware delegation.
-		if packName := instance.Labels["sympozium.ai/persona-pack"]; packName != "" {
-			agentRun.Labels["sympozium.ai/persona-pack"] = packName
+		// Extract the owning Ensemble name for persona-aware delegation.
+		if packName := instance.Labels["sympozium.ai/ensemble"]; packName != "" {
+			agentRun.Labels["sympozium.ai/ensemble"] = packName
 		}
 
 		// Propagate RunTimeout from instance config to AgentRun spec if not already set.
@@ -1525,7 +1525,7 @@ func (r *AgentRunReconciler) buildContainers(
 				{Name: "AGENT_ID", Value: agentRun.Spec.AgentID},
 				{Name: "SESSION_KEY", Value: agentRun.Spec.SessionKey},
 				{Name: "INSTANCE_NAME", Value: agentRun.Spec.InstanceRef},
-				{Name: "PERSONA_PACK_NAME", Value: agentRun.Labels["sympozium.ai/persona-pack"]},
+				{Name: "ENSEMBLE_NAME", Value: agentRun.Labels["sympozium.ai/ensemble"]},
 				{Name: "AGENT_NAMESPACE", Value: agentRun.Namespace},
 				{Name: "TASK", Value: agentRun.Spec.Task},
 				{Name: "SYSTEM_PROMPT", Value: agentRun.Spec.SystemPrompt},
@@ -2049,14 +2049,14 @@ func buildObservabilityEnv(agentRun *sympoziumv1alpha1.AgentRun, obs *sympoziumv
 
 // injectSharedMemory adds WORKFLOW_MEMORY_SERVER_URL, WORKFLOW_MEMORY_ACCESS env vars
 // and a wait-for-shared-memory init container to the Job's pod template if the
-// AgentRun belongs to a PersonaPack with shared memory enabled.
+// AgentRun belongs to a Ensemble with shared memory enabled.
 func (r *AgentRunReconciler) injectSharedMemory(ctx context.Context, agentRun *sympoziumv1alpha1.AgentRun, job *batchv1.Job) {
-	packName := agentRun.Labels["sympozium.ai/persona-pack"]
+	packName := agentRun.Labels["sympozium.ai/ensemble"]
 	if packName == "" {
 		return
 	}
 
-	var pack sympoziumv1alpha1.PersonaPack
+	var pack sympoziumv1alpha1.Ensemble
 	if err := r.Get(ctx, types.NamespacedName{Name: packName, Namespace: agentRun.Namespace}, &pack); err != nil {
 		return
 	}

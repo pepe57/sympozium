@@ -35,7 +35,7 @@ func (pe *PolicyEnforcer) Handle(ctx context.Context, req admission.Request) adm
 
 	// Skip validation for runs that are being deleted. Otherwise the
 	// controller's own finalizer-removal Update gets rejected when the
-	// referenced Instance has already been deleted (e.g. PersonaPack
+	// referenced Instance has already been deleted (e.g. Ensemble
 	// disable cascade), leaving the AgentRun stuck in a terminating
 	// state forever with no way for kubelet GC to finish.
 	if !run.DeletionTimestamp.IsZero() {

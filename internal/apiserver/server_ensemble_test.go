@@ -35,17 +35,17 @@ func newTestServer(t *testing.T, objs ...client.Object) (*Server, client.Client)
 	return srv, cl
 }
 
-func TestPatchPersonaPackRejectsMissingSecret(t *testing.T) {
-	pack := &sympoziumv1alpha1.PersonaPack{
+func TestPatchEnsembleRejectsMissingSecret(t *testing.T) {
+	pack := &sympoziumv1alpha1.Ensemble{
 		ObjectMeta: metav1.ObjectMeta{Name: "platform-team", Namespace: "default"},
-		Spec: sympoziumv1alpha1.PersonaPackSpec{
+		Spec: sympoziumv1alpha1.EnsembleSpec{
 			Personas: []sympoziumv1alpha1.PersonaSpec{{Name: "sre"}},
 		},
 	}
 	srv, cl := newTestServer(t, pack)
 
 	body := `{"enabled":true,"provider":"openai","secretName":"platform-team-credentials","model":"gpt-4o"}`
-	req := httptest.NewRequest(http.MethodPatch, "/api/v1/personapacks/platform-team?namespace=default", strings.NewReader(body))
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/ensembles/platform-team?namespace=default", strings.NewReader(body))
 	rec := httptest.NewRecorder()
 	srv.buildMux(nil, "").ServeHTTP(rec, req)
 
@@ -56,19 +56,19 @@ func TestPatchPersonaPackRejectsMissingSecret(t *testing.T) {
 		t.Fatalf("expected missing secret error, got: %s", rec.Body.String())
 	}
 
-	var got sympoziumv1alpha1.PersonaPack
+	var got sympoziumv1alpha1.Ensemble
 	if err := cl.Get(context.Background(), client.ObjectKey{Name: "platform-team", Namespace: "default"}, &got); err != nil {
-		t.Fatalf("get persona pack: %v", err)
+		t.Fatalf("get ensemble: %v", err)
 	}
 	if len(got.Spec.AuthRefs) != 0 {
 		t.Fatalf("expected authRefs to remain empty, got %#v", got.Spec.AuthRefs)
 	}
 }
 
-func TestPatchPersonaPackAutoCreatesProviderSecretWithNewName(t *testing.T) {
-	pack := &sympoziumv1alpha1.PersonaPack{
+func TestPatchEnsembleAutoCreatesProviderSecretWithNewName(t *testing.T) {
+	pack := &sympoziumv1alpha1.Ensemble{
 		ObjectMeta: metav1.ObjectMeta{Name: "platform-team", Namespace: "default"},
-		Spec: sympoziumv1alpha1.PersonaPackSpec{
+		Spec: sympoziumv1alpha1.EnsembleSpec{
 			Personas: []sympoziumv1alpha1.PersonaSpec{{Name: "sre"}},
 		},
 	}
@@ -84,7 +84,7 @@ func TestPatchPersonaPackAutoCreatesProviderSecretWithNewName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal request: %v", err)
 	}
-	req := httptest.NewRequest(http.MethodPatch, "/api/v1/personapacks/platform-team?namespace=default", bytes.NewReader(raw))
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/ensembles/platform-team?namespace=default", bytes.NewReader(raw))
 	rec := httptest.NewRecorder()
 	srv.buildMux(nil, "").ServeHTTP(rec, req)
 
@@ -92,9 +92,9 @@ func TestPatchPersonaPackAutoCreatesProviderSecretWithNewName(t *testing.T) {
 		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
 	}
 
-	var got sympoziumv1alpha1.PersonaPack
+	var got sympoziumv1alpha1.Ensemble
 	if err := cl.Get(context.Background(), client.ObjectKey{Name: "platform-team", Namespace: "default"}, &got); err != nil {
-		t.Fatalf("get persona pack: %v", err)
+		t.Fatalf("get ensemble: %v", err)
 	}
 	if len(got.Spec.AuthRefs) != 1 {
 		t.Fatalf("expected 1 authRef, got %#v", got.Spec.AuthRefs)

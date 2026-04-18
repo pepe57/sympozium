@@ -1,7 +1,7 @@
 # Getting Started with Sympozium
 
 This guide walks you through installing Sympozium, activating your first
-PersonaPack, and setting up practical agent patterns for SRE, security, and
+Ensemble, and setting up practical agent patterns for SRE, security, and
 DevOps workflows.
 
 ---
@@ -59,13 +59,13 @@ idempotent — safe to run again if something changes.
 
 Sympozium offers two onboarding paths:
 
-1. **PersonaPacks (recommended)** — activate a pre-built bundle of agents via
+1. **Ensembles (recommended)** — activate a pre-built bundle of agents via
    the TUI wizard. One action creates multiple purpose-built agents with skills,
    schedules, memory, and tool policies.
 2. **Manual onboard** — create a single SympoziumInstance with `sympozium onboard`.
    Best for custom setups or CI/headless environments.
 
-### PersonaPack activation (recommended)
+### Ensemble activation (recommended)
 
 Launch the TUI:
 
@@ -73,7 +73,7 @@ Launch the TUI:
 sympozium
 ```
 
-The TUI opens on the **Personas** tab, listing the built-in PersonaPacks:
+The TUI opens on the **Personas** tab, listing the built-in Ensembles:
 
 | Pack | Personas | Focus |
 |------|----------|-------|
@@ -97,13 +97,13 @@ their own skills, memory, and tool policies. The TUI switches to the
 
 **What gets created:**
 
-For each persona in the pack, the PersonaPack controller creates:
+For each persona in the pack, the Ensemble controller creates:
 
 - A **SympoziumInstance** — the agent identity with model, skills, and auth
 - A **SympoziumSchedule** — the recurring task (heartbeat, sweep, or cron)
 - A **ConfigMap** — persistent memory seeded with initial context
 
-All resources are owned by the PersonaPack — deleting the pack cascades to
+All resources are owned by the Ensemble — deleting the pack cascades to
 everything it created.
 
 ### Manual onboard (single instance)
@@ -182,7 +182,7 @@ The web dashboard provides a graphical interface for **all** Sympozium actions:
 - **Policies** — browse SympoziumPolicy rules
 - **Skills** — explore installed SkillPacks
 - **Schedules** — list and manage SympoziumSchedules
-- **Personas** — browse and activate PersonaPacks
+- **Personas** — browse and activate Ensembles
 
 ### Helm values
 
@@ -250,9 +250,9 @@ default policy lets read-only tools run freely and asks for approval before
 
 ---
 
-## Agent patterns (what PersonaPacks create)
+## Agent patterns (what Ensembles create)
 
-The following patterns show the resources that PersonaPacks generate
+The following patterns show the resources that Ensembles generate
 automatically. You can also create these manually if you prefer fine-grained
 control.
 
@@ -260,7 +260,7 @@ Below are three practical agent personas. Each combines a
 **SympoziumInstance**, one or more **SkillPacks**, and a tailored **schedule** to
 create a purpose-built agent.
 
-> **Tip:** The `platform-team` PersonaPack creates the SRE and Security agents
+> **Tip:** The `platform-team` Ensemble creates the SRE and Security agents
 > below automatically. The `devops-essentials` pack creates the Incident
 > Responder. You only need to write YAML manually for custom personas.
 
@@ -551,14 +551,14 @@ The phase transitions: `Pending` → `Running` → `Succeeded` (or `Failed`).
 
 ---
 
-## Creating custom PersonaPacks
+## Creating custom Ensembles
 
-You can create your own PersonaPack to bundle a set of agents tailored to your
+You can create your own Ensemble to bundle a set of agents tailored to your
 team. Save this as a YAML file and apply it:
 
 ```yaml
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: my-team
 spec:
@@ -598,7 +598,7 @@ spec:
 ```
 
 ```bash
-kubectl apply -f my-team-personapack.yaml
+kubectl apply -f my-team-ensemble.yaml
 ```
 
 The pack appears in the TUI Personas tab in `Pending` phase. Press Enter to

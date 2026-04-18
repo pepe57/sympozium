@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  usePersonaPacks,
-  useActivatePersonaPack,
-  useInstallDefaultPersonaPacks,
+  useEnsembles,
+  useActivateEnsemble,
+  useInstallDefaultEnsembles,
   useSkills,
 } from "@/hooks/use-api";
 import { StatusBadge } from "@/components/status-badge";
@@ -38,32 +38,33 @@ import {
   Download,
   LayoutGrid,
   Workflow,
+  Plus,
 } from "lucide-react";
 import { formatAge } from "@/lib/utils";
-import type { PersonaPack } from "@/lib/api";
-import { GlobalPersonaCanvas } from "@/components/persona-canvas";
+import type { Ensemble } from "@/lib/api";
+import { GlobalEnsembleCanvas } from "@/components/ensemble-canvas";
 
-export function PersonasPage() {
-  const { data, isLoading } = usePersonaPacks();
+export function EnsemblesPage() {
+  const { data, isLoading } = useEnsembles();
   const { data: skillPacks } = useSkills();
-  const activatePack = useActivatePersonaPack();
-  const installDefaults = useInstallDefaultPersonaPacks();
+  const activatePack = useActivateEnsemble();
+  const installDefaults = useInstallDefaultEnsembles();
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"table" | "canvas">("table");
 
   // Wizard state
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [wizardPack, setWizardPack] = useState<PersonaPack | null>(null);
+  const [wizardPack, setWizardPack] = useState<Ensemble | null>(null);
   const [whatsAppPack, setWhatsAppPack] = useState<string | null>(null);
 
   // Disable confirmation state
-  const [disablePack, setDisablePack] = useState<PersonaPack | null>(null);
+  const [disablePack, setDisablePack] = useState<Ensemble | null>(null);
 
   const filtered = (data || [])
     .filter((p) => p.metadata.name.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
 
-  function openWizard(pack: PersonaPack) {
+  function openWizard(pack: Ensemble) {
     setWizardPack(pack);
     setWizardOpen(true);
   }
@@ -124,7 +125,7 @@ export function PersonasPage() {
     );
   }
 
-  function confirmDisable(pack: PersonaPack) {
+  function confirmDisable(pack: Ensemble) {
     setDisablePack(pack);
   }
 
@@ -166,6 +167,12 @@ export function PersonasPage() {
               <Workflow className="h-3.5 w-3.5" />
             </button>
           </div>
+          <Link to="/ensembles/new">
+            <Button variant="default" className="gap-2">
+              <Plus className="h-4 w-4" />
+              New Ensemble
+            </Button>
+          </Link>
           <Button
             variant="outline"
             className="gap-2"
@@ -179,14 +186,14 @@ export function PersonasPage() {
       </div>
 
       <Input
-        placeholder="Search persona packs…"
+        placeholder="Search ensembles…"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         className="max-w-sm"
       />
 
       {view === "canvas" && !isLoading && (
-        <GlobalPersonaCanvas />
+        <GlobalEnsembleCanvas />
       )}
 
       {view === "table" && isLoading ? (
@@ -235,7 +242,7 @@ export function PersonasPage() {
               <TableRow key={pack.metadata.name}>
                 <TableCell className="font-mono text-sm">
                   <Link
-                    to={`/personas/${pack.metadata.name}`}
+                    to={`/ensembles/${pack.metadata.name}`}
                     className="hover:text-primary flex items-center gap-1"
                   >
                     {pack.metadata.name}
@@ -338,7 +345,7 @@ export function PersonasPage() {
       <WhatsAppQRModal
         open={!!whatsAppPack}
         onClose={() => setWhatsAppPack(null)}
-        personaPackName={whatsAppPack || undefined}
+        ensembleName={whatsAppPack || undefined}
       />
 
       {/* Disable confirmation dialog */}

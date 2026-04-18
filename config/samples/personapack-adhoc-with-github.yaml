@@ -1,7 +1,7 @@
 ---
 # Example: Ad-hoc SympoziumInstance with github-gitops skill.
 #
-# This creates a single agent instance (not a PersonaPack) that has
+# This creates a single agent instance (not a Ensemble) that has
 # the github-gitops skill configured with a target repository.
 # Useful for quick one-off agents or testing.
 #
@@ -14,7 +14,7 @@
 #      kubectl create secret generic github-gitops-token \
 #        --from-literal=github-token=ghp_... \
 #        -n sympozium-system
-#   4. Apply:  kubectl apply -f personapack-adhoc-with-github.yaml
+#   4. Apply:  kubectl apply -f ensemble-adhoc-with-github.yaml
 #
 apiVersion: sympozium.ai/v1alpha1
 kind: SympoziumInstance

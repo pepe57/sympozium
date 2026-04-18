@@ -1,9 +1,9 @@
 ---
-# Observability MCP Team PersonaPack — agents that leverage MCP servers for
+# Observability MCP Team Ensemble — agents that leverage MCP servers for
 # external tool integration. Demonstrates how MCP bridge sidecars provide
 # additional capabilities (Dynatrace, Kubernetes networking) to personas.
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: observability-mcp-team
   namespace: sympozium-system

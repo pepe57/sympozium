@@ -12,7 +12,7 @@ Both Sympozium and [kagent](https://kagent.dev/) are Kubernetes-native platforms
 | **Tool isolation** | Dedicated sidecar container per skill, ephemeral RBAC | In-process (MCP client inside the engine) |
 | **Kernel-level sandboxing** | gVisor / Kata via `kubernetes-sigs/agent-sandbox`, warm pools | Not available |
 | **Multi-tenancy** | Namespace-per-tenant, per-instance RBAC, admission webhooks | Namespace-scoped CRDs |
-| **Agent packaging** | PersonaPacks (bundle personas, skills, schedules, memory seeds) | Individual Agent CRDs |
+| **Agent packaging** | Ensembles (bundle personas, skills, schedules, memory seeds) | Individual Agent CRDs |
 | **Persistent memory** | SQLite + FTS5 on PVC, survives across runs | Vector-backed memory (in-engine) |
 | **Channels** | Telegram, Slack, Discord, WhatsApp as dedicated Deployments via NATS JetStream | Slack, Discord (in-engine integration) |
 | **Scheduled runs** | SympoziumSchedule CRD with CronJob-style concurrency policies | Not available |
@@ -66,7 +66,7 @@ This is the most fundamental difference between the two projects.
 
 ### Agent Lifecycle
 
-**Sympozium** provides **PersonaPacks** — declarative bundles that stamp out an entire team of agents, their skills, schedules, and memory seeds in one apply. `SympoziumSchedule` CRDs drive cron-based recurring runs (health checks, alert triage, resource right-sizing) with CronJob-style concurrency policies (Forbid, Allow, Replace). Cleanup is automatic via ownerReferences.
+**Sympozium** provides **Ensembles** — declarative bundles that stamp out an entire team of agents, their skills, schedules, and memory seeds in one apply. `SympoziumSchedule` CRDs drive cron-based recurring runs (health checks, alert triage, resource right-sizing) with CronJob-style concurrency policies (Forbid, Allow, Replace). Cleanup is automatic via ownerReferences.
 
 **kagent** defines agents individually as CRDs. Scheduling and bundling are handled outside the platform.
 

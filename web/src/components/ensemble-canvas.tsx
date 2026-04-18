@@ -20,12 +20,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   useRuns,
-  usePersonaPacks,
-  usePatchPersonaPackRelationships,
+  useEnsembles,
+  usePatchEnsembleRelationships,
 } from "@/hooks/use-api";
 import { Save, Plus, Trash2, Database } from "lucide-react";
 import type {
-  PersonaPack,
+  Ensemble,
   PersonaSpec,
   PersonaRelationship,
   AgentRun,
@@ -401,13 +401,13 @@ function StatusLegend() {
 // Per-pack canvas (used on persona detail Workflow tab)
 // ══════════════════════════════════════════════════════════════════════════════
 
-interface PersonaCanvasProps {
-  pack: PersonaPack;
+interface EnsembleCanvasProps {
+  pack: Ensemble;
 }
 
-export function PersonaCanvas({ pack }: PersonaCanvasProps) {
+export function EnsembleCanvas({ pack }: EnsembleCanvasProps) {
   const { data: runs } = useRuns();
-  const patchMutation = usePatchPersonaPackRelationships();
+  const patchMutation = usePatchEnsembleRelationships();
   const relationships = pack.spec.relationships || [];
   const personas = pack.spec.personas || [];
 
@@ -550,8 +550,8 @@ export function PersonaCanvas({ pack }: PersonaCanvasProps) {
 // Shows all enabled packs together with live run status.
 // ══════════════════════════════════════════════════════════════════════════════
 
-export function GlobalPersonaCanvas() {
-  const { data: packs } = usePersonaPacks();
+export function GlobalEnsembleCanvas() {
+  const { data: packs } = useEnsembles();
   const { data: runs } = useRuns();
 
   const enabledPacks = useMemo(
@@ -653,8 +653,8 @@ export function GlobalPersonaCanvas() {
 // Dashboard widget canvas (compact, with pack selector dropdown)
 // ══════════════════════════════════════════════════════════════════════════════
 
-export function DashboardPersonaCanvas() {
-  const { data: packs } = usePersonaPacks();
+export function DashboardEnsembleCanvas() {
+  const { data: packs } = useEnsembles();
   const { data: runs } = useRuns();
   const [selectedPack, setSelectedPack] = useState<string>("__all__");
 

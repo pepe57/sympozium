@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# Integration test: Developer Team PersonaPack
+# Integration test: Developer Team Ensemble
 #
 # Simulates the 7-agent developer team working on containerising
 # AlexsJones/labelynx.  Each function acts as one persona, using the

@@ -20,8 +20,8 @@ describe("Breadcrumbs — detail page navigation", () => {
   it("shows breadcrumbs on the instance detail page", () => {
     cy.visit(`/instances/${INSTANCE}`);
 
-    // Breadcrumb trail should contain Persona Packs, Instances, and the name.
-    cy.contains("nav", "Persona Packs", { timeout: 20000 }).should("exist");
+    // Breadcrumb trail should contain Ensembles, Instances, and the name.
+    cy.contains("nav", "Ensembles", { timeout: 20000 }).should("exist");
     cy.contains("nav", "Instances").should("exist");
     cy.contains("nav", INSTANCE).should("exist");
 

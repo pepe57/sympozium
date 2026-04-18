@@ -407,7 +407,7 @@ export interface SympoziumSchedule {
   status?: SympoziumScheduleStatus;
 }
 
-// ── PersonaPack ──────────────────────────────────────────────────────────────
+// ── Ensemble ──────────────────────────────────────────────────────────────
 
 export interface PersonaToolPolicy {
   allow?: string[];
@@ -471,7 +471,7 @@ export interface PersonaRelationship {
   resultFormat?: string;
 }
 
-export interface PersonaPackSpec {
+export interface EnsembleSpec {
   enabled?: boolean;
   description?: string;
   category?: string;
@@ -488,7 +488,7 @@ export interface PersonaPackSpec {
   sharedMemory?: SharedMemorySpec;
 }
 
-export interface PersonaPackStatus {
+export interface EnsembleStatus {
   phase?: string;
   personaCount?: number;
   installedCount?: number;
@@ -497,13 +497,13 @@ export interface PersonaPackStatus {
   conditions?: Condition[];
 }
 
-export interface PersonaPack {
+export interface Ensemble {
   metadata: ObjectMeta;
-  spec: PersonaPackSpec;
-  status?: PersonaPackStatus;
+  spec: EnsembleSpec;
+  status?: EnsembleStatus;
 }
 
-export interface InstallDefaultPersonaPacksResponse {
+export interface InstallDefaultEnsemblesResponse {
   sourceNamespace: string;
   targetNamespace: string;
   copied: string[];
@@ -829,12 +829,12 @@ export const api = {
       apiFetch<void>(`/api/v1/schedules/${name}`, { method: "DELETE" }),
   },
 
-  personaPacks: {
-    list: () => apiFetch<PersonaPack[]>("/api/v1/personapacks"),
+  ensembles: {
+    list: () => apiFetch<Ensemble[]>("/api/v1/ensembles"),
     get: (name: string) =>
-      apiFetch<PersonaPack>(`/api/v1/personapacks/${name}`),
+      apiFetch<Ensemble>(`/api/v1/ensembles/${name}`),
     delete: (name: string) =>
-      apiFetch<void>(`/api/v1/personapacks/${name}`, { method: "DELETE" }),
+      apiFetch<void>(`/api/v1/ensembles/${name}`, { method: "DELETE" }),
     patch: (
       name: string,
       data: {
@@ -860,7 +860,7 @@ export const api = {
         sharedMemory?: SharedMemorySpec;
       },
     ) =>
-      apiFetch<PersonaPack>(`/api/v1/personapacks/${name}`, {
+      apiFetch<Ensemble>(`/api/v1/ensembles/${name}`, {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
@@ -870,12 +870,30 @@ export const api = {
       if (opts?.limit) params.set("limit", String(opts.limit));
       const qs = params.toString();
       return apiFetch<unknown>(
-        `/api/v1/personapacks/${name}/shared-memory${qs ? `?${qs}` : ""}`,
+        `/api/v1/ensembles/${name}/shared-memory${qs ? `?${qs}` : ""}`,
       );
     },
+    create: (data: {
+      name: string;
+      description?: string;
+      category?: string;
+      workflowType?: string;
+      personas: PersonaSpec[];
+      relationships?: PersonaRelationship[];
+      sharedMemory?: SharedMemorySpec;
+    }) =>
+      apiFetch<Ensemble>("/api/v1/ensembles", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    clone: (sourceName: string, newName: string) =>
+      apiFetch<Ensemble>(`/api/v1/ensembles/${sourceName}/clone`, {
+        method: "POST",
+        body: JSON.stringify({ name: newName }),
+      }),
     installDefaults: () =>
-      apiFetch<InstallDefaultPersonaPacksResponse>(
-        "/api/v1/personapacks/install-defaults",
+      apiFetch<InstallDefaultEnsemblesResponse>(
+        "/api/v1/ensembles/install-defaults",
         {
           method: "POST",
         },

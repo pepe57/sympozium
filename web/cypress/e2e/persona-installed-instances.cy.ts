@@ -1,19 +1,19 @@
-// PersonaPack detail — installed instances: verify that enabling a pack
+// Ensemble detail — installed instances: verify that enabling a pack
 // shows the stamped instances on the detail page with clickable links.
 
 const PACK = `cy-ppinst-${Date.now()}`;
 const PERSONA = "helper";
 const STAMPED_INSTANCE = `${PACK}-${PERSONA}`;
 
-describe("PersonaPack Detail — installed instances", () => {
+describe("Ensemble Detail — installed instances", () => {
   after(() => {
-    cy.deletePersonaPack(PACK);
+    cy.deleteEnsemble(PACK);
     cy.deleteInstance(STAMPED_INSTANCE);
   });
 
-  it("shows the stamped instance on the persona pack detail page", () => {
+  it("shows the stamped instance on the ensemble detail page", () => {
     const manifest = `apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: ${PACK}
   namespace: default
@@ -36,8 +36,8 @@ spec:
     cy.visit("/instances");
     cy.contains(STAMPED_INSTANCE, { timeout: 30000 }).should("be.visible");
 
-    // Navigate to the persona pack detail page.
-    cy.visit(`/personas/${PACK}`);
+    // Navigate to the ensemble detail page.
+    cy.visit(`/ensembles/${PACK}`);
 
     // The "Installed Instances" section should show the stamped instance.
     cy.contains("Installed Instances", { timeout: 20000 }).should("be.visible");

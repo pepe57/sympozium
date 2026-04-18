@@ -56,8 +56,8 @@ declare global {
       waitForDeleted(path: string, timeoutMs?: number): Chainable<void>;
       /** Delete an AgentRun by name (cleanup helper). */
       deleteRun(name: string): Chainable<void>;
-      /** Delete a PersonaPack by name (cleanup helper). */
-      deletePersonaPack(name: string): Chainable<void>;
+      /** Delete a Ensemble by name (cleanup helper). */
+      deleteEnsemble(name: string): Chainable<void>;
       /** Delete a SympoziumSchedule by name (cleanup helper). */
       deleteSchedule(name: string): Chainable<void>;
       /** Delete an MCPServer by name (cleanup helper). */
@@ -101,10 +101,10 @@ Cypress.Commands.add("deleteRun", (name: string) => {
   });
 });
 
-Cypress.Commands.add("deletePersonaPack", (name: string) => {
+Cypress.Commands.add("deleteEnsemble", (name: string) => {
   cy.request({
     method: "DELETE",
-    url: `/api/v1/personapacks/${name}?namespace=default`,
+    url: `/api/v1/ensembles/${name}?namespace=default`,
     headers: authHeaders(),
     failOnStatusCode: false,
   });

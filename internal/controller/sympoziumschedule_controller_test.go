@@ -84,7 +84,7 @@ func TestSympoziumScheduleReconcile_CopiesProviderAndAuthSecretToRun(t *testing.
 		t.Fatalf("get created run: %v", err)
 	}
 	// The scheduled AgentRun must be owned by its parent Schedule so
-	// disabling a PersonaPack cascades cleanup and doesn't leave
+	// disabling a Ensemble cascades cleanup and doesn't leave
 	// orphan Failed runs referencing a deleted instance.
 	if len(run.OwnerReferences) != 1 {
 		t.Fatalf("expected scheduled run to have 1 owner reference, got %d", len(run.OwnerReferences))

@@ -19,9 +19,9 @@ make integration-tests
 
 `make integration-tests` runs the API-focused smoke and behavior checks under `test/integration/`, including:
 
-- API smoke coverage for namespaces/skills/policies/personapacks/instances/schedules
-- PersonaPack provisioning and provider switch propagation
-- PersonaPack vs ad-hoc correctness checks
+- API smoke coverage for namespaces/skills/policies/ensembles/instances/schedules
+- Ensemble provisioning and provider switch propagation
+- Ensemble vs ad-hoc correctness checks
 - Schedule dispatch behavior
 - AgentRun pod container shape checks
 - Observability API checks

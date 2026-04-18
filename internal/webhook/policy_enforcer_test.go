@@ -38,7 +38,7 @@ func admissionRequestFor(t *testing.T, run *sympoziumv1alpha1.AgentRun) admissio
 // TestPolicyEnforcer_AllowsDeletingRun_WhenInstanceMissing is the regression
 // guard: when an AgentRun has been marked for deletion (deletionTimestamp
 // set) and its referenced SympoziumInstance has already been cascade-deleted
-// (e.g. PersonaPack disabled), the controller still needs to remove its
+// (e.g. Ensemble disabled), the controller still needs to remove its
 // finalizer to let the object be GC'd. The webhook MUST allow that update
 // rather than rejecting it with "instance not found" and leaving the run
 // stuck in a terminating state forever.

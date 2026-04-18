@@ -1,10 +1,10 @@
 ---
-# Research Team PersonaPack — a coordinated research and reporting team.
+# Research Team Ensemble — a coordinated research and reporting team.
 # Demonstrates persona relationships: the Researcher delegates findings to
 # the Writer, who produces a report that flows sequentially to the Reviewer.
 # The Lead supervises all activity.
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: research-team
   namespace: sympozium-system

@@ -190,11 +190,11 @@ port conflicts with those existing targets.
 
 ---
 
-## Using with PersonaPacks
+## Using with Ensembles
 
 ```yaml
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: my-team
 spec:

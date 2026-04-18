@@ -133,7 +133,7 @@ spec:
 
 ### TUI
 
-Both the onboard wizard and persona pack wizard include an "Agent Sandbox" step:
+Both the onboard wizard and ensemble wizard include an "Agent Sandbox" step:
 
 ```
 Step 7.5/9 — Agent Sandbox (K8s CRD)

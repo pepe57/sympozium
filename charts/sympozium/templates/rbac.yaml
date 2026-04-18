@@ -32,7 +32,7 @@ rules:
       - sympoziumpolicies
       - skillpacks
       - sympoziumschedules
-      - personapacks
+      - ensembles
       - sympoziumconfigs
       - mcpservers
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
@@ -43,7 +43,7 @@ rules:
       - sympoziumpolicies/status
       - skillpacks/status
       - sympoziumschedules/status
-      - personapacks/status
+      - ensembles/status
       - sympoziumconfigs/status
       - mcpservers/status
     verbs: ["get", "update", "patch"]
@@ -54,7 +54,7 @@ rules:
       - sympoziumpolicies/finalizers
       - skillpacks/finalizers
       - sympoziumschedules/finalizers
-      - personapacks/finalizers
+      - ensembles/finalizers
       - sympoziumconfigs/finalizers
     verbs: ["update"]
   # Core resources — controller + skill RBAC delegation

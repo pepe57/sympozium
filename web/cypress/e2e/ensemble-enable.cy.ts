@@ -1,7 +1,7 @@
-// Test: enable a PersonaPack through the onboarding wizard.
+// Test: enable a Ensemble through the onboarding wizard.
 // Installs default packs if needed, then enables one with LM Studio.
 
-describe("PersonaPack — Enable via Wizard", () => {
+describe("Ensemble — Enable via Wizard", () => {
   let packName: string;
 
   function authHeaders(): Record<string, string> {
@@ -15,13 +15,13 @@ describe("PersonaPack — Enable via Wizard", () => {
     // Install default packs so we have something to enable.
     cy.request({
       method: "POST",
-      url: "/api/v1/personapacks/install-defaults?namespace=default",
+      url: "/api/v1/ensembles/install-defaults?namespace=default",
       headers: authHeaders(),
       failOnStatusCode: false,
     });
     // Disable all packs so the test has at least one to enable.
     cy.request({
-      url: "/api/v1/personapacks?namespace=default",
+      url: "/api/v1/ensembles?namespace=default",
       headers: authHeaders(),
     }).then((resp) => {
       const packs = resp.body?.items || resp.body || [];
@@ -29,7 +29,7 @@ describe("PersonaPack — Enable via Wizard", () => {
         if (p.spec?.enabled) {
           cy.request({
             method: "PATCH",
-            url: `/api/v1/personapacks/${p.metadata.name}?namespace=default`,
+            url: `/api/v1/ensembles/${p.metadata.name}?namespace=default`,
             body: { enabled: false },
             headers: authHeaders(),
             failOnStatusCode: false,
@@ -43,7 +43,7 @@ describe("PersonaPack — Enable via Wizard", () => {
     if (packName) {
       cy.request({
         method: "PATCH",
-        url: `/api/v1/personapacks/${packName}?namespace=default`,
+        url: `/api/v1/ensembles/${packName}?namespace=default`,
         body: { enabled: false },
         headers: authHeaders(),
         failOnStatusCode: false,
@@ -51,10 +51,10 @@ describe("PersonaPack — Enable via Wizard", () => {
     }
   });
 
-  it("selects a persona pack, configures LM Studio, and activates it", () => {
+  it("selects a ensemble, configures LM Studio, and activates it", () => {
     cy.visit("/personas");
 
-    // Wait for the persona packs to render and find an Enable button.
+    // Wait for the ensembles to render and find an Enable button.
     cy.contains("button", "Enable", { timeout: 20000 }).should("be.visible");
 
     // Capture the pack name from the row and click Enable.
@@ -112,7 +112,7 @@ describe("PersonaPack — Enable via Wizard", () => {
 
     // ── Verify instances were created by the pack ─────────────
     cy.visit("/instances");
-    // PersonaPack activation creates stamped instances — at least one should exist.
+    // Ensemble activation creates stamped instances — at least one should exist.
     cy.get("table", { timeout: 20000 }).should("exist");
   });
 });

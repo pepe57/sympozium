@@ -127,13 +127,15 @@ func (s *Server) buildMux(frontendFS fs.FS, token string) http.Handler {
 	mux.HandleFunc("POST /api/v1/schedules", s.createSchedule)
 	mux.HandleFunc("DELETE /api/v1/schedules/{name}", s.deleteSchedule)
 
-	// PersonaPack endpoints
-	mux.HandleFunc("GET /api/v1/personapacks", s.listPersonaPacks)
-	mux.HandleFunc("POST /api/v1/personapacks/install-defaults", s.installDefaultPersonaPacks)
-	mux.HandleFunc("GET /api/v1/personapacks/{name}", s.getPersonaPack)
-	mux.HandleFunc("PATCH /api/v1/personapacks/{name}", s.patchPersonaPack)
-	mux.HandleFunc("DELETE /api/v1/personapacks/{name}", s.deletePersonaPack)
-	mux.HandleFunc("GET /api/v1/personapacks/{name}/shared-memory", s.listSharedMemory)
+	// Ensemble endpoints
+	mux.HandleFunc("GET /api/v1/ensembles", s.listEnsembles)
+	mux.HandleFunc("POST /api/v1/ensembles", s.createEnsemble)
+	mux.HandleFunc("POST /api/v1/ensembles/install-defaults", s.installDefaultEnsembles)
+	mux.HandleFunc("GET /api/v1/ensembles/{name}", s.getEnsemble)
+	mux.HandleFunc("PATCH /api/v1/ensembles/{name}", s.patchEnsemble)
+	mux.HandleFunc("DELETE /api/v1/ensembles/{name}", s.deleteEnsemble)
+	mux.HandleFunc("POST /api/v1/ensembles/{name}/clone", s.cloneEnsemble)
+	mux.HandleFunc("GET /api/v1/ensembles/{name}/shared-memory", s.listEnsembleSharedMemory)
 
 	// MCP Server endpoints
 	mux.HandleFunc("GET /api/v1/mcpservers", s.listMCPServers)
@@ -1399,15 +1401,15 @@ func (s *Server) deleteSchedule(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// --- PersonaPack handlers ---
+// --- Ensemble handlers ---
 
-func (s *Server) listPersonaPacks(w http.ResponseWriter, r *http.Request) {
+func (s *Server) listEnsembles(w http.ResponseWriter, r *http.Request) {
 	ns := r.URL.Query().Get("namespace")
 	if ns == "" {
 		ns = "default"
 	}
 
-	var list sympoziumv1alpha1.PersonaPackList
+	var list sympoziumv1alpha1.EnsembleList
 	if err := s.client.List(r.Context(), &list, client.InNamespace(ns)); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -1416,14 +1418,14 @@ func (s *Server) listPersonaPacks(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, list.Items)
 }
 
-func (s *Server) getPersonaPack(w http.ResponseWriter, r *http.Request) {
+func (s *Server) getEnsemble(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	ns := r.URL.Query().Get("namespace")
 	if ns == "" {
 		ns = "default"
 	}
 
-	var pp sympoziumv1alpha1.PersonaPack
+	var pp sympoziumv1alpha1.Ensemble
 	if err := s.client.Get(r.Context(), types.NamespacedName{Name: name, Namespace: ns}, &pp); err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -1432,8 +1434,8 @@ func (s *Server) getPersonaPack(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, pp)
 }
 
-// PatchPersonaPackRequest represents a partial update to a PersonaPack.
-type PatchPersonaPackRequest struct {
+// PatchEnsembleRequest represents a partial update to a Ensemble.
+type PatchEnsembleRequest struct {
 	Enabled              *bool                                              `json:"enabled,omitempty"`
 	Provider             string                                             `json:"provider,omitempty"`
 	SecretName           string                                             `json:"secretName,omitempty"`
@@ -1465,20 +1467,20 @@ type PersonaPatchSpec struct {
 	Skills       []string `json:"skills,omitempty"`
 }
 
-func (s *Server) patchPersonaPack(w http.ResponseWriter, r *http.Request) {
+func (s *Server) patchEnsemble(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	ns := r.URL.Query().Get("namespace")
 	if ns == "" {
 		ns = "default"
 	}
 
-	var req PatchPersonaPackRequest
+	var req PatchEnsembleRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	var pp sympoziumv1alpha1.PersonaPack
+	var pp sympoziumv1alpha1.Ensemble
 	if err := s.client.Get(r.Context(), types.NamespacedName{Name: name, Namespace: ns}, &pp); err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -1505,7 +1507,7 @@ func (s *Server) patchPersonaPack(w http.ResponseWriter, r *http.Request) {
 				Namespace: ns,
 				Labels: map[string]string{
 					"app.kubernetes.io/managed-by": "sympozium",
-					"sympozium.ai/persona-pack":    name,
+					"sympozium.ai/ensemble":        name,
 				},
 			},
 			StringData: secretData,
@@ -1526,7 +1528,7 @@ func (s *Server) patchPersonaPack(w http.ResponseWriter, r *http.Request) {
 				Namespace: ns,
 				Labels: map[string]string{
 					"app.kubernetes.io/managed-by": "sympozium",
-					"sympozium.ai/persona-pack":    name,
+					"sympozium.ai/ensemble":        name,
 				},
 			},
 			StringData: map[string]string{envKey: req.APIKey},
@@ -1669,14 +1671,14 @@ func (s *Server) patchPersonaPack(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, pp)
 }
 
-func (s *Server) deletePersonaPack(w http.ResponseWriter, r *http.Request) {
+func (s *Server) deleteEnsemble(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	ns := r.URL.Query().Get("namespace")
 	if ns == "" {
 		ns = "default"
 	}
 
-	pp := &sympoziumv1alpha1.PersonaPack{
+	pp := &sympoziumv1alpha1.Ensemble{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
 	}
 	if err := s.client.Delete(r.Context(), pp); err != nil {
@@ -1687,8 +1689,137 @@ func (s *Server) deletePersonaPack(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// listSharedMemory proxies to the pack's shared memory server to list entries.
-func (s *Server) listSharedMemory(w http.ResponseWriter, r *http.Request) {
+// CreateEnsembleRequest represents a request to create a new Ensemble from scratch.
+type CreateEnsembleRequest struct {
+	Name          string                                  `json:"name"`
+	Description   string                                  `json:"description,omitempty"`
+	Category      string                                  `json:"category,omitempty"`
+	WorkflowType  string                                  `json:"workflowType,omitempty"`
+	Personas      []sympoziumv1alpha1.PersonaSpec         `json:"personas"`
+	Relationships []sympoziumv1alpha1.PersonaRelationship `json:"relationships,omitempty"`
+	SharedMemory  *sympoziumv1alpha1.SharedMemorySpec     `json:"sharedMemory,omitempty"`
+}
+
+func (s *Server) createEnsemble(w http.ResponseWriter, r *http.Request) {
+	ns := r.URL.Query().Get("namespace")
+	if ns == "" {
+		ns = "default"
+	}
+
+	var req CreateEnsembleRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	if len(req.Personas) == 0 {
+		http.Error(w, "at least one persona is required", http.StatusBadRequest)
+		return
+	}
+
+	ensemble := &sympoziumv1alpha1.Ensemble{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      req.Name,
+			Namespace: ns,
+		},
+		Spec: sympoziumv1alpha1.EnsembleSpec{
+			Description:   req.Description,
+			Category:      req.Category,
+			WorkflowType:  req.WorkflowType,
+			Personas:      req.Personas,
+			Relationships: req.Relationships,
+			SharedMemory:  req.SharedMemory,
+		},
+	}
+
+	if err := s.client.Create(r.Context(), ensemble); err != nil {
+		if k8serrors.IsAlreadyExists(err) {
+			http.Error(w, "ensemble already exists: "+req.Name, http.StatusConflict)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	writeJSON(w, ensemble)
+}
+
+// CloneEnsembleRequest represents a request to clone an existing Ensemble.
+type CloneEnsembleRequest struct {
+	Name string `json:"name"`
+}
+
+func (s *Server) cloneEnsemble(w http.ResponseWriter, r *http.Request) {
+	sourceName := r.PathValue("name")
+	ns := r.URL.Query().Get("namespace")
+	if ns == "" {
+		ns = "default"
+	}
+
+	var req CloneEnsembleRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.Name == "" {
+		http.Error(w, "name is required for the cloned ensemble", http.StatusBadRequest)
+		return
+	}
+
+	// Read the source ensemble.
+	source := &sympoziumv1alpha1.Ensemble{}
+	if err := s.client.Get(r.Context(), client.ObjectKey{Name: sourceName, Namespace: ns}, source); err != nil {
+		if k8serrors.IsNotFound(err) {
+			http.Error(w, "source ensemble not found: "+sourceName, http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Clone: copy spec, strip activation state and auth.
+	clone := &sympoziumv1alpha1.Ensemble{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      req.Name,
+			Namespace: ns,
+		},
+		Spec: sympoziumv1alpha1.EnsembleSpec{
+			Description:   source.Spec.Description + " (cloned from " + sourceName + ")",
+			Category:      source.Spec.Category,
+			Version:       source.Spec.Version,
+			Personas:      source.Spec.Personas,
+			Relationships: source.Spec.Relationships,
+			WorkflowType:  source.Spec.WorkflowType,
+			SharedMemory:  source.Spec.SharedMemory,
+			PolicyRef:     source.Spec.PolicyRef,
+			SkillParams:   source.Spec.SkillParams,
+			TaskOverride:  source.Spec.TaskOverride,
+			AgentSandbox:  source.Spec.AgentSandbox,
+			// Intentionally omitted: Enabled, AuthRefs, ChannelConfigs, BaseURL, ExcludePersonas
+		},
+	}
+
+	if err := s.client.Create(r.Context(), clone); err != nil {
+		if k8serrors.IsAlreadyExists(err) {
+			http.Error(w, "ensemble already exists: "+req.Name, http.StatusConflict)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	writeJSON(w, clone)
+}
+
+// listEnsembleSharedMemory proxies to the pack's shared memory server to list entries.
+func (s *Server) listEnsembleSharedMemory(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	ns := r.URL.Query().Get("namespace")
 	if ns == "" {
@@ -1696,10 +1827,10 @@ func (s *Server) listSharedMemory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify the pack exists and has shared memory enabled.
-	pp := &sympoziumv1alpha1.PersonaPack{}
+	pp := &sympoziumv1alpha1.Ensemble{}
 	if err := s.client.Get(r.Context(), client.ObjectKey{Name: name, Namespace: ns}, pp); err != nil {
 		if k8serrors.IsNotFound(err) {
-			http.Error(w, "PersonaPack not found", http.StatusNotFound)
+			http.Error(w, "Ensemble not found", http.StatusNotFound)
 			return
 		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -2213,29 +2344,29 @@ func (s *Server) getRunTelemetry(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-type InstallDefaultPersonaPacksResponse struct {
+type InstallDefaultEnsemblesResponse struct {
 	SourceNamespace string   `json:"sourceNamespace"`
 	TargetNamespace string   `json:"targetNamespace"`
 	Copied          []string `json:"copied"`
 	AlreadyPresent  []string `json:"alreadyPresent"`
 }
 
-func (s *Server) installDefaultPersonaPacks(w http.ResponseWriter, r *http.Request) {
+func (s *Server) installDefaultEnsembles(w http.ResponseWriter, r *http.Request) {
 	targetNS := r.URL.Query().Get("namespace")
 	if targetNS == "" {
 		targetNS = "default"
 	}
 	sourceNS := "sympozium-system"
 
-	var sourceList sympoziumv1alpha1.PersonaPackList
+	var sourceList sympoziumv1alpha1.EnsembleList
 	if err := s.client.List(r.Context(), &sourceList, client.InNamespace(sourceNS)); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	resp := InstallDefaultPersonaPacksResponse{SourceNamespace: sourceNS, TargetNamespace: targetNS, Copied: []string{}, AlreadyPresent: []string{}}
+	resp := InstallDefaultEnsemblesResponse{SourceNamespace: sourceNS, TargetNamespace: targetNS, Copied: []string{}, AlreadyPresent: []string{}}
 	for _, src := range sourceList.Items {
-		var existing sympoziumv1alpha1.PersonaPack
+		var existing sympoziumv1alpha1.Ensemble
 		err := s.client.Get(r.Context(), types.NamespacedName{Name: src.Name, Namespace: targetNS}, &existing)
 		if err == nil {
 			resp.AlreadyPresent = append(resp.AlreadyPresent, src.Name)
@@ -2246,7 +2377,7 @@ func (s *Server) installDefaultPersonaPacks(w http.ResponseWriter, r *http.Reque
 			return
 		}
 
-		pack := &sympoziumv1alpha1.PersonaPack{ObjectMeta: metav1.ObjectMeta{Name: src.Name, Namespace: targetNS, Labels: src.Labels, Annotations: src.Annotations}, Spec: src.Spec}
+		pack := &sympoziumv1alpha1.Ensemble{ObjectMeta: metav1.ObjectMeta{Name: src.Name, Namespace: targetNS, Labels: src.Labels, Annotations: src.Annotations}, Spec: src.Spec}
 		pack.Spec.Enabled = false
 		if err := s.client.Create(r.Context(), pack); err != nil {
 			if k8serrors.IsAlreadyExists(err) {

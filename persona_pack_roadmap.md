@@ -1,14 +1,14 @@
-# Roadmap: Evolving PersonaPack into a Multi-Agent Coordination System
+# Roadmap: Evolving Ensemble into a Multi-Agent Coordination System
 
 ## 1. Overview
 
-The objective is to transform `PersonaPack` from a static collection of `SympoziumInstance` templates into a dynamic, relationship-aware coordination layer. This enables agents within a pack to work as a cohesive team via subagent workflows.
+The objective is to transform `Ensemble` from a static collection of `SympoziumInstance` templates into a dynamic, relationship-aware coordination layer. This enables agents within a pack to work as a cohesive team via subagent workflows.
 
 ### Current status (as of 2026-04-16)
 
 | Phase | Status | Summary |
 |---|---|---|
-| **Phase 1: Schema** | **Done** | `PersonaRelationship`, `Relationships[]`, `WorkflowType` on PersonaPackSpec |
+| **Phase 1: Schema** | **Done** | `PersonaRelationship`, `Relationships[]`, `WorkflowType` on EnsembleSpec |
 | **Phase 2: Canvas (read-only)** | **Done** | ReactFlow canvas on persona detail Workflow tab |
 | **Phase 2b: Canvas (editable)** | **Done** | Drag-to-connect with type picker, edge deletion, Save syncs to CRD |
 | **Phase 2c: Global canvas** | **Done** | Persona Packs list page canvas showing all enabled packs with live run status |
@@ -23,12 +23,12 @@ The objective is to transform `PersonaPack` from a static collection of `Sympozi
 | Capability | Location | Notes |
 |---|---|---|
 | **Subagent spawning** | `internal/orchestrator/spawner.go` | Creates child `AgentRun` CRs via IPC file protocol (`/ipc/spawn/request-*.json`) |
-| **Persona-targeted spawning** | `spawner.go` `resolvePersonaTarget()` | Resolves `targetPersona` → instance name via PersonaPack, validates relationship edges |
+| **Persona-targeted spawning** | `spawner.go` `resolvePersonaTarget()` | Resolves `targetPersona` → instance name via Ensemble, validates relationship edges |
 | **Parent-child tracking** | `AgentRun.Spec.Parent` (`ParentRunRef`) | Stores `RunName`, `SessionKey`, `SpawnDepth`; labels include `sympozium.ai/parent-run` |
 | **Depth/concurrency guards** | `SubagentsSpec` on `SympoziumInstance` | `MaxDepth` (default 2), `MaxConcurrent` (default 5), `MaxChildrenPerAgent` (default 3) |
 | **Policy-level limits** | `SympoziumPolicy.Spec.Subagents` | `MaxDepth`, `MaxConcurrent` enforced by controller |
 | **Response gate pattern** | `AgentRun` `PostRun` gate | Runs pause for external approval before completing — reusable pattern for await/resume |
-| **Relationship graph in CRD** | `PersonaPackSpec.Relationships[]` | Typed edges (delegation, sequential, supervision) with condition, timeout, resultFormat |
+| **Relationship graph in CRD** | `EnsembleSpec.Relationships[]` | Typed edges (delegation, sequential, supervision) with condition, timeout, resultFormat |
 | **AwaitingDelegate phase** | `AgentRunPhase` enum + `DelegateStatus` | Schema defined but controller doesn't transition to/from this phase yet |
 | **Visual canvas** | `web/src/components/persona-canvas.tsx` | Per-pack editable canvas + global read-only canvas with live run status highlighting |
 | **Default research-team pack** | `config/personas/research-team.yaml` | 4-persona pack demonstrating all 3 relationship types |
@@ -49,14 +49,14 @@ The objective is to transform `PersonaPack` from a static collection of `Sympozi
 ### Delivered
 
 - `PersonaRelationship` type with `source`, `target`, `type` (delegation/sequential/supervision), `condition`, `timeout`, `resultFormat`
-- `Relationships[]` and `WorkflowType` (autonomous/pipeline/delegation) on `PersonaPackSpec`
-- `Workflow` print column on `kubectl get personapacks`
+- `Relationships[]` and `WorkflowType` (autonomous/pipeline/delegation) on `EnsembleSpec`
+- `Workflow` print column on `kubectl get ensembles`
 - CRD manifests regenerated and deployed
 - PATCH API support for relationships and workflowType
 
 ### Key files
-- `api/v1alpha1/personapack_types.go`
-- `internal/apiserver/server.go` (PatchPersonaPackRequest)
+- `api/v1alpha1/ensemble_types.go`
+- `internal/apiserver/server.go` (PatchEnsembleRequest)
 
 ---
 
@@ -100,7 +100,7 @@ The objective is to transform `PersonaPack` from a static collection of `Sympozi
 ### Delivered
 
 - `TargetPersona` and `PackName` fields on `SpawnRequest` (orchestrator + IPC protocol)
-- `resolvePersonaTarget()` in Spawner: looks up PersonaPack, finds installed instance, validates relationship edge exists, inherits target persona's system prompt and skills
+- `resolvePersonaTarget()` in Spawner: looks up Ensemble, finds installed instance, validates relationship edge exists, inherits target persona's system prompt and skills
 - OTel span attributes for target persona and pack name
 
 ### Key files
@@ -218,7 +218,7 @@ The `packName` can be auto-injected by the agent runner from the instance's labe
 
 ## 9. Default Pack: research-team
 
-The `research-team` PersonaPack is included in the default packs and demonstrates all three relationship types:
+The `research-team` Ensemble is included in the default packs and demonstrates all three relationship types:
 
 ```
 Lead ──delegation──► Researcher ──delegation──► Writer ──sequential──► Reviewer
@@ -260,11 +260,11 @@ Currently the pack serves as a visual demo of the relationship graph. To enable 
 
 | Area | Files |
 |---|---|
-| PersonaPack CRD | `api/v1alpha1/personapack_types.go` |
+| Ensemble CRD | `api/v1alpha1/ensemble_types.go` |
 | AgentRun CRD | `api/v1alpha1/agentrun_types.go` |
 | Instance CRD (SubagentsSpec) | `api/v1alpha1/sympoziuminstance_types.go` |
 | Policy CRD | `api/v1alpha1/sympoziumpolicy_types.go` |
-| PersonaPack controller | `internal/controller/personapack_controller.go` |
+| Ensemble controller | `internal/controller/ensemble_controller.go` |
 | AgentRun controller | `internal/controller/agentrun_controller.go` |
 | Spawner | `internal/orchestrator/spawner.go` |
 | IPC protocol | `internal/ipc/protocol.go`, `internal/ipc/bridge.go` |
@@ -274,4 +274,4 @@ Currently the pack serves as a visual demo of the relationship graph. To enable 
 | Frontend hooks | `web/src/hooks/use-api.ts` |
 | Frontend types | `web/src/lib/api.ts` |
 | Default research pack | `config/personas/research-team.yaml` |
-| Cypress tests | `web/cypress/e2e/personapack-workflow-canvas.cy.ts`, `web/cypress/e2e/personapack-research-team-workflow.cy.ts` |
+| Cypress tests | `web/cypress/e2e/ensemble-workflow-canvas.cy.ts`, `web/cypress/e2e/ensemble-research-team-workflow.cy.ts` |

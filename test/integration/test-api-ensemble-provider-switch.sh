@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# API integration test: PersonaPack provider switch propagation.
+# API integration test: Ensemble provider switch propagation.
 # Verifies OpenAI -> Anthropic update propagates to stamped instance and new runs,
 # while retaining model/skills coherence.
 
@@ -69,11 +69,11 @@ cleanup() {
   [[ -n "$RUN_OPENAI" ]] && api_request DELETE "/api/v1/runs/${RUN_OPENAI}" >/dev/null 2>&1 || true
   [[ -n "$RUN_ANTHROPIC" ]] && api_request DELETE "/api/v1/runs/${RUN_ANTHROPIC}" >/dev/null 2>&1 || true
   api_request DELETE "/api/v1/instances/${INSTANCE_NAME}" >/dev/null 2>&1 || true
-  api_request DELETE "/api/v1/personapacks/${PACK_NAME}" >/dev/null 2>&1 || true
+  api_request DELETE "/api/v1/ensembles/${PACK_NAME}" >/dev/null 2>&1 || true
   # kubectl fallback: agentruns, instance, pack, secrets, configmaps
   kubectl delete agentrun -n "$NAMESPACE" -l "sympozium.ai/instance=${INSTANCE_NAME}" --ignore-not-found --wait=false >/dev/null 2>&1 || true
   kubectl delete sympoziuminstance "$INSTANCE_NAME" -n "$NAMESPACE" --ignore-not-found --wait=false >/dev/null 2>&1 || true
-  kubectl delete personapack "$PACK_NAME" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
+  kubectl delete ensemble "$PACK_NAME" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
   kubectl delete secret "$OPENAI_SECRET" "$ANTHROPIC_SECRET" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
   kubectl delete configmap -n "$NAMESPACE" -l "sympozium.ai/instance=${INSTANCE_NAME}" --ignore-not-found >/dev/null 2>&1 || true
   stop_port_forward
@@ -245,7 +245,7 @@ main() {
   require_cmd curl
   require_cmd python3
 
-  info "Running PersonaPack provider-switch propagation test in namespace '${NAMESPACE}'"
+  info "Running Ensemble provider-switch propagation test in namespace '${NAMESPACE}'"
 
   if [[ -z "${OPENAI_API_KEY:-}" ]]; then
     fail "OPENAI_API_KEY environment variable is required but not set"
@@ -255,11 +255,11 @@ main() {
   start_port_forward_if_needed
   resolve_apiserver_token
 
-  # Temp PersonaPack with deterministic skills.
-  info "Creating temporary PersonaPack '${PACK_NAME}'"
+  # Temp Ensemble with deterministic skills.
+  info "Creating temporary Ensemble '${PACK_NAME}'"
   cat <<EOF | kubectl apply -f -
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: ${PACK_NAME}
   namespace: ${NAMESPACE}
@@ -273,7 +273,7 @@ spec:
         - code-review
         - k8s-ops
 EOF
-  pass "Temporary PersonaPack created"
+  pass "Temporary Ensemble created"
 
   info "Creating provider auth secrets"
   kubectl create secret generic "$OPENAI_SECRET" --from-literal=OPENAI_API_KEY="${OPENAI_API_KEY}" -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
@@ -281,13 +281,13 @@ EOF
   pass "Provider auth secrets ready"
 
   # Enable with OpenAI.
-  info "Patching PersonaPack to OpenAI"
-  api_request PATCH "/api/v1/personapacks/${PACK_NAME}" "{\"enabled\":true,\"provider\":\"openai\",\"secretName\":\"${OPENAI_SECRET}\",\"model\":\"${OPENAI_MODEL}\"}" >/dev/null
+  info "Patching Ensemble to OpenAI"
+  api_request PATCH "/api/v1/ensembles/${PACK_NAME}" "{\"enabled\":true,\"provider\":\"openai\",\"secretName\":\"${OPENAI_SECRET}\",\"model\":\"${OPENAI_MODEL}\"}" >/dev/null
 
   inst_openai="$(wait_for_instance_model "$OPENAI_MODEL" || true)"
   [[ -n "$inst_openai" ]] || { fail "Timed out waiting for OpenAI instance propagation"; exit 1; }
   assert_instance "$inst_openai" "openai" "$OPENAI_SECRET" "$OPENAI_MODEL"
-  pass "OpenAI propagation to PersonaPack instance verified"
+  pass "OpenAI propagation to Ensemble instance verified"
 
   run_openai_json="$(api_request POST "/api/v1/runs" "{\"instanceRef\":\"${INSTANCE_NAME}\",\"task\":\"provider switch openai run\"}")"
   RUN_OPENAI="$(printf "%s" "$run_openai_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("metadata",{}).get("name",""))')"
@@ -295,20 +295,20 @@ EOF
   pass "OpenAI propagation to new runs verified"
 
   # Switch to Anthropic.
-  info "Patching PersonaPack to Anthropic"
-  api_request PATCH "/api/v1/personapacks/${PACK_NAME}" "{\"enabled\":true,\"provider\":\"anthropic\",\"secretName\":\"${ANTHROPIC_SECRET}\",\"model\":\"${ANTHROPIC_MODEL}\"}" >/dev/null
+  info "Patching Ensemble to Anthropic"
+  api_request PATCH "/api/v1/ensembles/${PACK_NAME}" "{\"enabled\":true,\"provider\":\"anthropic\",\"secretName\":\"${ANTHROPIC_SECRET}\",\"model\":\"${ANTHROPIC_MODEL}\"}" >/dev/null
 
   inst_anthropic="$(wait_for_instance_model "$ANTHROPIC_MODEL" || true)"
   [[ -n "$inst_anthropic" ]] || { fail "Timed out waiting for Anthropic instance propagation"; exit 1; }
   assert_instance "$inst_anthropic" "anthropic" "$ANTHROPIC_SECRET" "$ANTHROPIC_MODEL"
-  pass "Anthropic propagation to PersonaPack instance verified"
+  pass "Anthropic propagation to Ensemble instance verified"
 
   run_anthropic_json="$(api_request POST "/api/v1/runs" "{\"instanceRef\":\"${INSTANCE_NAME}\",\"task\":\"provider switch anthropic run\"}")"
   RUN_ANTHROPIC="$(printf "%s" "$run_anthropic_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("metadata",{}).get("name",""))')"
   assert_run "$run_anthropic_json" "anthropic" "$ANTHROPIC_SECRET" "$ANTHROPIC_MODEL"
   pass "Anthropic propagation to new runs verified"
 
-  pass "PersonaPack provider-switch propagation test passed"
+  pass "Ensemble provider-switch propagation test passed"
 }
 
 main "$@"

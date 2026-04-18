@@ -1,8 +1,8 @@
 ---
-# Helm values examples for deploying PersonaPacks via the Sympozium chart.
+# Helm values examples for deploying Ensembles via the Sympozium chart.
 #
 # Install with:
-#   helm install sympozium ./charts/sympozium -f personapack-helm-values-examples.yaml
+#   helm install sympozium ./charts/sympozium -f ensemble-helm-values-examples.yaml
 #
 # These values show different ways to configure persona packs at install time.
 
@@ -17,7 +17,7 @@ defaultPersonas:
 # ─────────────────────────────────────────────────────────────────────────────
 # After helm install, activate and configure the developer-team pack:
 #
-#   kubectl patch personapack developer-team --type=merge -p '{
+#   kubectl patch ensemble developer-team --type=merge -p '{
 #     "spec": {
 #       "enabled": true,
 #       "authRefs": [{"provider": "openai", "secret": "dev-team-openai-key"}],
@@ -33,9 +33,9 @@ defaultPersonas:
 # ─────────────────────────────────────────────────────────────────────────────
 # Example 3: Activate via the Sympozium API server
 # ─────────────────────────────────────────────────────────────────────────────
-# The API server exposes a PATCH endpoint for PersonaPacks:
+# The API server exposes a PATCH endpoint for Ensembles:
 #
-#   curl -X PATCH http://localhost:19090/api/v1/personapacks/developer-team \
+#   curl -X PATCH http://localhost:19090/api/v1/ensembles/developer-team \
 #     -H "Content-Type: application/json" \
 #     -d '{
 #       "enabled": true,
@@ -49,12 +49,12 @@ defaultPersonas:
 #     }'
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Example 4: Custom PersonaPack in a Helm post-install hook
+# Example 4: Custom Ensemble in a Helm post-install hook
 # ─────────────────────────────────────────────────────────────────────────────
 # Place this in charts/sympozium/templates/custom-pack.yaml:
 #
 # apiVersion: sympozium.ai/v1alpha1
-# kind: PersonaPack
+# kind: Ensemble
 # metadata:
 #   name: my-custom-team
 #   annotations:
@@ -84,7 +84,7 @@ defaultPersonas:
 # ─────────────────────────────────────────────────────────────────────────────
 # Example 5: Deploying with Ollama (no API key, local models)
 # ─────────────────────────────────────────────────────────────────────────────
-#   kubectl patch personapack developer-team --type=merge -p '{
+#   kubectl patch ensemble developer-team --type=merge -p '{
 #     "spec": {
 #       "enabled": true,
 #       "authRefs": [{"provider": "ollama"}],

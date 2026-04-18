@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useSearchParams } from "react-router-dom";
 import {
-  usePersonaPack,
-  useActivatePersonaPack,
+  useEnsemble,
+  useActivateEnsemble,
   useSkills,
 } from "@/hooks/use-api";
 import { StatusBadge } from "@/components/status-badge";
@@ -35,20 +35,20 @@ import { Breadcrumbs } from "@/components/breadcrumbs";
 import { formatAge } from "@/lib/utils";
 import {
   YamlButton,
-  personaPackYamlFromResource,
+  ensembleYamlFromResource,
 } from "@/components/yaml-panel";
-import { PersonaCanvas } from "@/components/persona-canvas";
+import { EnsembleCanvas } from "@/components/ensemble-canvas";
 
 interface PersonaEditState {
   systemPrompt: string;
   skills: string[];
 }
 
-export function PersonaDetailPage() {
+export function EnsembleDetailPage() {
   const { name } = useParams<{ name: string }>();
-  const { data: pack, isLoading } = usePersonaPack(name || "");
+  const { data: pack, isLoading } = useEnsemble(name || "");
   const { data: skillPacks } = useSkills();
-  const patchMutation = useActivatePersonaPack();
+  const patchMutation = useActivateEnsemble();
 
   // Track which persona is being edited (by name), and its draft state
   const [editingPersona, setEditingPersona] = useState<string | null>(null);
@@ -132,7 +132,7 @@ export function PersonaDetailPage() {
       <div className="space-y-1">
         <Breadcrumbs
           items={[
-            { label: "Persona Packs", to: "/personas" },
+            { label: "Ensembles", to: "/ensembles" },
             { label: pack.metadata.name },
           ]}
         />
@@ -182,7 +182,7 @@ export function PersonaDetailPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <PersonaCanvas pack={pack} />
+              <EnsembleCanvas pack={pack} />
             </CardContent>
           </Card>
 
@@ -635,8 +635,8 @@ export function PersonaDetailPage() {
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">Resource YAML</CardTitle>
             <YamlButton
-              yaml={personaPackYamlFromResource(pack)}
-              title={`PersonaPack — ${pack.metadata.name}`}
+              yaml={ensembleYamlFromResource(pack)}
+              title={`Ensemble — ${pack.metadata.name}`}
             />
           </div>
         </CardHeader>

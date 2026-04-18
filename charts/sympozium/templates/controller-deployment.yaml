@@ -67,7 +67,7 @@ spec:
             - name: OTEL_RESOURCE_ATTRIBUTES
               value: {{ include "sympozium.otelResourceAttrs" . | quote }}
             {{- end }}
-            # Default observability config for PersonaPack-created instances.
+            # Default observability config for Ensemble-created instances.
             - name: SYMPOZIUM_DEFAULT_OTEL_ENABLED
               value: {{ .Values.observability.defaultInstance.enabled | quote }}
             - name: SYMPOZIUM_DEFAULT_OTEL_ENDPOINT

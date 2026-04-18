@@ -48,7 +48,7 @@ curl -fsSL https://deploy.sympozium.ai/install.sh | sh
 Then deploy to your cluster and activate your first agents:
 
 ```bash
-sympozium install          # deploys CRDs, controllers, and built-in PersonaPacks
+sympozium install          # deploys CRDs, controllers, and built-in Ensembles
 sympozium                  # launch the TUI — go to Personas tab, press Enter to onboard
 sympozium serve            # open the web dashboard (port-forwards to the in-cluster UI)
 ```
@@ -82,7 +82,7 @@ Sympozium serves **two powerful use cases** on one Kubernetes-native platform:
 
 | | |
 |---|---|
-| **PersonaPacks** | Helm-like bundles for AI agent teams — activate a pack and the controller stamps out instances, schedules, and memory |
+| **Ensembles** | Helm-like bundles for AI agent teams — activate a pack and the controller stamps out instances, schedules, and memory |
 | **Agent Workflows** | Delegation, sequential pipelines, and supervision relationships between personas — visualised on an interactive canvas |
 | **Shared Workflow Memory** | Pack-level SQLite memory pool for cross-persona knowledge sharing with per-persona access control |
 | **Skill Sidecars** | Every skill runs in its own sidecar with ephemeral least-privilege RBAC, garbage-collected on completion |
@@ -103,7 +103,7 @@ Sympozium serves **two powerful use cases** on one Kubernetes-native platform:
 | Getting Started | [deploy.sympozium.ai/docs/getting-started](https://deploy.sympozium.ai/docs/getting-started/) |
 | Architecture | [deploy.sympozium.ai/docs/architecture](https://deploy.sympozium.ai/docs/architecture/) |
 | Custom Resources | [deploy.sympozium.ai/docs/concepts/custom-resources](https://deploy.sympozium.ai/docs/concepts/custom-resources/) |
-| PersonaPacks | [deploy.sympozium.ai/docs/concepts/personapacks](https://deploy.sympozium.ai/docs/concepts/personapacks/) |
+| Ensembles | [deploy.sympozium.ai/docs/concepts/ensembles](https://deploy.sympozium.ai/docs/concepts/ensembles/) |
 | Skills & Sidecars | [deploy.sympozium.ai/docs/concepts/skills](https://deploy.sympozium.ai/docs/concepts/skills/) |
 | Persistent Memory | [deploy.sympozium.ai/docs/concepts/persistent-memory](https://deploy.sympozium.ai/docs/concepts/persistent-memory/) |
 | Channels | [deploy.sympozium.ai/docs/concepts/channels](https://deploy.sympozium.ai/docs/concepts/channels/) |
@@ -117,7 +117,7 @@ Sympozium serves **two powerful use cases** on one Kubernetes-native platform:
 | LM Studio & Local Inference | [deploy.sympozium.ai/docs/guides/lm-studio](https://deploy.sympozium.ai/docs/guides/lm-studio/) |
 | llama-server | [deploy.sympozium.ai/docs/guides/llama-server](https://deploy.sympozium.ai/docs/guides/llama-server/) |
 | Unsloth | [deploy.sympozium.ai/docs/guides/unsloth](https://deploy.sympozium.ai/docs/guides/unsloth/) |
-| Writing PersonaPacks | [deploy.sympozium.ai/docs/guides/writing-personapacks](https://deploy.sympozium.ai/docs/guides/writing-personapacks/) |
+| Writing Ensembles | [deploy.sympozium.ai/docs/guides/writing-ensembles](https://deploy.sympozium.ai/docs/guides/writing-ensembles/) |
 | Your First AgentRun | [deploy.sympozium.ai/docs/guides/first-agentrun](https://deploy.sympozium.ai/docs/guides/first-agentrun/) |
 
 ---

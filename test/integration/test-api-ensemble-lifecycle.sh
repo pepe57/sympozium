@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# API integration test: full PersonaPack lifecycle journey.
+# API integration test: full Ensemble lifecycle journey.
 # Validates:
-#   1) Enable a PersonaPack → instances + schedules + memory ConfigMaps stamped for each persona
+#   1) Enable a Ensemble → instances + schedules + memory ConfigMaps stamped for each persona
 #   2) Persona-level model override propagates to stamped instance
 #   3) ExcludePersonas skips excluded persona (no instance created)
 #   4) Disable pack → all stamped resources cleaned up
@@ -52,9 +52,9 @@ stop_port_forward() {
 cleanup() {
   info "Cleaning up lifecycle test resources..."
   # Disable the pack first so controller cleans up stamped resources
-  kubectl patch personapack "$PACK_NAME" -n "$NAMESPACE" --type=merge -p '{"spec":{"enabled":false}}' >/dev/null 2>&1 || true
+  kubectl patch ensemble "$PACK_NAME" -n "$NAMESPACE" --type=merge -p '{"spec":{"enabled":false}}' >/dev/null 2>&1 || true
   sleep 2
-  kubectl delete personapack "$PACK_NAME" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
+  kubectl delete ensemble "$PACK_NAME" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
   kubectl delete secret "$SECRET_NAME" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
   for p in "$PERSONA_A" "$PERSONA_B" "$PERSONA_C"; do
     kubectl delete agentrun -n "$NAMESPACE" -l "sympozium.ai/instance=${PACK_NAME}-${p}" --ignore-not-found >/dev/null 2>&1 || true
@@ -154,7 +154,7 @@ main() {
   require_cmd curl
   require_cmd python3
 
-  info "Running PersonaPack lifecycle test in namespace '${NAMESPACE}'"
+  info "Running Ensemble lifecycle test in namespace '${NAMESPACE}'"
 
   if [[ -z "${OPENAI_API_KEY:-}" ]]; then
     fail "OPENAI_API_KEY environment variable is required but not set"
@@ -169,10 +169,10 @@ main() {
     --from-literal=OPENAI_API_KEY="${OPENAI_API_KEY}" \
     -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
-  # ── Create PersonaPack with 3 personas, one excluded ──
+  # ── Create Ensemble with 3 personas, one excluded ──
   cat <<EOF | kubectl apply -f - >/dev/null
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: ${PACK_NAME}
   namespace: ${NAMESPACE}
@@ -215,12 +215,12 @@ spec:
         interval: "10m"
         task: "Should not be created"
 EOF
-  pass "Created PersonaPack '${PACK_NAME}' with 3 personas (1 excluded)"
+  pass "Created Ensemble '${PACK_NAME}' with 3 personas (1 excluded)"
 
   # ── Enable the pack ──
-  api_request PATCH "/api/v1/personapacks/${PACK_NAME}" \
+  api_request PATCH "/api/v1/ensembles/${PACK_NAME}" \
     "{\"enabled\":true,\"provider\":\"openai\",\"secretName\":\"${SECRET_NAME}\",\"model\":\"gpt-4o-mini\"}" >/dev/null
-  pass "Enabled PersonaPack"
+  pass "Enabled Ensemble"
 
   # ── Wait for stamped instances ──
   elapsed=0
@@ -275,7 +275,7 @@ import json,sys
 pack=sys.argv[1]
 d=json.load(sys.stdin)
 print("true" if any(
-  i.get("metadata",{}).get("labels",{}).get("sympozium.ai/persona-pack")==pack and
+  i.get("metadata",{}).get("labels",{}).get("sympozium.ai/ensemble")==pack and
   i.get("metadata",{}).get("labels",{}).get("sympozium.ai/persona")=="'"${PERSONA_A}"'"
   for i in d
 ) else "false")' "$PACK_NAME")"
@@ -298,18 +298,18 @@ print("true" if any(
     info "Memory ConfigMap seed verification inconclusive (memory='${memory_cm:0:80}')"
   fi
 
-  # ── Verify PersonaPack status ──
-  pack_json="$(api_request GET "/api/v1/personapacks/${PACK_NAME}")"
+  # ── Verify Ensemble status ──
+  pack_json="$(api_request GET "/api/v1/ensembles/${PACK_NAME}")"
   installed_count="$(printf "%s" "$pack_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("status",{}).get("installedCount",0))')"
   if [[ "$installed_count" -ge 2 ]]; then
-    pass "PersonaPack status.installedCount = ${installed_count}"
+    pass "Ensemble status.installedCount = ${installed_count}"
   else
-    fail "PersonaPack status.installedCount = ${installed_count}, expected >= 2"
+    fail "Ensemble status.installedCount = ${installed_count}, expected >= 2"
   fi
 
   # ── Disable the pack ──
-  api_request PATCH "/api/v1/personapacks/${PACK_NAME}" '{"enabled":false}' >/dev/null
-  pass "Disabled PersonaPack"
+  api_request PATCH "/api/v1/ensembles/${PACK_NAME}" '{"enabled":false}' >/dev/null
+  pass "Disabled Ensemble"
 
   # ── Verify cleanup of stamped instances ──
   elapsed=0
@@ -326,10 +326,10 @@ print("true" if any(
     fail "Stamped instances not cleaned up within ${TIMEOUT}s after disable"
     exit 1
   fi
-  pass "PersonaPack disable cleaned up all stamped instances"
+  pass "Ensemble disable cleaned up all stamped instances"
 
   echo
-  pass "PersonaPack lifecycle test passed"
+  pass "Ensemble lifecycle test passed"
   exit $EXIT_CODE
 }
 

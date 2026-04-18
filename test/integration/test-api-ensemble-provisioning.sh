@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# API integration test: PersonaPack provisioning behavior.
-# Validates that enabling a PersonaPack via API stamps out Instances/Schedules.
-# Uses a self-contained temporary PersonaPack to avoid stale cluster state.
+# API integration test: Ensemble provisioning behavior.
+# Validates that enabling a Ensemble via API stamps out Instances/Schedules.
+# Uses a self-contained temporary Ensemble to avoid stale cluster state.
 
 set -euo pipefail
 
@@ -48,9 +48,9 @@ stop_port_forward() {
 }
 
 cleanup() {
-  info "Cleaning up PersonaPack API test resources..."
-  api_request DELETE "/api/v1/personapacks/${PACK_NAME}" >/dev/null 2>&1 || true
-  kubectl delete personapack "$PACK_NAME" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
+  info "Cleaning up Ensemble API test resources..."
+  api_request DELETE "/api/v1/ensembles/${PACK_NAME}" >/dev/null 2>&1 || true
+  kubectl delete ensemble "$PACK_NAME" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
   stop_port_forward
 }
 trap cleanup EXIT
@@ -120,13 +120,13 @@ start_port_forward_if_needed() {
   if curl -fsS "${APISERVER_URL}/healthz" >/dev/null 2>&1; then return 0; fi
 
   info "Starting port-forward to sympozium-apiserver on :${PORT_FORWARD_LOCAL_PORT}"
-  kubectl port-forward -n "${APISERVER_NAMESPACE}" svc/sympozium-apiserver "${PORT_FORWARD_LOCAL_PORT}:8080" >/tmp/sympozium-api-personapack-portforward.log 2>&1 &
+  kubectl port-forward -n "${APISERVER_NAMESPACE}" svc/sympozium-apiserver "${PORT_FORWARD_LOCAL_PORT}:8080" >/tmp/sympozium-api-ensemble-portforward.log 2>&1 &
   PF_PID=$!
 
   for _ in $(seq 1 30); do
     if ! kill -0 "$PF_PID" >/dev/null 2>&1; then
       fail "Port-forward exited early"
-      cat /tmp/sympozium-api-personapack-portforward.log || true
+      cat /tmp/sympozium-api-ensemble-portforward.log || true
       exit 1
     fi
     if curl -fsS "${APISERVER_URL}/healthz" >/dev/null 2>&1; then
@@ -145,15 +145,15 @@ main() {
   require_cmd curl
   require_cmd python3
 
-  info "Running PersonaPack provisioning API test in namespace '${NAMESPACE}'"
+  info "Running Ensemble provisioning API test in namespace '${NAMESPACE}'"
 
   start_port_forward_if_needed
   resolve_apiserver_token
 
-  # Create a dedicated temporary PersonaPack with two personas (both with schedules).
+  # Create a dedicated temporary Ensemble with two personas (both with schedules).
   cat <<EOF | kubectl apply -f - >/dev/null
 apiVersion: sympozium.ai/v1alpha1
-kind: PersonaPack
+kind: Ensemble
 metadata:
   name: ${PACK_NAME}
   namespace: ${NAMESPACE}
@@ -182,11 +182,11 @@ spec:
         interval: "15m"
         task: "execute integration work"
 EOF
-  pass "Created temporary PersonaPack '${PACK_NAME}'"
+  pass "Created temporary Ensemble '${PACK_NAME}'"
 
   # Enable the pack via API.
-  api_request PATCH "/api/v1/personapacks/${PACK_NAME}" "{\"enabled\":true}" >/dev/null
-  pass "Enabled PersonaPack '${PACK_NAME}'"
+  api_request PATCH "/api/v1/ensembles/${PACK_NAME}" "{\"enabled\":true}" >/dev/null
+  pass "Enabled Ensemble '${PACK_NAME}'"
 
   # Wait for stamped instances and schedules to appear.
   elapsed=0
@@ -194,11 +194,11 @@ EOF
     instances_json="$(api_request GET "/api/v1/instances")"
     schedules_json="$(api_request GET "/api/v1/schedules")"
 
-    inst_count="$(printf "%s" "$instances_json" | python3 -c 'import json,sys; p=sys.argv[1]; d=json.load(sys.stdin); print(sum(1 for i in d if i.get("metadata",{}).get("labels",{}).get("sympozium.ai/persona-pack")==p))' "$PACK_NAME")"
-    sched_count="$(printf "%s" "$schedules_json" | python3 -c 'import json,sys; p=sys.argv[1]; d=json.load(sys.stdin); print(sum(1 for i in d if i.get("metadata",{}).get("labels",{}).get("sympozium.ai/persona-pack")==p))' "$PACK_NAME")"
+    inst_count="$(printf "%s" "$instances_json" | python3 -c 'import json,sys; p=sys.argv[1]; d=json.load(sys.stdin); print(sum(1 for i in d if i.get("metadata",{}).get("labels",{}).get("sympozium.ai/ensemble")==p))' "$PACK_NAME")"
+    sched_count="$(printf "%s" "$schedules_json" | python3 -c 'import json,sys; p=sys.argv[1]; d=json.load(sys.stdin); print(sum(1 for i in d if i.get("metadata",{}).get("labels",{}).get("sympozium.ai/ensemble")==p))' "$PACK_NAME")"
 
     if [[ "$inst_count" -ge 2 && "$sched_count" -ge 2 ]]; then
-      pass "PersonaPack stamped resources (instances=${inst_count}, schedules=${sched_count})"
+      pass "Ensemble stamped resources (instances=${inst_count}, schedules=${sched_count})"
       break
     fi
 
@@ -207,11 +207,11 @@ EOF
   done
 
   if [[ "$elapsed" -ge "$TIMEOUT" ]]; then
-    fail "Timed out waiting for PersonaPack '${PACK_NAME}' stamped resources"
+    fail "Timed out waiting for Ensemble '${PACK_NAME}' stamped resources"
     exit 1
   fi
 
-  pass "PersonaPack provisioning API test passed"
+  pass "Ensemble provisioning API test passed"
 }
 
 main "$@"

@@ -24,12 +24,12 @@ import (
 	sympoziumv1alpha1 "github.com/sympozium-ai/sympozium/api/v1alpha1"
 )
 
-const personaPackFinalizer = "sympozium.ai/personapack-finalizer"
+const ensembleFinalizer = "sympozium.ai/ensemble-finalizer"
 
-// PersonaPackReconciler reconciles PersonaPack objects.
+// EnsembleReconciler reconciles Ensemble objects.
 // It stamps out SympoziumInstances, SympoziumSchedules, and memory
 // ConfigMaps for each persona defined in the pack.
-type PersonaPackReconciler struct {
+type EnsembleReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 	Log    logr.Logger
@@ -64,24 +64,24 @@ func defaultObservabilitySpec() *sympoziumv1alpha1.ObservabilitySpec {
 	}
 }
 
-func isManagedPersonaAuthSecret(packName, secretName string, labels map[string]string) bool {
+func isManagedEnsembleAuthSecret(ensembleName, secretName string, labels map[string]string) bool {
 	if strings.TrimSpace(secretName) == "" {
 		return false
 	}
-	if labels != nil && labels["sympozium.ai/persona-pack"] == packName {
+	if labels != nil && labels["sympozium.ai/ensemble"] == ensembleName {
 		return true
 	}
-	if secretName == packName+"-credentials" {
+	if secretName == ensembleName+"-credentials" {
 		return true
 	}
 	// TUI-created naming convention: <pack>-<provider>-key
-	if strings.HasPrefix(secretName, packName+"-") && strings.HasSuffix(secretName, "-key") {
+	if strings.HasPrefix(secretName, ensembleName+"-") && strings.HasSuffix(secretName, "-key") {
 		return true
 	}
 	return false
 }
 
-func (r *PersonaPackReconciler) deleteManagedAuthSecrets(ctx context.Context, pack *sympoziumv1alpha1.PersonaPack) (int, error) {
+func (r *EnsembleReconciler) deleteManagedAuthSecrets(ctx context.Context, pack *sympoziumv1alpha1.Ensemble) (int, error) {
 	if pack == nil {
 		return 0, nil
 	}
@@ -104,7 +104,7 @@ func (r *PersonaPackReconciler) deleteManagedAuthSecrets(ctx context.Context, pa
 			}
 			return deleted, err
 		}
-		if !isManagedPersonaAuthSecret(pack.Name, name, sec.Labels) {
+		if !isManagedEnsembleAuthSecret(pack.Name, name, sec.Labels) {
 			continue
 		}
 		if err := r.Delete(ctx, sec); err != nil && !errors.IsNotFound(err) {
@@ -115,15 +115,15 @@ func (r *PersonaPackReconciler) deleteManagedAuthSecrets(ctx context.Context, pa
 	return deleted, nil
 }
 
-// +kubebuilder:rbac:groups=sympozium.ai,resources=personapacks,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=sympozium.ai,resources=personapacks/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=sympozium.ai,resources=personapacks/finalizers,verbs=update
+// +kubebuilder:rbac:groups=sympozium.ai,resources=ensembles,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=sympozium.ai,resources=ensembles/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=sympozium.ai,resources=ensembles/finalizers,verbs=update
 
-// Reconcile handles PersonaPack create/update/delete events.
-func (r *PersonaPackReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log.WithValues("personapack", req.NamespacedName)
+// Reconcile handles Ensemble create/update/delete events.
+func (r *EnsembleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := r.Log.WithValues("ensemble", req.NamespacedName)
 
-	pack := &sympoziumv1alpha1.PersonaPack{}
+	pack := &sympoziumv1alpha1.Ensemble{}
 	if err := r.Get(ctx, req.NamespacedName, pack); err != nil {
 		if errors.IsNotFound(err) {
 			return ctrl.Result{}, nil
@@ -137,8 +137,8 @@ func (r *PersonaPackReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	// Add finalizer
-	if !controllerutil.ContainsFinalizer(pack, personaPackFinalizer) {
-		controllerutil.AddFinalizer(pack, personaPackFinalizer)
+	if !controllerutil.ContainsFinalizer(pack, ensembleFinalizer) {
+		controllerutil.AddFinalizer(pack, ensembleFinalizer)
 		if err := r.Update(ctx, pack); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -147,7 +147,7 @@ func (r *PersonaPackReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	// If the pack is not enabled, clean up any previously created
 	// resources and mark the pack as Inactive (catalog-only).
 	if !pack.Spec.Enabled {
-		log.Info("PersonaPack is not enabled, cleaning up any existing resources")
+		log.Info("Ensemble is not enabled, cleaning up any existing resources")
 		for _, persona := range pack.Spec.Personas {
 			if err := r.cleanupPersona(ctx, log, pack, &persona); err != nil {
 				log.Error(err, "Failed to clean up persona for disabled pack", "persona", persona.Name)
@@ -156,11 +156,11 @@ func (r *PersonaPackReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 		// Wait for stamped resources to actually disappear before deleting auth secrets.
 		var instList sympoziumv1alpha1.SympoziumInstanceList
-		if err := r.List(ctx, &instList, client.InNamespace(pack.Namespace), client.MatchingLabels{"sympozium.ai/persona-pack": pack.Name}); err != nil {
+		if err := r.List(ctx, &instList, client.InNamespace(pack.Namespace), client.MatchingLabels{"sympozium.ai/ensemble": pack.Name}); err != nil {
 			return ctrl.Result{}, err
 		}
 		var schedList sympoziumv1alpha1.SympoziumScheduleList
-		if err := r.List(ctx, &schedList, client.InNamespace(pack.Namespace), client.MatchingLabels{"sympozium.ai/persona-pack": pack.Name}); err != nil {
+		if err := r.List(ctx, &schedList, client.InNamespace(pack.Namespace), client.MatchingLabels{"sympozium.ai/ensemble": pack.Name}); err != nil {
 			return ctrl.Result{}, err
 		}
 		if len(instList.Items) > 0 || len(schedList.Items) > 0 {
@@ -179,7 +179,7 @@ func (r *PersonaPackReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 				return ctrl.Result{}, err
 			}
 			if deleted > 0 {
-				log.Info("Deleted managed PersonaPack auth secrets", "count", deleted)
+				log.Info("Deleted managed Ensemble auth secrets", "count", deleted)
 			}
 		}
 
@@ -243,10 +243,10 @@ func (r *PersonaPackReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 // reconcilePersona ensures the SympoziumInstance and optional
 // SympoziumSchedule exist for one persona.
-func (r *PersonaPackReconciler) reconcilePersona(
+func (r *EnsembleReconciler) reconcilePersona(
 	ctx context.Context,
 	log logr.Logger,
-	pack *sympoziumv1alpha1.PersonaPack,
+	pack *sympoziumv1alpha1.Ensemble,
 	persona *sympoziumv1alpha1.PersonaSpec,
 	personaIndex int,
 ) (sympoziumv1alpha1.InstalledPersona, error) {
@@ -423,8 +423,8 @@ func (r *PersonaPackReconciler) reconcilePersona(
 }
 
 // buildInstance creates a SympoziumInstance spec from a persona definition.
-func (r *PersonaPackReconciler) buildInstance(
-	pack *sympoziumv1alpha1.PersonaPack,
+func (r *EnsembleReconciler) buildInstance(
+	pack *sympoziumv1alpha1.Ensemble,
 	persona *sympoziumv1alpha1.PersonaSpec,
 	instanceName string,
 ) *sympoziumv1alpha1.SympoziumInstance {
@@ -438,8 +438,8 @@ func (r *PersonaPackReconciler) buildInstance(
 			Name:      instanceName,
 			Namespace: pack.Namespace,
 			Labels: map[string]string{
-				"sympozium.ai/persona-pack": pack.Name,
-				"sympozium.ai/persona":      persona.Name,
+				"sympozium.ai/ensemble": pack.Name,
+				"sympozium.ai/persona":  persona.Name,
 			},
 		},
 		Spec: sympoziumv1alpha1.SympoziumInstanceSpec{
@@ -536,8 +536,8 @@ func (r *PersonaPackReconciler) buildInstance(
 // buildSchedule creates a SympoziumSchedule from a persona's schedule config.
 // personaIndex is used to stagger interval-based schedules so that personas in
 // the same pack don't fire simultaneously and contend for a shared LLM.
-func (r *PersonaPackReconciler) buildSchedule(
-	pack *sympoziumv1alpha1.PersonaPack,
+func (r *EnsembleReconciler) buildSchedule(
+	pack *sympoziumv1alpha1.Ensemble,
 	persona *sympoziumv1alpha1.PersonaSpec,
 	instanceName, schedName string,
 	personaIndex int,
@@ -556,8 +556,8 @@ func (r *PersonaPackReconciler) buildSchedule(
 			Name:      schedName,
 			Namespace: pack.Namespace,
 			Labels: map[string]string{
-				"sympozium.ai/persona-pack": pack.Name,
-				"sympozium.ai/persona":      persona.Name,
+				"sympozium.ai/ensemble": pack.Name,
+				"sympozium.ai/persona":  persona.Name,
 			},
 		},
 		Spec: sympoziumv1alpha1.SympoziumScheduleSpec{
@@ -573,8 +573,8 @@ func (r *PersonaPackReconciler) buildSchedule(
 
 // buildScheduleTask constructs the task string for a persona's schedule.
 // If the pack has a TaskOverride, it prepends the team-level directive.
-func (r *PersonaPackReconciler) buildScheduleTask(
-	pack *sympoziumv1alpha1.PersonaPack,
+func (r *EnsembleReconciler) buildScheduleTask(
+	pack *sympoziumv1alpha1.Ensemble,
 	persona *sympoziumv1alpha1.PersonaSpec,
 ) string {
 	base := persona.Schedule.Task
@@ -585,10 +585,10 @@ func (r *PersonaPackReconciler) buildScheduleTask(
 }
 
 // reconcileMemorySeeds creates or patches the memory ConfigMap with seed data.
-func (r *PersonaPackReconciler) reconcileMemorySeeds(
+func (r *EnsembleReconciler) reconcileMemorySeeds(
 	ctx context.Context,
 	log logr.Logger,
-	pack *sympoziumv1alpha1.PersonaPack,
+	pack *sympoziumv1alpha1.Ensemble,
 	persona *sympoziumv1alpha1.PersonaSpec,
 	instanceName string,
 ) error {
@@ -608,9 +608,9 @@ func (r *PersonaPackReconciler) reconcileMemorySeeds(
 				Name:      cmName,
 				Namespace: pack.Namespace,
 				Labels: map[string]string{
-					"sympozium.ai/persona-pack": pack.Name,
-					"sympozium.ai/persona":      persona.Name,
-					"sympozium.ai/memory":       "true",
+					"sympozium.ai/ensemble": pack.Name,
+					"sympozium.ai/persona":  persona.Name,
+					"sympozium.ai/memory":   "true",
 				},
 			},
 			Data: map[string]string{
@@ -678,10 +678,10 @@ func isExcluded(name string, excludes []string) bool {
 
 // cleanupPersona deletes the Instance, Schedule, and memory ConfigMap
 // for a persona that has been excluded from the pack.
-func (r *PersonaPackReconciler) cleanupPersona(
+func (r *EnsembleReconciler) cleanupPersona(
 	ctx context.Context,
 	log logr.Logger,
-	pack *sympoziumv1alpha1.PersonaPack,
+	pack *sympoziumv1alpha1.Ensemble,
 	persona *sympoziumv1alpha1.PersonaSpec,
 ) error {
 	instanceName := pack.Name + "-" + persona.Name
@@ -718,13 +718,13 @@ func (r *PersonaPackReconciler) cleanupPersona(
 	return nil
 }
 
-// reconcileDelete cleans up resources owned by the PersonaPack.
-func (r *PersonaPackReconciler) reconcileDelete(
+// reconcileDelete cleans up resources owned by the Ensemble.
+func (r *EnsembleReconciler) reconcileDelete(
 	ctx context.Context,
 	log logr.Logger,
-	pack *sympoziumv1alpha1.PersonaPack,
+	pack *sympoziumv1alpha1.Ensemble,
 ) (ctrl.Result, error) {
-	log.Info("Reconciling PersonaPack deletion")
+	log.Info("Reconciling Ensemble deletion")
 
 	// Clean up shared memory infrastructure.
 	if err := r.cleanupSharedMemory(ctx, log, pack); err != nil {
@@ -745,7 +745,7 @@ func (r *PersonaPackReconciler) reconcileDelete(
 		}
 	}
 
-	controllerutil.RemoveFinalizer(pack, personaPackFinalizer)
+	controllerutil.RemoveFinalizer(pack, ensembleFinalizer)
 	if err := r.Update(ctx, pack); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -780,7 +780,7 @@ func channelSetsEqual(a, b map[string]bool) bool {
 
 // reconcileSharedMemory ensures PVC, Deployment, and Service exist for the
 // pack-level shared memory server when SharedMemory is enabled.
-func (r *PersonaPackReconciler) reconcileSharedMemory(ctx context.Context, log logr.Logger, pack *sympoziumv1alpha1.PersonaPack) error {
+func (r *EnsembleReconciler) reconcileSharedMemory(ctx context.Context, log logr.Logger, pack *sympoziumv1alpha1.Ensemble) error {
 	if pack.Spec.SharedMemory == nil || !pack.Spec.SharedMemory.Enabled {
 		// Shared memory not requested — clean up any existing resources.
 		if pack.Status.SharedMemoryReady {
@@ -789,11 +789,11 @@ func (r *PersonaPackReconciler) reconcileSharedMemory(ctx context.Context, log l
 		return nil
 	}
 
-	packName := pack.Name
+	ensembleName := pack.Name
 	ns := pack.Namespace
 
-	pvcName := packName + "-shared-memory-db"
-	deployName := packName + "-shared-memory"
+	pvcName := ensembleName + "-shared-memory-db"
+	deployName := ensembleName + "-shared-memory"
 
 	storageSize := pack.Spec.SharedMemory.StorageSize
 	if storageSize == "" {
@@ -811,8 +811,8 @@ func (r *PersonaPackReconciler) reconcileSharedMemory(ctx context.Context, log l
 	image := fmt.Sprintf("%s/skill-memory:%s", registry, tag)
 
 	sharedLabels := map[string]string{
-		"sympozium.ai/component":    "shared-memory",
-		"sympozium.ai/persona-pack": packName,
+		"sympozium.ai/component": "shared-memory",
+		"sympozium.ai/ensemble":  ensembleName,
 	}
 
 	// --- PVC ---
@@ -989,11 +989,11 @@ func (r *PersonaPackReconciler) reconcileSharedMemory(ctx context.Context, log l
 }
 
 // cleanupSharedMemory deletes the PVC, Deployment, and Service for shared memory.
-func (r *PersonaPackReconciler) cleanupSharedMemory(ctx context.Context, log logr.Logger, pack *sympoziumv1alpha1.PersonaPack) error {
-	packName := pack.Name
+func (r *EnsembleReconciler) cleanupSharedMemory(ctx context.Context, log logr.Logger, pack *sympoziumv1alpha1.Ensemble) error {
+	ensembleName := pack.Name
 	ns := pack.Namespace
-	deployName := packName + "-shared-memory"
-	pvcName := packName + "-shared-memory-db"
+	deployName := ensembleName + "-shared-memory"
+	pvcName := ensembleName + "-shared-memory-db"
 
 	// Delete Service
 	svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: deployName, Namespace: ns}}
@@ -1013,15 +1013,15 @@ func (r *PersonaPackReconciler) cleanupSharedMemory(ctx context.Context, log log
 		return fmt.Errorf("delete shared memory pvc: %w", err)
 	}
 
-	log.Info("Cleaned up shared memory resources", "pack", packName)
+	log.Info("Cleaned up shared memory resources", "pack", ensembleName)
 	pack.Status.SharedMemoryReady = false
 	return nil
 }
 
 // SetupWithManager registers the controller.
-func (r *PersonaPackReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *EnsembleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&sympoziumv1alpha1.PersonaPack{}).
+		For(&sympoziumv1alpha1.Ensemble{}).
 		Owns(&sympoziumv1alpha1.SympoziumInstance{}).
 		Owns(&sympoziumv1alpha1.SympoziumSchedule{}).
 		Complete(r)

@@ -10,8 +10,9 @@ import { RunDetailPage } from "@/pages/run-detail";
 import { PoliciesPage } from "@/pages/policies";
 import { SkillsPage } from "@/pages/skills";
 import { SchedulesPage } from "@/pages/schedules";
-import { PersonasPage } from "@/pages/personas";
-import { PersonaDetailPage } from "@/pages/persona-detail";
+import { EnsemblesPage } from "@/pages/ensembles";
+import { EnsembleDetailPage } from "@/pages/ensemble-detail";
+import { EnsembleBuilderPage } from "@/pages/ensemble-builder";
 import { GatewayPage } from "@/pages/gateway";
 import { McpServersPage } from "@/pages/mcp-servers";
 import { McpServerDetailPage } from "@/pages/mcp-server-detail";
@@ -53,8 +54,9 @@ export default function App() {
         <Route path="/policies" element={<PoliciesPage />} />
         <Route path="/skills" element={<SkillsPage />} />
         <Route path="/schedules" element={<SchedulesPage />} />
-        <Route path="/personas" element={<PersonasPage />} />
-        <Route path="/personas/:name" element={<PersonaDetailPage />} />
+        <Route path="/ensembles" element={<EnsemblesPage />} />
+        <Route path="/ensembles/new" element={<EnsembleBuilderPage />} />
+        <Route path="/ensembles/:name" element={<EnsembleDetailPage />} />
         <Route path="/mcp-servers" element={<McpServersPage />} />
         <Route path="/mcp-servers/:name" element={<McpServerDetailPage />} />
         <Route path="/gateway" element={<GatewayPage />} />

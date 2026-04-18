@@ -173,7 +173,7 @@ func (r *SympoziumScheduleReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	// Pick the next available run number. The naive `TotalRuns+1` choice
 	// collides when this schedule has been deleted and recreated (e.g.
-	// PersonaPack disabled then re-enabled) because the counter resets
+	// Ensemble disabled then re-enabled) because the counter resets
 	// but the old AgentRun resources persist. List existing runs that
 	// belong to this schedule, find the highest numeric suffix, and
 	// start from there.
@@ -232,7 +232,7 @@ func (r *SympoziumScheduleReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	// Link the AgentRun to its parent Schedule via a controller owner
-	// reference. When the Schedule is deleted (e.g. PersonaPack is
+	// reference. When the Schedule is deleted (e.g. Ensemble is
 	// disabled and its owned Schedule is cascade-deleted), Kubernetes
 	// garbage collection will remove the AgentRuns too — so disabling
 	// a pack no longer leaves orphan Failed runs cluttering the UX
@@ -299,7 +299,7 @@ func (r *SympoziumScheduleReconciler) Reconcile(ctx context.Context, req ctrl.Re
 //     this schedule (identified via the sympozium.ai/schedule label).
 //
 // The second branch handles the case where this schedule was previously
-// deleted (e.g. PersonaPack disabled) and recreated: TotalRuns resets to 0
+// deleted (e.g. Ensemble disabled) and recreated: TotalRuns resets to 0
 // but orphan AgentRuns from the previous incarnation persist with names like
 // `<schedule>-1`, `<schedule>-2`, … Picking a suffix that's already in use
 // would collide silently and leave the scheduler emitting ghost "created"
