@@ -66,3 +66,5 @@ describe("Create Instance — llama-server", () => {
     cy.contains(INSTANCE, { timeout: 20000 }).should("be.visible");
   });
 });
+
+export {};

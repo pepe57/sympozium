@@ -39,7 +39,7 @@ describe("Runs list — filter and sort", () => {
     cy.get("body").then(($body) => {
       const $inputs = $body.find("input[type='search'], input[type='text']");
       const $search = $inputs.filter((_, el) => {
-        const ph = (el as HTMLInputElement).placeholder || "";
+        const ph = (el as unknown as HTMLInputElement).placeholder || "";
         return /search|filter/i.test(ph);
       });
       if ($search.length > 0) {

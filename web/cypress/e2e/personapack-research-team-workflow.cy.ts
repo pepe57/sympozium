@@ -192,3 +192,5 @@ describe("Research Team — default pack with relationships", () => {
     });
   });
 });
+
+export {};

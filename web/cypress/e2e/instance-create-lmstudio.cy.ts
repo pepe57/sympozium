@@ -67,3 +67,5 @@ describe("Create Instance — LM Studio", () => {
     cy.contains(INSTANCE, { timeout: 20000 }).should("be.visible");
   });
 });
+
+export {};

@@ -120,3 +120,5 @@ describe("Ad-hoc Instance — Multiple Runs and Delete", () => {
     cy.contains(INSTANCE, { timeout: 20000 }).should("not.exist");
   });
 });
+
+export {};

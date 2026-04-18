@@ -3,19 +3,23 @@
 // ── Auth: inject API token via visit callback ───────────────────────────────
 // Overrides cy.visit to inject the token into localStorage before the app
 // reads it. Token is read from CYPRESS_API_TOKEN env var.
-Cypress.Commands.overwrite("visit", (originalFn, url, options) => {
-  const token = Cypress.env("API_TOKEN");
-  if (!token) return originalFn(url, options);
+Cypress.Commands.overwrite(
+  "visit",
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (originalFn: any, url: string | Partial<Cypress.VisitOptions>, options?: Partial<Cypress.VisitOptions>) => {
+    const token = Cypress.env("API_TOKEN");
+    if (!token) return originalFn(url, options);
 
-  const opts = { ...options } as Cypress.VisitObject;
-  const originalOnBeforeLoad = opts.onBeforeLoad;
-  opts.onBeforeLoad = (win) => {
-    win.localStorage.setItem("sympozium_token", token);
-    win.localStorage.setItem("sympozium_namespace", "default");
-    if (originalOnBeforeLoad) originalOnBeforeLoad(win);
-  };
-  return originalFn(url, opts);
-});
+    const opts: Partial<Cypress.VisitOptions> = { ...options };
+    const originalOnBeforeLoad = opts.onBeforeLoad;
+    opts.onBeforeLoad = (win: Cypress.AUTWindow) => {
+      win.localStorage.setItem("sympozium_token", token);
+      win.localStorage.setItem("sympozium_namespace", "default");
+      if (originalOnBeforeLoad) originalOnBeforeLoad(win);
+    };
+    return originalFn(url, opts);
+  },
+);
 
 // ── Custom commands ─────────────────────────────────────────────────────────
 declare global {
@@ -200,15 +204,15 @@ Cypress.Commands.add(
 Cypress.Commands.add("waitForDeleted", (path: string, timeoutMs = 30000) => {
   const started = Date.now();
   const poll = (): Cypress.Chainable<void> => {
-    return cy
+    return (cy
       .request({
         url: path,
         headers: authHeaders(),
         failOnStatusCode: false,
       })
-      .then((resp) => {
+      .then((resp): void => {
         if (resp.status === 404) {
-          return cy.wrap(undefined);
+          return;
         }
         if (Date.now() - started > timeoutMs) {
           throw new Error(
@@ -216,8 +220,8 @@ Cypress.Commands.add("waitForDeleted", (path: string, timeoutMs = 30000) => {
           );
         }
         cy.wait(1000, { log: false });
-        return poll();
-      });
+        poll();
+      }) as unknown as Cypress.Chainable<void>);
   };
   return poll();
 });
