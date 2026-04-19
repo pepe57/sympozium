@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.9.1](https://github.com/sympozium-ai/sympozium/compare/v0.9.0...v0.9.1) (2026-04-19)
+
+
+### Features
+
+* add node probe discovery to ensemble builder provider setup ([0576c7e](https://github.com/sympozium-ai/sympozium/commit/0576c7e44191d39e15c2ea7f5ef92a525d80724a))
+* add workflow relationships to developer-team ensemble ([49d8e85](https://github.com/sympozium-ai/sympozium/commit/49d8e851d14583d40ed8e8f7f42c77869cd0f4ad))
+* auto-detect node probe providers and allow changing ensemble provider ([e79310f](https://github.com/sympozium-ai/sympozium/commit/e79310f0950c9d2e740f37dddc70b4ba2f36f8fb))
+
+
+### Bug Fixes
+
+* heredoc syntax error in ux-test preflight script ([abd0f5d](https://github.com/sympozium-ai/sympozium/commit/abd0f5d5cad7eff3e3983b0ec1603b547e6cc8f6))
+* stabilize workflow canvas layout across data refreshes ([b83378a](https://github.com/sympozium-ai/sympozium/commit/b83378a1ff88c4546781598fc4bd52e65dd22ce9))
+
 ## [0.9.0](https://github.com/sympozium-ai/sympozium/compare/v0.8.28...v0.9.0) (2026-04-19)
 
 
