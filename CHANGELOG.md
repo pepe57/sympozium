@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.9.0](https://github.com/sympozium-ai/sympozium/compare/v0.8.28...v0.9.0) (2026-04-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* Ensemble CRD replaces PersonaPack (see commit 432355b).
+* The PersonaPack CRD has been renamed to Ensemble. All API endpoints, labels, controllers, and UI references updated.
+
+### Features
+
+* add shared workflow memory for cross-persona knowledge sharing ([3a163dc](https://github.com/sympozium-ai/sympozium/commit/3a163dc5656e9cce1fa8cf5b2cd775e4f91f33a9))
+* implement sequential workflow trigger in controller ([c5b9e45](https://github.com/sympozium-ai/sympozium/commit/c5b9e456f78261a35043e45e672342dc3eeac0f0))
+* real-time workflow canvas updates via WebSocket ([e3fe61f](https://github.com/sympozium-ai/sympozium/commit/e3fe61f2cfa3ef2d5e6ddaf6e5e215e1399afd35))
+* rename PersonaPack to Ensemble + canvas-first builder ([432355b](https://github.com/sympozium-ai/sympozium/commit/432355bca86ddf8b78d4ac6ec5be708613634bcd))
+
+
+### Bug Fixes
+
+* resolve all Cypress TypeScript errors ([008266e](https://github.com/sympozium-ai/sympozium/commit/008266efbcec1f39e4929c89c3bf79cb581e3d23))
+* update all stale Persona Pack UI strings to Ensemble ([12fdaec](https://github.com/sympozium-ai/sympozium/commit/12fdaec4c6f73cc9f9febe87bd9d3ed61644f3ed))
+
 ## [0.8.28](https://github.com/sympozium-ai/sympozium/compare/v0.8.27...v0.8.28) (2026-04-16)
 
 
