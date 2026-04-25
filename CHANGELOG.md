@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.9.3](https://github.com/sympozium-ai/sympozium/compare/v0.9.2...v0.9.3) (2026-04-25)
+
+
+### Features
+
+* declarative local model inference via Model CRD ([1a6da42](https://github.com/sympozium-ai/sympozium/commit/1a6da42cb691fa0f4569e3fe8cb450f5408f4494))
+* declarative local model inference via Model CRD ([4095ea8](https://github.com/sympozium-ai/sympozium/commit/4095ea88ef85f3f32f2a4b7bb809907f648c04a8))
+
+
+### Bug Fixes
+
+* prevent UI token mismatch after helm upgrade ([32bd78c](https://github.com/sympozium-ai/sympozium/commit/32bd78c8532efd0c4fdd1df49b7b432c31e1b928))
+* prevent UI token mismatch after helm upgrade ([dac1e87](https://github.com/sympozium-ai/sympozium/commit/dac1e8783bcc8fca0122f470b1d3800587bb5e7d)), closes [#113](https://github.com/sympozium-ai/sympozium/issues/113)
+
 ## [0.9.2](https://github.com/sympozium-ai/sympozium/compare/v0.9.1...v0.9.2) (2026-04-22)
 
 
