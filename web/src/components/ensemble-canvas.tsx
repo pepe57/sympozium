@@ -22,6 +22,7 @@ import {
   useRuns,
   useEnsembles,
   useModel,
+  useModels,
   usePatchEnsembleRelationships,
 } from "@/hooks/use-api";
 import { useWebSocket } from "@/hooks/use-websocket";
@@ -773,15 +774,23 @@ export function GlobalEnsembleCanvas() {
   useRunEventInvalidation();
   const { data: packs } = useEnsembles();
   const { data: runs } = useRuns();
+  const { data: models } = useModels();
 
   const enabledPacks = useMemo(
     () => (packs || []).filter((p) => p.spec.enabled),
     [packs],
   );
 
+  // Build a lookup map from model name → Model object.
+  const modelMap = useMemo(() => {
+    const m = new Map<string, Model>();
+    for (const model of models || []) m.set(model.metadata.name, model);
+    return m;
+  }, [models]);
+
   // Build layout (positions + edges) only when packs change — NOT on run updates.
   const { layoutedNodes, allEdges } = useMemo(() => {
-    const nodes: Node<PersonaNodeData>[] = [];
+    const nodes: Node<PersonaNodeData | ModelNodeData>[] = [];
     const edges: Edge[] = [];
 
     const packGapX = 50;
@@ -791,12 +800,15 @@ export function GlobalEnsembleCanvas() {
       const personas = pack.spec.personas || [];
       const relationships = pack.spec.relationships || [];
       const prefix = pack.metadata.name;
+      const modelRef = pack.spec.modelRef;
+      const modelObj = modelRef ? modelMap.get(modelRef) : undefined;
+      const yOffset = modelObj ? 140 : 0;
 
       const packNodes = layoutNodes(
         personas,
         relationships,
         currentX,
-        0,
+        yOffset,
         prefix,
       );
 
@@ -811,6 +823,31 @@ export function GlobalEnsembleCanvas() {
         if (ip) node.data.instanceName = ip.instanceName;
       }
 
+      // Add model node above personas if modelRef is set.
+      if (modelObj) {
+        const cols = Math.max(2, Math.ceil(Math.sqrt(personas.length)));
+        const totalWidth = (cols - 1) * 260;
+        const modelNodeId = `${prefix}/__model__${modelObj.metadata.name}`;
+        nodes.push({
+          id: modelNodeId,
+          type: "model",
+          position: { x: currentX + totalWidth / 2 - 90, y: 0 },
+          data: { model: modelObj, label: modelObj.metadata.name },
+        } as Node<ModelNodeData>);
+
+        for (const persona of personas) {
+          edges.push({
+            id: `model-${prefix}-${modelObj.metadata.name}-${persona.name}`,
+            source: modelNodeId,
+            target: `${prefix}/${persona.name}`,
+            type: "default",
+            animated: modelObj.status?.phase === "Ready",
+            style: { stroke: "#8b5cf6", strokeWidth: 1.5, strokeDasharray: "4 3" },
+            markerEnd: { type: MarkerType.ArrowClosed, color: "#8b5cf6", width: 14, height: 14 },
+          });
+        }
+      }
+
       nodes.push(...packNodes);
       edges.push(...buildEdges(relationships, prefix));
 
@@ -819,7 +856,7 @@ export function GlobalEnsembleCanvas() {
     }
 
     return { layoutedNodes: nodes, allEdges: edges };
-  }, [enabledPacks]);
+  }, [enabledPacks, modelMap]);
 
   // Merge run status into nodes without recalculating positions.
   const allNodes = useMemo(() => {
