@@ -532,7 +532,7 @@ export function useClusterNodes() {
 export function useModels() {
   return useQuery({
     queryKey: ["models"],
-    queryFn: api.models.list,
+    queryFn: () => api.models.list(),
     refetchInterval: 5000,
   });
 }
@@ -561,7 +561,13 @@ export function useCreateModel() {
 export function useDeleteModel() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: api.models.delete,
+    mutationFn: ({
+      name,
+      namespace,
+    }: {
+      name: string;
+      namespace?: string;
+    }) => api.models.delete(name, namespace),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["models"] });
       toast.success("Model deleted");

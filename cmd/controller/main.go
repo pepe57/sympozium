@@ -189,9 +189,10 @@ func main() {
 	}
 
 	if err := (&controller.ModelReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Log:    ctrl.Log.WithName("controllers").WithName("Model"),
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		Log:       ctrl.Log.WithName("controllers").WithName("Model"),
+		Clientset: clientset,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Model")
 		os.Exit(1)

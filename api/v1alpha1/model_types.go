@@ -28,6 +28,10 @@ type ModelCRDSpec struct {
 	// +optional
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
 
+	// Placement configures how the controller selects a node for the model.
+	// +optional
+	Placement ModelPlacement `json:"placement,omitempty"`
+
 	// Tolerations for the inference server pod.
 	// +optional
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
@@ -98,10 +102,29 @@ type ModelResources struct {
 	CPU string `json:"cpu,omitempty"`
 }
 
+// PlacementMode controls how the controller selects a node for the model.
+type PlacementMode string
+
+const (
+	PlacementManual PlacementMode = "manual"
+	PlacementAuto   PlacementMode = "auto"
+)
+
+// ModelPlacement configures node selection for the inference server.
+type ModelPlacement struct {
+	// Mode is "auto" or "manual". In auto mode the controller uses llmfit
+	// probes to select the best-fit node. Defaults to "manual".
+	// +kubebuilder:default="manual"
+	// +kubebuilder:validation:Enum=auto;manual
+	// +optional
+	Mode PlacementMode `json:"mode,omitempty"`
+}
+
 // ModelPhase represents the lifecycle phase of a Model.
 type ModelPhase string
 
 const (
+	ModelPhasePlacing     ModelPhase = "Placing"
 	ModelPhasePending     ModelPhase = "Pending"
 	ModelPhaseDownloading ModelPhase = "Downloading"
 	ModelPhaseLoading     ModelPhase = "Loading"
@@ -123,6 +146,19 @@ type ModelStatus struct {
 	// Message provides human-readable details about the current phase.
 	// +optional
 	Message string `json:"message,omitempty"`
+
+	// PlacedNode is the node selected by auto-placement. Populated when
+	// placement mode is "auto" and placement succeeds.
+	// +optional
+	PlacedNode string `json:"placedNode,omitempty"`
+
+	// PlacementScore is the llmfit fitness score for the selected node.
+	// +optional
+	PlacementScore int `json:"placementScore,omitempty"`
+
+	// PlacementMessage provides details about the placement decision.
+	// +optional
+	PlacementMessage string `json:"placementMessage,omitempty"`
 
 	// Conditions represent the latest available observations.
 	// +optional

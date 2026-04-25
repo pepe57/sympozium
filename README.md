@@ -82,6 +82,7 @@ Sympozium serves **two powerful use cases** on one Kubernetes-native platform:
 
 | | |
 |---|---|
+| **Local Model Inference** | Declare GGUF models as CRDs — weights are downloaded, llama-server deployed, and OpenAI-compatible endpoints exposed. No API keys required |
 | **Ensembles** | Helm-like bundles for AI agent teams — activate a pack and the controller stamps out instances, schedules, and memory |
 | **Agent Workflows** | Delegation, sequential pipelines, and supervision relationships between personas — visualised on an interactive canvas |
 | **Shared Workflow Memory** | Pack-level SQLite memory pool for cross-persona knowledge sharing with per-persona access control |
@@ -111,6 +112,7 @@ Sympozium serves **two powerful use cases** on one Kubernetes-native platform:
 | Security | [deploy.sympozium.ai/docs/concepts/security](https://deploy.sympozium.ai/docs/concepts/security/) |
 | CLI & TUI Reference | [deploy.sympozium.ai/docs/reference/cli](https://deploy.sympozium.ai/docs/reference/cli/) |
 | Helm Chart | [deploy.sympozium.ai/docs/reference/helm](https://deploy.sympozium.ai/docs/reference/helm/) |
+| Local Models | [deploy.sympozium.ai/docs/guides/local-models](https://deploy.sympozium.ai/docs/guides/local-models/) |
 | Ollama & Local Inference | [deploy.sympozium.ai/docs/guides/ollama](https://deploy.sympozium.ai/docs/guides/ollama/) |
 | Writing Skills | [deploy.sympozium.ai/docs/guides/writing-skills](https://deploy.sympozium.ai/docs/guides/writing-skills/) |
 | Writing Tools | [deploy.sympozium.ai/docs/guides/writing-tools](https://deploy.sympozium.ai/docs/guides/writing-tools/) |

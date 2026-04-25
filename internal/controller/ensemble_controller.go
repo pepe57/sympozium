@@ -202,11 +202,8 @@ func (r *EnsembleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	// Resolve modelRef once for the whole ensemble.
 	var modelEndpoint string
 	if pack.Spec.ModelRef != "" {
-		var model sympoziumv1alpha1.Model
-		if err := r.Get(ctx, client.ObjectKey{
-			Namespace: pack.Namespace,
-			Name:      pack.Spec.ModelRef,
-		}, &model); err != nil {
+		model, err := ResolveModelRef(ctx, r.Client, pack.Spec.ModelRef, pack.Namespace)
+		if err != nil {
 			log.Info("Model not found for modelRef, waiting", "modelRef", pack.Spec.ModelRef)
 			return ctrl.Result{RequeueAfter: 10_000_000_000}, nil // 10s
 		}

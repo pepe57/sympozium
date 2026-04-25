@@ -3433,7 +3433,11 @@ func (s *Server) listClusterNodes(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) listModels(w http.ResponseWriter, r *http.Request) {
 	var list sympoziumv1alpha1.ModelList
-	if err := s.client.List(r.Context(), &list); err != nil {
+	var opts []client.ListOption
+	if ns := r.URL.Query().Get("namespace"); ns != "" {
+		opts = append(opts, client.InNamespace(ns))
+	}
+	if err := s.client.List(r.Context(), &list, opts...); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -3443,8 +3447,10 @@ func (s *Server) listModels(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) getModel(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
-	// Models are always in the system namespace.
-	ns := systemNamespace
+	ns := r.URL.Query().Get("namespace")
+	if ns == "" {
+		ns = systemNamespace
+	}
 
 	var model sympoziumv1alpha1.Model
 	if err := s.client.Get(r.Context(), types.NamespacedName{Name: name, Namespace: ns}, &model); err != nil {
@@ -3473,6 +3479,8 @@ type createModelRequest struct {
 	Port         int32             `json:"port"`
 	Args         []string          `json:"args"`
 	NodeSelector map[string]string `json:"nodeSelector"`
+	Placement    string            `json:"placement"` // "auto" or "manual" (default "manual")
+	Namespace    string            `json:"namespace"` // target namespace (default "sympozium-system")
 }
 
 func (s *Server) createModel(w http.ResponseWriter, r *http.Request) {
@@ -3501,10 +3509,15 @@ func (s *Server) createModel(w http.ResponseWriter, r *http.Request) {
 		req.CPU = "4"
 	}
 
+	ns := req.Namespace
+	if ns == "" {
+		ns = systemNamespace
+	}
+
 	model := &sympoziumv1alpha1.Model{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      req.Name,
-			Namespace: systemNamespace,
+			Namespace: ns,
 		},
 		Spec: sympoziumv1alpha1.ModelCRDSpec{
 			Source: sympoziumv1alpha1.ModelSource{
@@ -3522,6 +3535,12 @@ func (s *Server) createModel(w http.ResponseWriter, r *http.Request) {
 			},
 			NodeSelector: req.NodeSelector,
 		},
+	}
+
+	// Set placement mode.
+	if req.Placement == "auto" {
+		model.Spec.Placement.Mode = sympoziumv1alpha1.PlacementAuto
+		model.Spec.NodeSelector = nil // Auto mode will determine the node.
 	}
 
 	if req.Image != "" {
@@ -3552,8 +3571,10 @@ func (s *Server) createModel(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) deleteModel(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
-	// Models are always in the system namespace.
-	ns := systemNamespace
+	ns := r.URL.Query().Get("namespace")
+	if ns == "" {
+		ns = systemNamespace
+	}
 
 	model := &sympoziumv1alpha1.Model{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},

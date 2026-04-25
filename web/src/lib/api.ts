@@ -588,18 +588,26 @@ export interface ModelResources {
   cpu?: string;
 }
 
+export interface ModelPlacement {
+  mode?: "auto" | "manual";
+}
+
 export interface ModelCRDSpec {
   source: ModelSource;
   storage?: ModelStorage;
   inference?: InferenceSpec;
   resources?: ModelResources;
   nodeSelector?: Record<string, string>;
+  placement?: ModelPlacement;
 }
 
 export interface ModelStatus {
   phase?: string;
   endpoint?: string;
   message?: string;
+  placedNode?: string;
+  placementScore?: number;
+  placementMessage?: string;
   conditions?: Condition[];
 }
 
@@ -1028,8 +1036,14 @@ export const api = {
   },
 
   models: {
-    list: () => apiFetch<Model[]>("/api/v1/models"),
-    get: (name: string) => apiFetch<Model>(`/api/v1/models/${name}`),
+    list: (namespace?: string) =>
+      apiFetch<Model[]>(
+        `/api/v1/models${namespace ? `?namespace=${namespace}` : ""}`,
+      ),
+    get: (name: string, namespace?: string) =>
+      apiFetch<Model>(
+        `/api/v1/models/${name}${namespace ? `?namespace=${namespace}` : ""}`,
+      ),
     create: (data: {
       name: string;
       url: string;
@@ -1044,13 +1058,18 @@ export const api = {
       port?: number;
       args?: string[];
       nodeSelector?: Record<string, string>;
+      placement?: string;
+      namespace?: string;
     }) =>
       apiFetch<Model>("/api/v1/models", {
         method: "POST",
         body: JSON.stringify(data),
       }),
-    delete: (name: string) =>
-      apiFetch<void>(`/api/v1/models/${name}`, { method: "DELETE" }),
+    delete: (name: string, namespace?: string) =>
+      apiFetch<void>(
+        `/api/v1/models/${name}${namespace ? `?namespace=${namespace}` : ""}`,
+        { method: "DELETE" },
+      ),
   },
 
   pods: {

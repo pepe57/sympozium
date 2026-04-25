@@ -57,6 +57,25 @@ spec:
                   type: boolean
                 description: FeatureGates controls which features are enabled/disabled.
                 type: object
+              modelPolicy:
+                description: ModelPolicy defines model access restrictions for bound
+                  instances.
+                properties:
+                  allowedModels:
+                    description: |-
+                      AllowedModels restricts which model names can be used.
+                      Empty means all models are allowed.
+                    items:
+                      type: string
+                    type: array
+                  allowedNamespaces:
+                    description: |-
+                      AllowedNamespaces restricts which namespaces' models can be referenced.
+                      Empty means all namespaces are allowed (default permissive).
+                    items:
+                      type: string
+                    type: array
+                type: object
               networkPolicy:
                 description: NetworkPolicy defines network isolation settings.
                 properties:

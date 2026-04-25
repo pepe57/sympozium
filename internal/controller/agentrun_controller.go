@@ -263,11 +263,8 @@ func (r *AgentRunReconciler) reconcilePending(ctx context.Context, log logr.Logg
 	// Resolve modelRef: if the AgentRun references a Model CR, resolve its
 	// endpoint to populate provider, baseURL, and model fields automatically.
 	if agentRun.Spec.Model.ModelRef != "" {
-		var model sympoziumv1alpha1.Model
-		if err := r.Get(ctx, client.ObjectKey{
-			Namespace: agentRun.Namespace,
-			Name:      agentRun.Spec.Model.ModelRef,
-		}, &model); err != nil {
+		model, err := ResolveModelRef(ctx, r.Client, agentRun.Spec.Model.ModelRef, agentRun.Namespace)
+		if err != nil {
 			return ctrl.Result{}, r.failRun(ctx, agentRun, fmt.Sprintf("model %q not found: %v", agentRun.Spec.Model.ModelRef, err))
 		}
 		if model.Status.Phase != sympoziumv1alpha1.ModelPhaseReady {

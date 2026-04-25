@@ -65,9 +65,10 @@ export function ModelDetailPage() {
 
   function handleDelete() {
     if (!name) return;
-    deleteModel.mutate(name, {
-      onSuccess: () => navigate("/models"),
-    });
+    deleteModel.mutate(
+      { name, namespace: model?.metadata.namespace },
+      { onSuccess: () => navigate("/models") },
+    );
   }
 
   const modelRefYaml = `spec:
@@ -115,12 +116,22 @@ export function ModelDetailPage() {
           </CardHeader>
           <CardContent className="space-y-1">
             <Row label="Phase" value={<StatusBadge phase={model.status?.phase} />} />
+            <Row label="Namespace" value={model.metadata.namespace} />
             <Row label="Message" value={model.status?.message} />
             {model.status?.endpoint && (
               <Row
                 label="Endpoint"
                 value={<CopyableValue value={model.status.endpoint} />}
               />
+            )}
+            {model.status?.placedNode && (
+              <Row label="Placed Node" value={model.status.placedNode} />
+            )}
+            {model.status?.placementScore != null && model.status.placementScore > 0 && (
+              <Row label="Placement Score" value={model.status.placementScore} />
+            )}
+            {model.status?.placementMessage && (
+              <Row label="Placement" value={model.status.placementMessage} />
             )}
           </CardContent>
         </Card>

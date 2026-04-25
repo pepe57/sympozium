@@ -96,6 +96,8 @@ export function ModelsPage() {
     contextSize: 4096,
     args: "",
     node: "",
+    placement: "auto" as "auto" | "manual",
+    namespace: "sympozium-system",
   });
 
   const readyNodes = (clusterNodes || []).filter((n) => n.ready);
@@ -125,9 +127,12 @@ export function ModelsPage() {
         cpu: form.cpu,
         contextSize: form.contextSize,
         args: args.length > 0 ? args : undefined,
-        nodeSelector: form.node
-          ? { "kubernetes.io/hostname": form.node }
-          : undefined,
+        placement: form.placement,
+        namespace: form.namespace,
+        nodeSelector:
+          form.placement === "manual" && form.node
+            ? { "kubernetes.io/hostname": form.node }
+            : undefined,
       },
       {
         onSuccess: () => {
@@ -143,6 +148,8 @@ export function ModelsPage() {
             contextSize: 4096,
             args: "",
             node: "",
+            placement: "auto",
+            namespace: "sympozium-system",
           });
         },
       },
@@ -197,6 +204,7 @@ export function ModelsPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
+              <TableHead>Namespace</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>GPU</TableHead>
               <TableHead>Endpoint</TableHead>
@@ -216,6 +224,9 @@ export function ModelsPage() {
                     <ExternalLink className="h-3 w-3 opacity-50" />
                   </Link>
                 </TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {model.metadata.namespace}
+                </TableCell>
                 <TableCell>
                   <StatusBadge phase={model.status?.phase} />
                 </TableCell>
@@ -232,7 +243,12 @@ export function ModelsPage() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => deleteModel.mutate(model.metadata.name)}
+                    onClick={() =>
+                      deleteModel.mutate({
+                        name: model.metadata.name,
+                        namespace: model.metadata.namespace,
+                      })
+                    }
                     disabled={deleteModel.isPending}
                     title="Delete model"
                   >
@@ -284,13 +300,25 @@ export function ModelsPage() {
                 ))}
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Name</Label>
-              <Input
-                placeholder="llama-3.1-8b-q4"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Name</Label>
+                <Input
+                  placeholder="llama-3.1-8b-q4"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Namespace</Label>
+                <Input
+                  placeholder="sympozium-system"
+                  value={form.namespace}
+                  onChange={(e) =>
+                    setForm({ ...form, namespace: e.target.value })
+                  }
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label>GGUF Download URL</Label>
@@ -377,9 +405,35 @@ export function ModelsPage() {
                 Additional llama-server arguments (space-separated)
               </p>
             </div>
-            {readyNodes.length > 1 && (
+            <div className="space-y-2">
+              <Label>Node Placement</Label>
+              <Select
+                value={form.placement}
+                onValueChange={(v) =>
+                  setForm({
+                    ...form,
+                    placement: v as "auto" | "manual",
+                    node: "",
+                  })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Auto (recommended)</SelectItem>
+                  <SelectItem value="manual">Manual</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {form.placement === "auto"
+                  ? "llmfit will probe each node and select the best fit for this model"
+                  : "Pin the inference server to a specific node"}
+              </p>
+            </div>
+            {form.placement === "manual" && readyNodes.length > 1 && (
               <div className="space-y-2">
-                <Label>Node Placement</Label>
+                <Label>Target Node</Label>
                 <Select
                   value={form.node}
                   onValueChange={(v) =>
@@ -398,9 +452,6 @@ export function ModelsPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">
-                  Pin the inference server to a specific node
-                </p>
               </div>
             )}
           </div>

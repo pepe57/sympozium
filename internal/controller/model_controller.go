@@ -1,8 +1,12 @@
 package controller
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -18,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -29,13 +34,19 @@ const (
 	modelFinalizer   = "sympozium.ai/model-finalizer"
 	modelMountPath   = "/models"
 	downloadJobImage = "curlimages/curl:8.7.1"
+
+	llmfitProbeImage      = "ghcr.io/sympozium-ai/sympozium/skill-llmfit:latest"
+	llmfitProbeTimeout    = 3 * time.Minute
+	llmfitProbeLabelKey   = "sympozium.ai/llmfit-probe"
+	placementStartedAnnot = "sympozium.ai/placement-started"
 )
 
 // ModelReconciler reconciles Model objects.
 type ModelReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
-	Log    logr.Logger
+	Scheme    *runtime.Scheme
+	Log       logr.Logger
+	Clientset kubernetes.Interface
 }
 
 // +kubebuilder:rbac:groups=sympozium.ai,resources=models,verbs=get;list;watch;create;update;patch;delete
@@ -44,6 +55,8 @@ type ModelReconciler struct {
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=pods;pods/log,verbs=get;list;watch;create;delete
+// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 
 func (r *ModelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := r.Log.WithValues("model", req.NamespacedName)
@@ -58,8 +71,13 @@ func (r *ModelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	// Initialize phase
 	if model.Status.Phase == "" {
-		model.Status.Phase = sympoziumv1alpha1.ModelPhasePending
-		model.Status.Message = "Model created, provisioning storage"
+		if model.Spec.Placement.Mode == sympoziumv1alpha1.PlacementAuto && len(model.Spec.NodeSelector) == 0 {
+			model.Status.Phase = sympoziumv1alpha1.ModelPhasePlacing
+			model.Status.Message = "Auto-selecting best node via llmfit"
+		} else {
+			model.Status.Phase = sympoziumv1alpha1.ModelPhasePending
+			model.Status.Message = "Model created, provisioning storage"
+		}
 		if err := r.Status().Update(ctx, &model); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -67,6 +85,8 @@ func (r *ModelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	}
 
 	switch model.Status.Phase {
+	case sympoziumv1alpha1.ModelPhasePlacing:
+		return r.reconcilePlacing(ctx, &model, log)
 	case sympoziumv1alpha1.ModelPhasePending:
 		return r.reconcilePending(ctx, &model, log)
 	case sympoziumv1alpha1.ModelPhaseDownloading:
@@ -80,6 +100,315 @@ func (r *ModelReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	}
 
 	return ctrl.Result{}, nil
+}
+
+// reconcilePlacing uses llmfit probes to auto-select the best node.
+func (r *ModelReconciler) reconcilePlacing(ctx context.Context, model *sympoziumv1alpha1.Model, log logr.Logger) (ctrl.Result, error) {
+	probeLabel := client.MatchingLabels{llmfitProbeLabelKey: model.Name}
+
+	// Check for timeout.
+	if started, ok := model.Annotations[placementStartedAnnot]; ok {
+		t, err := time.Parse(time.RFC3339, started)
+		if err == nil && time.Since(t) > llmfitProbeTimeout {
+			log.Info("Placement probes timed out, falling back to default scheduler")
+			r.cleanupProbePods(ctx, model, log)
+			model.Status.PlacementMessage = "Auto-placement timed out, using default scheduler"
+			return r.transitionToPending(ctx, model, log)
+		}
+	}
+
+	// List existing probe pods.
+	var probes corev1.PodList
+	if err := r.List(ctx, &probes, client.InNamespace(model.Namespace), probeLabel); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// If no probes exist yet, create them.
+	if len(probes.Items) == 0 {
+		// Record start time.
+		if model.Annotations == nil {
+			model.Annotations = map[string]string{}
+		}
+		model.Annotations[placementStartedAnnot] = time.Now().UTC().Format(time.RFC3339)
+		if err := r.Update(ctx, model); err != nil {
+			return ctrl.Result{}, err
+		}
+
+		// List ready nodes.
+		var nodes corev1.NodeList
+		if err := r.List(ctx, &nodes); err != nil {
+			return ctrl.Result{}, fmt.Errorf("listing nodes: %w", err)
+		}
+
+		var readyNodes []corev1.Node
+		for _, n := range nodes.Items {
+			for _, c := range n.Status.Conditions {
+				if c.Type == corev1.NodeReady && c.Status == corev1.ConditionTrue {
+					readyNodes = append(readyNodes, n)
+					break
+				}
+			}
+		}
+
+		if len(readyNodes) == 0 {
+			log.Info("No ready nodes found, skipping placement")
+			model.Status.PlacementMessage = "No ready nodes found, using default scheduler"
+			return r.transitionToPending(ctx, model, log)
+		}
+
+		modelQuery := modelQueryFromURL(model.Spec.Source.URL)
+		log.Info("Creating llmfit probe pods", "nodes", len(readyNodes), "modelQuery", modelQuery)
+
+		for _, node := range readyNodes {
+			podName := r.probePodName(model, node.Name)
+			pod := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      podName,
+					Namespace: model.Namespace,
+					Labels: map[string]string{
+						llmfitProbeLabelKey:            model.Name,
+						"app.kubernetes.io/name":       "llmfit-probe",
+						"app.kubernetes.io/managed-by": "sympozium",
+					},
+				},
+				Spec: corev1.PodSpec{
+					RestartPolicy: corev1.RestartPolicyNever,
+					NodeName:      node.Name,
+					Tolerations:   []corev1.Toleration{{Operator: corev1.TolerationOpExists}},
+					Containers: []corev1.Container{
+						{
+							Name:            "probe",
+							Image:           llmfitProbeImage,
+							ImagePullPolicy: corev1.PullIfNotPresent,
+							Command:         []string{"/bin/sh", "-lc"},
+							Args:            []string{"/usr/local/bin/llmfit-probe-json.sh"},
+							Env: []corev1.EnvVar{
+								{Name: "MODEL_QUERY", Value: modelQuery},
+								{Name: "NODE_NAME", Value: node.Name},
+								{Name: "LLMFIT_MIN_FIT", Value: "good"},
+								{Name: "LLMFIT_LIMIT", Value: "5"},
+							},
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("100m"),
+									corev1.ResourceMemory: resource.MustParse("128Mi"),
+								},
+								Limits: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("200m"),
+									corev1.ResourceMemory: resource.MustParse("256Mi"),
+								},
+							},
+						},
+					},
+				},
+			}
+
+			if err := controllerutil.SetControllerReference(model, pod, r.Scheme); err != nil {
+				return ctrl.Result{}, err
+			}
+			if err := r.Create(ctx, pod); err != nil && !errors.IsAlreadyExists(err) {
+				return ctrl.Result{}, fmt.Errorf("creating probe pod for node %s: %w", node.Name, err)
+			}
+		}
+
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+	}
+
+	// Check if all probes have completed.
+	allDone := true
+	for i := range probes.Items {
+		phase := probes.Items[i].Status.Phase
+		if phase != corev1.PodSucceeded && phase != corev1.PodFailed {
+			allDone = false
+			break
+		}
+	}
+
+	if !allDone {
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+	}
+
+	// Collect results.
+	log.Info("All placement probes completed, collecting results")
+	type probeResult struct {
+		Node         string `json:"node"`
+		MatchedCount int    `json:"matched_count"`
+		Top          []struct {
+			Name   string  `json:"name"`
+			Score  float64 `json:"score"`
+			FitLev string  `json:"fit_level"`
+		} `json:"top"`
+		Error string `json:"error"`
+	}
+
+	var bestNode string
+	var bestScore float64
+	bestScoreInt := 0
+
+	for i := range probes.Items {
+		pod := &probes.Items[i]
+		if pod.Status.Phase != corev1.PodSucceeded {
+			continue
+		}
+
+		logs, err := r.readPodLogs(ctx, pod)
+		if err != nil {
+			log.Info("Failed to read probe logs", "pod", pod.Name, "error", err)
+			continue
+		}
+
+		var result probeResult
+		if err := json.Unmarshal([]byte(logs), &result); err != nil {
+			log.Info("Failed to parse probe result", "pod", pod.Name, "error", err)
+			continue
+		}
+
+		if result.Error != "" || len(result.Top) == 0 {
+			continue
+		}
+
+		topScore := result.Top[0].Score
+		if topScore > bestScore {
+			bestScore = topScore
+			bestScoreInt = int(topScore)
+			bestNode = result.Node
+		}
+	}
+
+	// Clean up probe pods.
+	r.cleanupProbePods(ctx, model, log)
+
+	if bestNode != "" {
+		log.Info("Auto-placement selected node", "node", bestNode, "score", bestScore)
+		model.Spec.NodeSelector = map[string]string{"kubernetes.io/hostname": bestNode}
+		if err := r.Update(ctx, model); err != nil {
+			return ctrl.Result{}, err
+		}
+		model.Status.PlacedNode = bestNode
+		model.Status.PlacementScore = bestScoreInt
+		model.Status.PlacementMessage = fmt.Sprintf("Selected node %s (score: %d)", bestNode, bestScoreInt)
+	} else {
+		log.Info("No suitable node found by probes, using default scheduler")
+		model.Status.PlacementMessage = "No node scored above threshold, using default scheduler"
+	}
+
+	return r.transitionToPending(ctx, model, log)
+}
+
+// transitionToPending moves the model from Placing to Pending phase.
+func (r *ModelReconciler) transitionToPending(ctx context.Context, model *sympoziumv1alpha1.Model, log logr.Logger) (ctrl.Result, error) {
+	// Save placement status fields before metadata update, since r.Update()
+	// returns the server's view of the object which may overwrite local changes.
+	placedNode := model.Status.PlacedNode
+	placementScore := model.Status.PlacementScore
+	placementMessage := model.Status.PlacementMessage
+
+	// Clean up placement annotation.
+	if model.Annotations != nil {
+		delete(model.Annotations, placementStartedAnnot)
+		if err := r.Update(ctx, model); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
+	// Restore placement fields and set pending status.
+	model.Status.PlacedNode = placedNode
+	model.Status.PlacementScore = placementScore
+	model.Status.PlacementMessage = placementMessage
+	model.Status.Phase = sympoziumv1alpha1.ModelPhasePending
+	model.Status.Message = "Model created, provisioning storage"
+	if err := r.Status().Update(ctx, model); err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{Requeue: true}, nil
+}
+
+// readPodLogs reads the full log output from a completed pod.
+func (r *ModelReconciler) readPodLogs(ctx context.Context, pod *corev1.Pod) (string, error) {
+	req := r.Clientset.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{})
+	stream, err := req.Stream(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer stream.Close()
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, stream); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+// cleanupProbePods deletes all llmfit probe pods for the given model.
+func (r *ModelReconciler) cleanupProbePods(ctx context.Context, model *sympoziumv1alpha1.Model, log logr.Logger) {
+	var pods corev1.PodList
+	if err := r.List(ctx, &pods, client.InNamespace(model.Namespace), client.MatchingLabels{llmfitProbeLabelKey: model.Name}); err != nil {
+		log.Info("Warning: failed to list probe pods for cleanup", "error", err)
+		return
+	}
+	for i := range pods.Items {
+		if err := r.Delete(ctx, &pods.Items[i]); err != nil && !errors.IsNotFound(err) {
+			log.Info("Warning: failed to delete probe pod", "pod", pods.Items[i].Name, "error", err)
+		}
+	}
+}
+
+// probePodName returns a deterministic pod name for a probe on a given node.
+func (r *ModelReconciler) probePodName(model *sympoziumv1alpha1.Model, nodeName string) string {
+	sanitized := strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			return r
+		}
+		if r >= 'A' && r <= 'Z' {
+			return r + 32 // toLower
+		}
+		return '-'
+	}, nodeName)
+	if len(sanitized) > 30 {
+		sanitized = sanitized[:30]
+	}
+	modelPart := model.Name
+	if len(modelPart) > 20 {
+		modelPart = modelPart[:20]
+	}
+	return fmt.Sprintf("llmfit-probe-%s-%s", modelPart, sanitized)
+}
+
+// modelQueryFromURL extracts a model search query from a GGUF download URL.
+// For HuggingFace URLs like /Qwen/Qwen3-8B-GGUF/resolve/main/... it extracts "Qwen/Qwen3-8B".
+// Falls back to the filename without extension, or "*" as last resort.
+func modelQueryFromURL(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return "*"
+	}
+
+	segments := strings.Split(strings.Trim(parsed.Path, "/"), "/")
+
+	// HuggingFace pattern: /{org}/{model-name}[-GGUF]/resolve/...
+	if len(segments) >= 2 && (strings.Contains(parsed.Host, "huggingface") || strings.Contains(parsed.Host, "hf.co")) {
+		modelName := segments[1]
+		// Strip -GGUF suffix
+		modelName = strings.TrimSuffix(modelName, "-GGUF")
+		modelName = strings.TrimSuffix(modelName, "-gguf")
+		return segments[0] + "/" + modelName
+	}
+
+	// Fallback: last path segment without extension
+	if len(segments) > 0 {
+		filename := segments[len(segments)-1]
+		filename = strings.TrimSuffix(filename, filepath.Ext(filename))
+		// Strip common quant suffixes
+		for _, suffix := range []string{"-Q4_K_M", "-Q4_K_S", "-Q5_K_M", "-Q5_K_S", "-Q8_0", "-Q6_K", "-Q3_K_M", "-Q2_K", "-f16", "-f32"} {
+			filename = strings.TrimSuffix(filename, suffix)
+			filename = strings.TrimSuffix(filename, strings.ToLower(suffix))
+		}
+		if filename != "" {
+			return filename
+		}
+	}
+
+	return "*"
 }
 
 // reconcilePending creates the PVC and starts the download Job.
@@ -628,5 +957,6 @@ func (r *ModelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&batchv1.Job{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
+		Owns(&corev1.Pod{}).
 		Complete(r)
 }

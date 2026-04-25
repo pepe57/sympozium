@@ -27,6 +27,23 @@ type SympoziumPolicySpec struct {
 	// NetworkPolicy defines network isolation settings.
 	// +optional
 	NetworkPolicy *NetworkPolicySpec `json:"networkPolicy,omitempty"`
+
+	// ModelPolicy defines model access restrictions for bound instances.
+	// +optional
+	ModelPolicy *ModelPolicySpec `json:"modelPolicy,omitempty"`
+}
+
+// ModelPolicySpec defines model access restrictions.
+type ModelPolicySpec struct {
+	// AllowedNamespaces restricts which namespaces' models can be referenced.
+	// Empty means all namespaces are allowed (default permissive).
+	// +optional
+	AllowedNamespaces []string `json:"allowedNamespaces,omitempty"`
+
+	// AllowedModels restricts which model names can be used.
+	// Empty means all models are allowed.
+	// +optional
+	AllowedModels []string `json:"allowedModels,omitempty"`
 }
 
 // SandboxPolicySpec defines sandbox enforcement.

@@ -39,6 +39,7 @@ export function phaseColor(phase: string | undefined): string {
       return "phase-pending";
     case "downloading":
     case "loading":
+    case "placing":
       return "phase-running";
     case "serving":
       return "phase-serving";

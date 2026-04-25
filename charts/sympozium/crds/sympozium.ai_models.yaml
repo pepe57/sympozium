@@ -88,6 +88,20 @@ spec:
                 description: NodeSelector constrains the inference server to nodes
                   with matching labels.
                 type: object
+              placement:
+                description: Placement configures how the controller selects a node
+                  for the model.
+                properties:
+                  mode:
+                    default: manual
+                    description: |-
+                      Mode is "auto" or "manual". In auto mode the controller uses llmfit
+                      probes to select the best-fit node. Defaults to "manual".
+                    enum:
+                    - auto
+                    - manual
+                    type: string
+                type: object
               resources:
                 description: Resources defines compute requirements for the inference
                   server.
@@ -251,6 +265,19 @@ spec:
               phase:
                 description: Phase is the current lifecycle phase.
                 type: string
+              placedNode:
+                description: |-
+                  PlacedNode is the node selected by auto-placement. Populated when
+                  placement mode is "auto" and placement succeeds.
+                type: string
+              placementMessage:
+                description: PlacementMessage provides details about the placement
+                  decision.
+                type: string
+              placementScore:
+                description: PlacementScore is the llmfit fitness score for the selected
+                  node.
+                type: integer
             type: object
         type: object
     served: true
