@@ -829,8 +829,8 @@ func (r *AgentRunReconciler) triggerSequentialSuccessors(ctx context.Context, lo
 			},
 			Spec: sympoziumv1alpha1.AgentRunSpec{
 				AgentRef: targetAgentName,
-				Task:        task,
-				AgentID:     fmt.Sprintf("sequential-from-%s", sourcePersona),
+				Task:     task,
+				AgentID:  fmt.Sprintf("sequential-from-%s", sourcePersona),
 				Model: sympoziumv1alpha1.ModelSpec{
 					Provider:      resolveProvider(&targetInst),
 					Model:         targetInst.Spec.Agents.Default.Model,

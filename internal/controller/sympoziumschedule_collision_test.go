@@ -132,7 +132,7 @@ func makeOrphanRun(scheduleName string, suffix int) *sympoziumv1alpha1.AgentRun 
 		},
 		Spec: sympoziumv1alpha1.AgentRunSpec{
 			AgentRef: "any-instance",
-			Task:        "x",
+			Task:     "x",
 		},
 	}
 }

@@ -121,7 +121,7 @@ func (sr *ScheduleRouter) createSchedule(ctx context.Context, namespace, name, i
 			},
 		},
 		Spec: sympoziumv1alpha1.SympoziumScheduleSpec{
-			AgentRef:       instanceName,
+			AgentRef:          instanceName,
 			Schedule:          req.Schedule,
 			Task:              req.Task,
 			Type:              "heartbeat",

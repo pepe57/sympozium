@@ -747,11 +747,11 @@ func (r *AgentReconciler) ensureWebEndpointAgentRun(ctx context.Context, instanc
 			},
 		},
 		Spec: sympoziumv1alpha1.AgentRunSpec{
-			AgentRef: instance.Name,
-			AgentID:     "web-endpoint",
-			SessionKey:  "web-endpoint",
-			Task:        "Serve HTTP requests for this instance",
-			Mode:        "server",
+			AgentRef:   instance.Name,
+			AgentID:    "web-endpoint",
+			SessionKey: "web-endpoint",
+			Task:       "Serve HTTP requests for this instance",
+			Mode:       "server",
 			Model: sympoziumv1alpha1.ModelSpec{
 				Provider:      resolveProvider(instance),
 				Model:         instance.Spec.Agents.Default.Model,

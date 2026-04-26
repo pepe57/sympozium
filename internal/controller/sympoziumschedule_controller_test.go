@@ -62,9 +62,9 @@ func TestSympoziumScheduleReconcile_CopiesProviderAndAuthSecretToRun(t *testing.
 		},
 		Spec: sympoziumv1alpha1.SympoziumScheduleSpec{
 			AgentRef: "inst-a",
-			Schedule:    "* * * * *",
-			Task:        "heartbeat",
-			Type:        "heartbeat",
+			Schedule: "* * * * *",
+			Task:     "heartbeat",
+			Type:     "heartbeat",
 		},
 	}
 
@@ -146,9 +146,9 @@ func TestSympoziumScheduleReconcile_FiltersWebEndpointSkill(t *testing.T) {
 		},
 		Spec: sympoziumv1alpha1.SympoziumScheduleSpec{
 			AgentRef: "inst-web",
-			Schedule:    "* * * * *",
-			Task:        "heartbeat",
-			Type:        "heartbeat",
+			Schedule: "* * * * *",
+			Task:     "heartbeat",
+			Type:     "heartbeat",
 		},
 	}
 
@@ -218,11 +218,11 @@ func TestSympoziumScheduleReconcile_SkipsWhenServingRunExists(t *testing.T) {
 			},
 		},
 		Spec: sympoziumv1alpha1.AgentRunSpec{
-			AgentRef: "inst-serving",
-			AgentID:     "web-endpoint",
-			SessionKey:  "web",
-			Task:        "serve",
-			Mode:        "server",
+			AgentRef:   "inst-serving",
+			AgentID:    "web-endpoint",
+			SessionKey: "web",
+			Task:       "serve",
+			Mode:       "server",
 			Model: sympoziumv1alpha1.ModelSpec{
 				Provider:      "openai",
 				Model:         "gpt-4o",
@@ -244,9 +244,9 @@ func TestSympoziumScheduleReconcile_SkipsWhenServingRunExists(t *testing.T) {
 		},
 		Spec: sympoziumv1alpha1.SympoziumScheduleSpec{
 			AgentRef: "inst-serving",
-			Schedule:    "* * * * *",
-			Task:        "heartbeat",
-			Type:        "heartbeat",
+			Schedule: "* * * * *",
+			Task:     "heartbeat",
+			Type:     "heartbeat",
 		},
 	}
 
@@ -308,9 +308,9 @@ func TestSympoziumScheduleReconcile_ResolvesProviderFromSecretNameFallback(t *te
 		},
 		Spec: sympoziumv1alpha1.SympoziumScheduleSpec{
 			AgentRef: "inst-b",
-			Schedule:    "* * * * *",
-			Task:        "heartbeat",
-			Type:        "heartbeat",
+			Schedule: "* * * * *",
+			Task:     "heartbeat",
+			Type:     "heartbeat",
 		},
 	}
 

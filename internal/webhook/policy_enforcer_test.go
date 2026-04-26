@@ -58,7 +58,7 @@ func TestPolicyEnforcer_AllowsDeletingRun_WhenInstanceMissing(t *testing.T) {
 		},
 		Spec: sympoziumv1alpha1.AgentRunSpec{
 			AgentRef: "already-deleted-instance",
-			Task:        "irrelevant",
+			Task:     "irrelevant",
 		},
 	}
 
@@ -89,7 +89,7 @@ func TestPolicyEnforcer_RejectsCreate_WhenInstanceMissing(t *testing.T) {
 		},
 		Spec: sympoziumv1alpha1.AgentRunSpec{
 			AgentRef: "nonexistent-instance",
-			Task:        "x",
+			Task:     "x",
 		},
 	}
 

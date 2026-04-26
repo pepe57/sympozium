@@ -22,10 +22,10 @@ func newTestRun() *sympoziumv1alpha1.AgentRun {
 			Namespace: "default",
 		},
 		Spec: sympoziumv1alpha1.AgentRunSpec{
-			AgentRef: "my-instance",
-			AgentID:     "default",
-			SessionKey:  "sess-1",
-			Task:        "do stuff",
+			AgentRef:   "my-instance",
+			AgentID:    "default",
+			SessionKey: "sess-1",
+			Task:       "do stuff",
 			Model: sympoziumv1alpha1.ModelSpec{
 				Provider:      "openai",
 				Model:         "gpt-4o",

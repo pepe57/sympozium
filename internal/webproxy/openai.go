@@ -157,7 +157,7 @@ func (p *Proxy) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 		Spec: sympoziumv1alpha1.AgentRunSpec{
-			AgentRef:  inst.Name,
+			AgentRef:     inst.Name,
 			AgentID:      "primary",
 			SessionKey:   fmt.Sprintf("web-%s-%d", inst.Name, time.Now().UnixNano()),
 			Task:         task,

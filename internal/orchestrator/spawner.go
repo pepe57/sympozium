@@ -131,9 +131,9 @@ func (s *Spawner) Spawn(ctx context.Context, req SpawnRequest) (*SpawnResult, er
 			},
 		},
 		Spec: sympoziumv1alpha1.AgentRunSpec{
-			AgentRef: req.InstanceName,
-			AgentID:     req.AgentID,
-			SessionKey:  sessionKey,
+			AgentRef:   req.InstanceName,
+			AgentID:    req.AgentID,
+			SessionKey: sessionKey,
 			Parent: &sympoziumv1alpha1.ParentRunRef{
 				RunName:    req.ParentRunName,
 				SessionKey: req.ParentSessionKey,

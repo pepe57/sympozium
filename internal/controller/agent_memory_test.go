@@ -192,8 +192,8 @@ func TestInstanceMemory_EnsembleInstance_GrowsAcrossPrompts(t *testing.T) {
 			Name:      "mypack-devops-assistant",
 			Namespace: "default",
 			Labels: map[string]string{
-				"sympozium.ai/personapack": "mypack",
-				"sympozium.ai/agent-config":     "devops-assistant",
+				"sympozium.ai/personapack":  "mypack",
+				"sympozium.ai/agent-config": "devops-assistant",
 			},
 		},
 		Spec: sympoziumv1alpha1.AgentSpec{

@@ -5032,7 +5032,7 @@ func (m tuiModel) applyEditModal() tea.Cmd {
 					Namespace: ns,
 				},
 				Spec: sympoziumv1alpha1.SympoziumScheduleSpec{
-					AgentRef:       instName,
+					AgentRef:          instName,
 					Schedule:          hb.schedule,
 					Task:              hb.task,
 					Type:              schedType,
@@ -8057,7 +8057,7 @@ func tuiCreateRun(ns, instance, task string) (string, error) {
 		},
 		Spec: sympoziumv1alpha1.AgentRunSpec{
 			AgentRef: instance,
-			Task:        task,
+			Task:     task,
 			Model: sympoziumv1alpha1.ModelSpec{
 				Provider:      provider,
 				Model:         inst.Spec.Agents.Default.Model,
@@ -8355,7 +8355,7 @@ func tuiCreateSchedule(ns, instanceName, cronExpr, task string) (string, error) 
 			Namespace: ns,
 		},
 		Spec: sympoziumv1alpha1.SympoziumScheduleSpec{
-			AgentRef:   instanceName,
+			AgentRef:      instanceName,
 			Schedule:      cronExpr,
 			Task:          task,
 			Type:          "scheduled",
@@ -10706,7 +10706,7 @@ func tuiOnboardApply(ns string, w *wizardState) (string, error) {
 				Namespace: ns,
 			},
 			Spec: sympoziumv1alpha1.SympoziumScheduleSpec{
-				AgentRef:       w.instanceName,
+				AgentRef:          w.instanceName,
 				Schedule:          heartbeatCron,
 				Task:              onboardHeartbeatTask(w.teamTask),
 				Type:              "heartbeat",

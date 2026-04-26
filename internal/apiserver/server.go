@@ -500,24 +500,24 @@ func (s *Server) getWebEndpointStatus(w http.ResponseWriter, r *http.Request) {
 
 // CreateInstanceRequest is the request body for creating a new Agent.
 type CreateInstanceRequest struct {
-	Name               string                                      `json:"name"`
-	Provider           string                                      `json:"provider"`
-	Model              string                                      `json:"model"`
-	BaseURL            string                                      `json:"baseURL,omitempty"`
-	SecretName         string                                      `json:"secretName,omitempty"`
-	APIKey             string                                      `json:"apiKey,omitempty"`
-	AWSRegion          string                                      `json:"awsRegion,omitempty"`
-	AWSAccessKeyID     string                                      `json:"awsAccessKeyId,omitempty"`
-	AWSSecretAccessKey string                                      `json:"awsSecretAccessKey,omitempty"`
-	AWSSessionToken    string                                      `json:"awsSessionToken,omitempty"`
-	PolicyRef          string                                      `json:"policyRef,omitempty"`
-	Skills             []sympoziumv1alpha1.SkillRef                `json:"skills,omitempty"`
-	Channels           []sympoziumv1alpha1.ChannelSpec             `json:"channels,omitempty"`
-	HeartbeatInterval  string                                      `json:"heartbeatInterval,omitempty"`
-	NodeSelector       map[string]string                           `json:"nodeSelector,omitempty"`
+	Name               string                                  `json:"name"`
+	Provider           string                                  `json:"provider"`
+	Model              string                                  `json:"model"`
+	BaseURL            string                                  `json:"baseURL,omitempty"`
+	SecretName         string                                  `json:"secretName,omitempty"`
+	APIKey             string                                  `json:"apiKey,omitempty"`
+	AWSRegion          string                                  `json:"awsRegion,omitempty"`
+	AWSAccessKeyID     string                                  `json:"awsAccessKeyId,omitempty"`
+	AWSSecretAccessKey string                                  `json:"awsSecretAccessKey,omitempty"`
+	AWSSessionToken    string                                  `json:"awsSessionToken,omitempty"`
+	PolicyRef          string                                  `json:"policyRef,omitempty"`
+	Skills             []sympoziumv1alpha1.SkillRef            `json:"skills,omitempty"`
+	Channels           []sympoziumv1alpha1.ChannelSpec         `json:"channels,omitempty"`
+	HeartbeatInterval  string                                  `json:"heartbeatInterval,omitempty"`
+	NodeSelector       map[string]string                       `json:"nodeSelector,omitempty"`
 	AgentSandbox       *sympoziumv1alpha1.AgentSandboxDefaults `json:"agentSandbox,omitempty"`
-	RunTimeout         string                                      `json:"runTimeout,omitempty"`
-	RequireApproval    bool                                        `json:"requireApproval,omitempty"`
+	RunTimeout         string                                  `json:"runTimeout,omitempty"`
+	RequireApproval    bool                                    `json:"requireApproval,omitempty"`
 }
 
 func (s *Server) createAgent(w http.ResponseWriter, r *http.Request) {
@@ -692,7 +692,7 @@ func (s *Server) createAgent(w http.ResponseWriter, r *http.Request) {
 				},
 			},
 			Spec: sympoziumv1alpha1.SympoziumScheduleSpec{
-				AgentRef:       req.Name,
+				AgentRef:          req.Name,
 				Schedule:          cron,
 				Task:              "heartbeat",
 				Type:              "heartbeat",
@@ -776,12 +776,12 @@ func (s *Server) getRun(w http.ResponseWriter, r *http.Request) {
 
 // CreateRunRequest is the request body for creating a new AgentRun.
 type CreateRunRequest struct {
-	AgentRef string `json:"agentRef"`
-	Task        string `json:"task"`
-	AgentID     string `json:"agentId,omitempty"`
-	SessionKey  string `json:"sessionKey,omitempty"`
-	Model       string `json:"model,omitempty"`
-	Timeout     string `json:"timeout,omitempty"`
+	AgentRef   string `json:"agentRef"`
+	Task       string `json:"task"`
+	AgentID    string `json:"agentId,omitempty"`
+	SessionKey string `json:"sessionKey,omitempty"`
+	Model      string `json:"model,omitempty"`
+	Timeout    string `json:"timeout,omitempty"`
 }
 
 func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
@@ -866,10 +866,10 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 		Spec: sympoziumv1alpha1.AgentRunSpec{
-			AgentRef: req.AgentRef,
-			AgentID:     req.AgentID,
-			SessionKey:  req.SessionKey,
-			Task:        req.Task,
+			AgentRef:   req.AgentRef,
+			AgentID:    req.AgentID,
+			SessionKey: req.SessionKey,
+			Task:       req.Task,
 			Model: sympoziumv1alpha1.ModelSpec{
 				Provider:      provider,
 				Model:         model,
@@ -1367,9 +1367,9 @@ func (s *Server) createSchedule(w http.ResponseWriter, r *http.Request) {
 		},
 		Spec: sympoziumv1alpha1.SympoziumScheduleSpec{
 			AgentRef: req.AgentRef,
-			Schedule:    req.Schedule,
-			Task:        req.Task,
-			Suspend:     req.Suspend,
+			Schedule: req.Schedule,
+			Task:     req.Task,
+			Suspend:  req.Suspend,
 		},
 	}
 
@@ -1516,10 +1516,10 @@ type PatchEnsembleRequest struct {
 	HeartbeatInterval    string                                             `json:"heartbeatInterval,omitempty"`
 	SkillParams          map[string]map[string]string                       `json:"skillParams,omitempty"`
 	GithubToken          string                                             `json:"githubToken,omitempty"`
-	AgentConfigs         []AgentConfigPatchSpec                                 `json:"agentConfigs,omitempty"`
+	AgentConfigs         []AgentConfigPatchSpec                             `json:"agentConfigs,omitempty"`
 	ChannelAccessControl map[string]*sympoziumv1alpha1.ChannelAccessControl `json:"channelAccessControl,omitempty"`
-	AgentSandbox         *sympoziumv1alpha1.AgentSandboxDefaults        `json:"agentSandbox,omitempty"`
-	Relationships        []sympoziumv1alpha1.AgentConfigRelationship            `json:"relationships,omitempty"`
+	AgentSandbox         *sympoziumv1alpha1.AgentSandboxDefaults            `json:"agentSandbox,omitempty"`
+	Relationships        []sympoziumv1alpha1.AgentConfigRelationship        `json:"relationships,omitempty"`
 	WorkflowType         string                                             `json:"workflowType,omitempty"`
 	SharedMemory         *sympoziumv1alpha1.SharedMemorySpec                `json:"sharedMemory,omitempty"`
 	ModelRef             string                                             `json:"modelRef,omitempty"`
@@ -1773,14 +1773,14 @@ func (s *Server) deleteEnsemble(w http.ResponseWriter, r *http.Request) {
 
 // CreateEnsembleRequest represents a request to create a new Ensemble from scratch.
 type CreateEnsembleRequest struct {
-	Name          string                                  `json:"name"`
-	Description   string                                  `json:"description,omitempty"`
-	Category      string                                  `json:"category,omitempty"`
-	WorkflowType  string                                  `json:"workflowType,omitempty"`
+	Name          string                                      `json:"name"`
+	Description   string                                      `json:"description,omitempty"`
+	Category      string                                      `json:"category,omitempty"`
+	WorkflowType  string                                      `json:"workflowType,omitempty"`
 	AgentConfigs  []sympoziumv1alpha1.AgentConfigSpec         `json:"agentConfigs"`
 	Relationships []sympoziumv1alpha1.AgentConfigRelationship `json:"relationships,omitempty"`
-	SharedMemory  *sympoziumv1alpha1.SharedMemorySpec     `json:"sharedMemory,omitempty"`
-	ModelRef      string                                  `json:"modelRef,omitempty"`
+	SharedMemory  *sympoziumv1alpha1.SharedMemorySpec         `json:"sharedMemory,omitempty"`
+	ModelRef      string                                      `json:"modelRef,omitempty"`
 }
 
 func (s *Server) createEnsemble(w http.ResponseWriter, r *http.Request) {
@@ -1813,7 +1813,7 @@ func (s *Server) createEnsemble(w http.ResponseWriter, r *http.Request) {
 			Description:   req.Description,
 			Category:      req.Category,
 			WorkflowType:  req.WorkflowType,
-			AgentConfigs:      req.AgentConfigs,
+			AgentConfigs:  req.AgentConfigs,
 			Relationships: req.Relationships,
 			SharedMemory:  req.SharedMemory,
 			ModelRef:      req.ModelRef,
@@ -1877,7 +1877,7 @@ func (s *Server) cloneEnsemble(w http.ResponseWriter, r *http.Request) {
 			Description:   source.Spec.Description + " (cloned from " + sourceName + ")",
 			Category:      source.Spec.Category,
 			Version:       source.Spec.Version,
-			AgentConfigs:      source.Spec.AgentConfigs,
+			AgentConfigs:  source.Spec.AgentConfigs,
 			Relationships: source.Spec.Relationships,
 			WorkflowType:  source.Spec.WorkflowType,
 			SharedMemory:  source.Spec.SharedMemory,
@@ -2137,7 +2137,7 @@ func (s *Server) listPods(w http.ResponseWriter, r *http.Request) {
 			PodIP:        p.Status.PodIP,
 			StartTime:    p.Status.StartTime,
 			RestartCount: restarts,
-			AgentRef:  inst,
+			AgentRef:     inst,
 			Labels:       p.Labels,
 		})
 	}

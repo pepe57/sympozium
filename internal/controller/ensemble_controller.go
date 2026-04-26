@@ -496,8 +496,8 @@ func (r *EnsembleReconciler) buildAgent(
 			Name:      instanceName,
 			Namespace: pack.Namespace,
 			Labels: map[string]string{
-				"sympozium.ai/ensemble": pack.Name,
-				"sympozium.ai/agent-config":  persona.Name,
+				"sympozium.ai/ensemble":     pack.Name,
+				"sympozium.ai/agent-config": persona.Name,
 			},
 		},
 		Spec: sympoziumv1alpha1.AgentSpec{
@@ -618,12 +618,12 @@ func (r *EnsembleReconciler) buildSchedule(
 			Name:      schedName,
 			Namespace: pack.Namespace,
 			Labels: map[string]string{
-				"sympozium.ai/ensemble": pack.Name,
-				"sympozium.ai/agent-config":  persona.Name,
+				"sympozium.ai/ensemble":     pack.Name,
+				"sympozium.ai/agent-config": persona.Name,
 			},
 		},
 		Spec: sympoziumv1alpha1.SympoziumScheduleSpec{
-			AgentRef:       instanceName,
+			AgentRef:          instanceName,
 			Schedule:          cron,
 			Task:              r.buildScheduleTask(pack, persona),
 			Type:              persona.Schedule.Type,
@@ -670,9 +670,9 @@ func (r *EnsembleReconciler) reconcileMemorySeeds(
 				Name:      cmName,
 				Namespace: pack.Namespace,
 				Labels: map[string]string{
-					"sympozium.ai/ensemble": pack.Name,
-					"sympozium.ai/agent-config":  persona.Name,
-					"sympozium.ai/memory":   "true",
+					"sympozium.ai/ensemble":     pack.Name,
+					"sympozium.ai/agent-config": persona.Name,
+					"sympozium.ai/memory":       "true",
 				},
 			},
 			Data: map[string]string{
