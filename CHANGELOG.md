@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.10.2](https://github.com/sympozium-ai/sympozium/compare/v0.10.1...v0.10.2) (2026-04-26)
+
+
+### Features
+
+* add YAML export button to ensemble detail page ([f970d44](https://github.com/sympozium-ai/sympozium/commit/f970d448476a159a2d6d076eff42cafeb6f43dd7))
+
+
+### Bug Fixes
+
+* remove duplicate YamlButton import in ensemble-detail ([a82a493](https://github.com/sympozium-ai/sympozium/commit/a82a4931072bef5f35a088ee26542819d2b8c41a))
+
 ## [0.10.1](https://github.com/sympozium-ai/sympozium/compare/v0.10.0...v0.10.1) (2026-04-26)
 
 
