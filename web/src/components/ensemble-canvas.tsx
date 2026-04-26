@@ -21,7 +21,6 @@ import { Button } from "@/components/ui/button";
 import {
   useRuns,
   useEnsembles,
-  useModel,
   useModels,
   usePatchEnsembleRelationships,
 } from "@/hooks/use-api";
@@ -34,7 +33,9 @@ import type {
   PersonaSpec,
   PersonaRelationship,
   AgentRun,
+  SecretRef,
 } from "@/lib/api";
+import { PROVIDERS } from "@/components/onboarding-wizard";
 
 // ── Real-time run status updates via WebSocket ─────────────────────────────
 
@@ -294,7 +295,70 @@ function ModelNode({ data }: NodeProps<Node<ModelNodeData>>) {
   );
 }
 
-const nodeTypes = { persona: PersonaNode, model: ModelNode };
+// ── Provider node (remote LLM inference) ───────────────────────────────────
+
+export interface ProviderNodeData {
+  provider: string;
+  label: string;
+  baseURL?: string;
+  isModelRef?: boolean;
+  model?: Model;
+  [key: string]: unknown;
+}
+
+const providerColors: Record<string, { border: string; text: string; edge: string }> = {
+  openai:         { border: "border-emerald-500/40", text: "text-emerald-400", edge: "#10b981" },
+  anthropic:      { border: "border-orange-500/40",  text: "text-orange-400",  edge: "#f97316" },
+  "azure-openai": { border: "border-blue-500/40",    text: "text-blue-400",    edge: "#3b82f6" },
+  ollama:         { border: "border-cyan-500/40",     text: "text-cyan-400",    edge: "#06b6d4" },
+  "lm-studio":    { border: "border-teal-500/40",     text: "text-teal-400",    edge: "#14b8a6" },
+  "llama-server": { border: "border-amber-500/40",   text: "text-amber-400",   edge: "#f59e0b" },
+  bedrock:        { border: "border-yellow-500/40",   text: "text-yellow-400",  edge: "#eab308" },
+  custom:         { border: "border-gray-500/40",     text: "text-gray-400",    edge: "#6b7280" },
+};
+
+const defaultProviderColor = { border: "border-blue-500/40", text: "text-blue-400", edge: "#3b82f6" };
+
+function ProviderNode({ data }: NodeProps<Node<ProviderNodeData>>) {
+  // For local models, delegate to the model node rendering style.
+  if (data.isModelRef && data.model) {
+    return <ModelNode data={{ ...data, model: data.model, label: data.model.metadata.name } as ModelNodeData} />;
+  }
+
+  const providerDef = PROVIDERS.find((p) => p.value === data.provider);
+  const colors = providerColors[data.provider] || defaultProviderColor;
+  const Icon = providerDef?.icon || Cpu;
+
+  return (
+    <div
+      className={`rounded-lg border ${colors.border} bg-card shadow-md px-4 py-3 min-w-[180px] max-w-[220px] transition-shadow duration-300`}
+    >
+      <div className="flex items-center gap-1.5 mb-1">
+        <Icon className={`h-3.5 w-3.5 ${colors.text}`} />
+        <span className={`font-semibold text-sm ${colors.text}`}>
+          {providerDef?.label || data.provider}
+        </span>
+      </div>
+
+      {data.baseURL && (
+        <p
+          className="text-[9px] text-muted-foreground/60 font-mono truncate"
+          title={data.baseURL}
+        >
+          {data.baseURL}
+        </p>
+      )}
+
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        className="!bg-muted-foreground !w-2 !h-2"
+      />
+    </div>
+  );
+}
+
+const nodeTypes = { persona: PersonaNode, model: ModelNode, provider: ProviderNode };
 
 // ── Shared edge styling ─────────────────────────────────────────────────────
 
@@ -408,6 +472,156 @@ function buildEdges(relationships: PersonaRelationship[], prefix = ""): Edge[] {
       rel.type,
     ),
   );
+}
+
+// ── Provider node derivation ─────────────────────────────────────────────
+
+interface DerivedProvider {
+  id: string;
+  provider: string;
+  label: string;
+  baseURL?: string;
+  isModelRef?: boolean;
+  model?: Model;
+}
+
+/** Derive unique provider/model nodes from ensemble data. */
+function deriveProviders(
+  pack: Ensemble,
+  modelMap: Map<string, Model>,
+): DerivedProvider[] {
+  const seen = new Set<string>();
+  const result: DerivedProvider[] = [];
+
+  // 1. Ensemble-level modelRef → local model provider
+  if (pack.spec.modelRef) {
+    const model = modelMap.get(pack.spec.modelRef);
+    const key = `model:${pack.spec.modelRef}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push({
+        id: key,
+        provider: "local-model",
+        label: pack.spec.modelRef,
+        isModelRef: true,
+        model,
+      });
+    }
+  }
+
+  // 2. Ensemble-level authRefs → cloud providers
+  for (const ref of pack.spec.authRefs || []) {
+    if (ref.provider && !seen.has(ref.provider)) {
+      seen.add(ref.provider);
+      const prov = PROVIDERS.find((p) => p.value === ref.provider);
+      result.push({
+        id: ref.provider,
+        provider: ref.provider,
+        label: prov?.label || ref.provider,
+        baseURL: pack.spec.baseURL,
+      });
+    }
+  }
+
+  // 3. Per-persona provider overrides
+  for (const persona of pack.spec.personas || []) {
+    if (persona.provider && !seen.has(persona.provider)) {
+      seen.add(persona.provider);
+      const prov = PROVIDERS.find((p) => p.value === persona.provider);
+      result.push({
+        id: persona.provider,
+        provider: persona.provider,
+        label: prov?.label || persona.provider,
+        baseURL: persona.baseURL,
+      });
+    }
+  }
+
+  // 4. If nothing derived but personas have models, infer from ensemble context
+  // (e.g. ensemble was activated via onboarding which sets authRefs).
+  // If still empty and there are personas, show nothing — provider is implicit.
+
+  return result;
+}
+
+/** Determine which provider a persona connects to. */
+function personaProviderId(persona: PersonaSpec, pack: Ensemble): string | null {
+  // Per-persona provider override
+  if (persona.provider) return persona.provider;
+  // Ensemble-level modelRef
+  if (pack.spec.modelRef) return `model:${pack.spec.modelRef}`;
+  // Ensemble-level authRefs (first one is the default)
+  const defaultRef = (pack.spec.authRefs || [])[0];
+  if (defaultRef?.provider) return defaultRef.provider;
+  return null;
+}
+
+/** Build provider nodes + edges for a pack. */
+function buildProviderNodesAndEdges(
+  pack: Ensemble,
+  modelMap: Map<string, Model>,
+  personas: PersonaSpec[],
+  offsetX: number,
+  prefix: string,
+): { nodes: Node<ProviderNodeData | ModelNodeData>[]; edges: Edge[] } {
+  const providers = deriveProviders(pack, modelMap);
+  if (providers.length === 0) return { nodes: [], edges: [] };
+
+  const cols = Math.max(2, Math.ceil(Math.sqrt(personas.length)));
+  const totalWidth = (cols - 1) * 260;
+  const providerGap = 240;
+  const providerStartX =
+    offsetX + totalWidth / 2 - ((providers.length - 1) * providerGap) / 2 - 90;
+
+  const nodes: Node<ProviderNodeData | ModelNodeData>[] = providers.map(
+    (prov, i) => ({
+      id: prefix ? `${prefix}/__prov__${prov.id}` : `__prov__${prov.id}`,
+      type: prov.isModelRef ? "model" : "provider",
+      position: { x: providerStartX + i * providerGap, y: 0 },
+      data: prov.isModelRef && prov.model
+        ? ({ model: prov.model, label: prov.label } as ModelNodeData)
+        : ({
+            provider: prov.provider,
+            label: prov.label,
+            baseURL: prov.baseURL,
+            isModelRef: prov.isModelRef,
+            model: prov.model,
+          } as ProviderNodeData),
+    }),
+  );
+
+  const edges: Edge[] = [];
+  for (const persona of personas) {
+    const provId = personaProviderId(persona, pack);
+    if (!provId) continue;
+    // Find the matching provider node
+    const provNode = nodes.find((n) =>
+      n.id.endsWith(`__prov__${provId}`),
+    );
+    if (!provNode) continue;
+
+    const targetId = prefix ? `${prefix}/${persona.name}` : persona.name;
+    const colors = providerColors[provId] || (provId.startsWith("model:") ? { edge: "#8b5cf6" } : defaultProviderColor);
+
+    edges.push({
+      id: `prov-${prefix}-${provId}-${persona.name}`,
+      source: provNode.id,
+      target: targetId,
+      type: "default",
+      animated: provId.startsWith("model:")
+        ? modelMap.get(provId.replace("model:", ""))?.status?.phase === "Ready"
+        : true,
+      style: { stroke: colors.edge, strokeWidth: 1.5, strokeDasharray: "4 3" },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: colors.edge,
+        width: 14,
+        height: 14,
+      },
+    });
+  }
+
+  return { nodes, edges };
 }
 
 function edgesToRelationships(edges: Edge[]): PersonaRelationship[] {
@@ -527,7 +741,7 @@ interface EnsembleCanvasProps {
 export function EnsembleCanvas({ pack }: EnsembleCanvasProps) {
   useRunEventInvalidation();
   const { data: runs } = useRuns();
-  const { data: modelData } = useModel(pack.spec.modelRef || "");
+  const { data: models } = useModels();
   const patchMutation = usePatchEnsembleRelationships();
   const relationships = pack.spec.relationships || [];
   const personas = pack.spec.personas || [];
@@ -538,20 +752,25 @@ export function EnsembleCanvas({ pack }: EnsembleCanvasProps) {
   const [dirty, setDirty] = useState(false);
   const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
 
+  const modelMap = useMemo(() => {
+    const m = new Map<string, Model>();
+    for (const model of models || []) m.set(model.metadata.name, model);
+    return m;
+  }, [models]);
+
   const runPhaseMap = useMemo(
     () => buildRunPhaseMap(runs, pack.status?.installedPersonas),
     [runs, pack.status?.installedPersonas],
   );
 
   const initialNodes = useMemo(() => {
-    // If a model is attached, offset persona nodes down to make room.
-    const yOffset = modelData ? 140 : 0;
-    const nodes: Node<PersonaNodeData | ModelNodeData>[] = layoutNodes(
-      personas,
-      relationships,
-      0,
-      yOffset,
-    );
+    // Derive provider/model nodes from ensemble data.
+    const provResult = buildProviderNodesAndEdges(pack, modelMap, personas, 0, "");
+    const hasProviders = provResult.nodes.length > 0;
+    const yOffset = hasProviders ? 140 : 0;
+
+    const nodes: Node<PersonaNodeData | ModelNodeData | ProviderNodeData>[] =
+      layoutNodes(personas, relationships, 0, yOffset);
     const sharedMemEnabled = pack.spec.sharedMemory?.enabled ?? false;
     for (const node of nodes) {
       node.data.hasSharedMemory = sharedMemEnabled;
@@ -566,52 +785,26 @@ export function EnsembleCanvas({ pack }: EnsembleCanvasProps) {
       }
     }
 
-    // Add model node above the persona nodes.
-    if (modelData) {
-      const cols = Math.max(2, Math.ceil(Math.sqrt(personas.length)));
-      const totalWidth = (cols - 1) * 260;
-      nodes.push({
-        id: `__model__${modelData.metadata.name}`,
-        type: "model",
-        position: { x: totalWidth / 2 - 90, y: 0 },
-        data: {
-          model: modelData,
-          label: modelData.metadata.name,
-        },
-      });
-    }
+    // Add provider/model nodes above personas.
+    nodes.push(...provResult.nodes);
 
     return nodes;
   }, [
     personas,
     relationships,
+    pack,
     pack.spec.sharedMemory?.enabled,
     pack.status?.installedPersonas,
     runPhaseMap,
-    modelData,
+    modelMap,
   ]);
 
   const initialEdges = useMemo(() => {
     const edges = buildEdges(relationships);
-
-    // Add edges from model node to each persona.
-    if (modelData) {
-      const modelNodeId = `__model__${modelData.metadata.name}`;
-      for (const persona of personas) {
-        edges.push({
-          id: `model-${modelData.metadata.name}-${persona.name}`,
-          source: modelNodeId,
-          target: persona.name,
-          type: "default",
-          animated: modelData.status?.phase === "Ready",
-          style: { stroke: "#8b5cf6", strokeWidth: 1.5, strokeDasharray: "4 3" },
-          markerEnd: { type: MarkerType.ArrowClosed, color: "#8b5cf6", width: 14, height: 14 },
-        });
-      }
-    }
-
+    const provResult = buildProviderNodesAndEdges(pack, modelMap, personas, 0, "");
+    edges.push(...provResult.edges);
     return edges;
-  }, [relationships, modelData, personas]);
+  }, [relationships, pack, modelMap, personas]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -805,9 +998,11 @@ export function GlobalEnsembleCanvas() {
       const personas = pack.spec.personas || [];
       const relationships = pack.spec.relationships || [];
       const prefix = pack.metadata.name;
-      const modelRef = pack.spec.modelRef;
-      const modelObj = modelRef ? modelMap.get(modelRef) : undefined;
-      const yOffset = modelObj ? 140 : 0;
+
+      // Derive provider/model nodes for this pack.
+      const provResult = buildProviderNodesAndEdges(pack, modelMap, personas, currentX, prefix);
+      const hasProviders = provResult.nodes.length > 0;
+      const yOffset = hasProviders ? 140 : 0;
 
       const packNodes = layoutNodes(
         personas,
@@ -828,32 +1023,9 @@ export function GlobalEnsembleCanvas() {
         if (ip) node.data.instanceName = ip.instanceName;
       }
 
-      // Add model node above personas if modelRef is set.
-      if (modelObj) {
-        const cols = Math.max(2, Math.ceil(Math.sqrt(personas.length)));
-        const totalWidth = (cols - 1) * 260;
-        const modelNodeId = `${prefix}/__model__${modelObj.metadata.name}`;
-        nodes.push({
-          id: modelNodeId,
-          type: "model",
-          position: { x: currentX + totalWidth / 2 - 90, y: 0 },
-          data: { model: modelObj, label: modelObj.metadata.name },
-        } as Node<ModelNodeData>);
-
-        for (const persona of personas) {
-          edges.push({
-            id: `model-${prefix}-${modelObj.metadata.name}-${persona.name}`,
-            source: modelNodeId,
-            target: `${prefix}/${persona.name}`,
-            type: "default",
-            animated: modelObj.status?.phase === "Ready",
-            style: { stroke: "#8b5cf6", strokeWidth: 1.5, strokeDasharray: "4 3" },
-            markerEnd: { type: MarkerType.ArrowClosed, color: "#8b5cf6", width: 14, height: 14 },
-          });
-        }
-      }
-
+      nodes.push(...provResult.nodes);
       nodes.push(...packNodes);
+      edges.push(...provResult.edges);
       edges.push(...buildEdges(relationships, prefix));
 
       const cols = Math.max(2, Math.ceil(Math.sqrt(personas.length)));

@@ -436,6 +436,8 @@ export interface PersonaSpec {
   displayName?: string;
   systemPrompt: string;
   model?: string;
+  provider?: string;
+  baseURL?: string;
   skills?: string[];
   toolPolicy?: PersonaToolPolicy;
   schedule?: PersonaSchedule;

@@ -304,18 +304,21 @@ func (r *EnsembleReconciler) reconcilePersona(
 		}
 
 		// Propagate baseURL changes (e.g. switching to/from a local provider).
-		// If modelRef is set, use the resolved endpoint instead.
+		// Per-persona baseURL overrides take precedence, then modelRef, then ensemble-level.
 		wantBaseURL := pack.Spec.BaseURL
 		if modelEndpoint != "" {
 			wantBaseURL = modelEndpoint
+		}
+		if persona.BaseURL != "" {
+			wantBaseURL = persona.BaseURL
 		}
 		if existingInst.Spec.Agents.Default.BaseURL != wantBaseURL {
 			existingInst.Spec.Agents.Default.BaseURL = wantBaseURL
 			needsUpdate = true
 		}
 
-		// When using a local model, clear auth refs (no API key needed).
-		if modelEndpoint != "" && len(existingInst.Spec.AuthRefs) > 0 {
+		// When using a local model (and no per-persona provider override), clear auth refs.
+		if modelEndpoint != "" && persona.Provider == "" && len(existingInst.Spec.AuthRefs) > 0 {
 			existingInst.Spec.AuthRefs = nil
 			needsUpdate = true
 		}
@@ -469,6 +472,23 @@ func (r *EnsembleReconciler) buildInstance(
 		baseURL = modelEndpoint
 		model = pack.Spec.ModelRef
 		authRefs = nil // no auth needed for cluster-internal inference
+	}
+
+	// Per-persona provider/baseURL overrides take precedence.
+	if persona.BaseURL != "" {
+		baseURL = persona.BaseURL
+	}
+	if persona.Provider != "" {
+		// Find the matching auth secret for this provider from the ensemble's refs.
+		var matched []sympoziumv1alpha1.SecretRef
+		for _, ref := range pack.Spec.AuthRefs {
+			if ref.Provider == persona.Provider {
+				matched = append(matched, ref)
+			}
+		}
+		if len(matched) > 0 {
+			authRefs = matched
+		}
 	}
 
 	inst := &sympoziumv1alpha1.SympoziumInstance{

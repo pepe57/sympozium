@@ -128,6 +128,16 @@ type PersonaSpec struct {
 	// +optional
 	Model string `json:"model,omitempty"`
 
+	// Provider overrides the ensemble-level provider for this persona.
+	// When set, the controller uses this persona's own provider
+	// instead of the ensemble-level AuthRefs/BaseURL.
+	// +optional
+	Provider string `json:"provider,omitempty"`
+
+	// BaseURL overrides the ensemble-level base URL for this persona.
+	// +optional
+	BaseURL string `json:"baseURL,omitempty"`
+
 	// Skills lists SkillPack references to mount into the agent pod.
 	// +optional
 	Skills []string `json:"skills,omitempty"`

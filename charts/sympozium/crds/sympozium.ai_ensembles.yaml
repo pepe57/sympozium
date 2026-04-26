@@ -209,6 +209,10 @@ spec:
                   description: PersonaSpec defines a single agent persona within an
                     Ensemble.
                   properties:
+                    baseURL:
+                      description: BaseURL overrides the ensemble-level base URL for
+                        this persona.
+                      type: string
                     channelAccessControl:
                       additionalProperties:
                         description: ChannelAccessControl restricts which users and
@@ -451,6 +455,12 @@ spec:
                     name:
                       description: Name is the persona identifier (used as suffix
                         in generated instance names).
+                      type: string
+                    provider:
+                      description: |-
+                        Provider overrides the ensemble-level provider for this persona.
+                        When set, the controller uses this persona's own provider
+                        instead of the ensemble-level AuthRefs/BaseURL.
                       type: string
                     schedule:
                       description: Schedule defines a recurring task for this persona.

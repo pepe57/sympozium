@@ -1530,6 +1530,9 @@ type PersonaPatchSpec struct {
 	Name         string   `json:"name"`
 	SystemPrompt *string  `json:"systemPrompt,omitempty"`
 	Skills       []string `json:"skills,omitempty"`
+	Model        *string  `json:"model,omitempty"`
+	Provider     *string  `json:"provider,omitempty"`
+	BaseURL      *string  `json:"baseURL,omitempty"`
 }
 
 func (s *Server) patchEnsemble(w http.ResponseWriter, r *http.Request) {
@@ -1694,7 +1697,7 @@ func (s *Server) patchEnsemble(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Apply per-persona patches (system prompt and skills).
+	// Apply per-persona patches.
 	for _, patch := range req.Personas {
 		for i := range pp.Spec.Personas {
 			if pp.Spec.Personas[i].Name == patch.Name {
@@ -1703,6 +1706,15 @@ func (s *Server) patchEnsemble(w http.ResponseWriter, r *http.Request) {
 				}
 				if patch.Skills != nil {
 					pp.Spec.Personas[i].Skills = patch.Skills
+				}
+				if patch.Model != nil {
+					pp.Spec.Personas[i].Model = *patch.Model
+				}
+				if patch.Provider != nil {
+					pp.Spec.Personas[i].Provider = *patch.Provider
+				}
+				if patch.BaseURL != nil {
+					pp.Spec.Personas[i].BaseURL = *patch.BaseURL
 				}
 				break
 			}
