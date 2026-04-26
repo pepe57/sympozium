@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.10.3](https://github.com/sympozium-ai/sympozium/compare/v0.10.2...v0.10.3) (2026-04-26)
+
+
+### Features
+
+* add automated demo walkthrough recording for README GIF ([0945630](https://github.com/sympozium-ai/sympozium/commit/09456301cb845e8720abb64ce59b833fa87ea181))
+
+
+### Bug Fixes
+
+* crop gray borders from demo GIF recording ([c300672](https://github.com/sympozium-ai/sympozium/commit/c3006725a6b23bba0ca9200e6404324151a11e74))
+
 ## [0.10.2](https://github.com/sympozium-ai/sympozium/compare/v0.10.1...v0.10.2) (2026-04-26)
 
 
