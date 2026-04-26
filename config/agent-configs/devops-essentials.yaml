@@ -10,6 +10,15 @@ spec:
   description: "DevOps workflow agents — incident response, cost analysis, and deployment monitoring."
   category: devops
   version: "1.0.0"
+  workflowType: pipeline
+  relationships:
+    - source: incident-responder
+      target: cost-analyzer
+      type: sequential
+      condition: "after incident investigation"
+  sharedMemory:
+    enabled: true
+    storageSize: "1Gi"
   agentConfigs:
     - name: incident-responder
       displayName: "Incident Responder"

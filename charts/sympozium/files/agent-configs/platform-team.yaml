@@ -10,6 +10,23 @@ spec:
   description: "Core platform engineering agents — security, SRE, and platform support."
   category: platform
   version: "1.0.0"
+  workflowType: delegation
+  relationships:
+    - source: platform-engineer
+      target: security-guardian
+      type: delegation
+      condition: "for security review"
+    - source: platform-engineer
+      target: sre-watchdog
+      type: delegation
+      condition: "for reliability assessment"
+    - source: security-guardian
+      target: sre-watchdog
+      type: sequential
+      condition: "after security review passes"
+  sharedMemory:
+    enabled: true
+    storageSize: "1Gi"
   agentConfigs:
     - name: security-guardian
       displayName: "Security Guardian"

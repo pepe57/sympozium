@@ -11,6 +11,15 @@ spec:
   description: "Observability agents powered by MCP servers — SRE investigation and incident response with external tool integration."
   category: observability
   version: "1.0.0"
+  workflowType: delegation
+  relationships:
+    - source: sre-investigator
+      target: incident-responder
+      type: delegation
+      condition: "when investigation reveals an incident"
+  sharedMemory:
+    enabled: true
+    storageSize: "1Gi"
   agentConfigs:
     - name: sre-investigator
       displayName: "SRE Investigator"
