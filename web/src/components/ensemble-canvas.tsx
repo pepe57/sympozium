@@ -555,17 +555,37 @@ function deriveProviders(
     }
   }
 
-  // 4. If nothing derived but personas have models, infer from ensemble context
-  // (e.g. ensemble was activated via onboarding which sets authRefs).
-  // If still empty and there are personas, show nothing — provider is implicit.
+  // 4. Infer from per-agent model fields — if an agent's model name matches
+  // a deployed Model CR, show it as a local model provider node.
+  for (const persona of pack.spec.agentConfigs || []) {
+    if (persona.model && modelMap.has(persona.model)) {
+      const key = `model:${persona.model}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push({
+          id: key,
+          provider: "local-model",
+          label: persona.model,
+          isModelRef: true,
+          model: modelMap.get(persona.model),
+        });
+      }
+    }
+  }
 
   return result;
 }
 
 /** Determine which provider a persona connects to. */
-function personaProviderId(persona: AgentConfigSpec, pack: Ensemble): string | null {
+function personaProviderId(
+  persona: AgentConfigSpec,
+  pack: Ensemble,
+  modelMap: Map<string, Model>,
+): string | null {
   // Per-persona provider override
   if (persona.provider) return persona.provider;
+  // Per-persona model matching a deployed Model CR
+  if (persona.model && modelMap.has(persona.model)) return `model:${persona.model}`;
   // Ensemble-level modelRef
   if (pack.spec.modelRef) return `model:${pack.spec.modelRef}`;
   // Ensemble-level authRefs (first one is the default)
@@ -610,7 +630,7 @@ function buildProviderNodesAndEdges(
 
   const edges: Edge[] = [];
   for (const persona of personas) {
-    const provId = personaProviderId(persona, pack);
+    const provId = personaProviderId(persona, pack, modelMap);
     if (!provId) continue;
     // Find the matching provider node
     const provNode = nodes.find((n) =>
