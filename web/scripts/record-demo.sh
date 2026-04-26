@@ -84,16 +84,18 @@ ffmpeg -y -ss 0.8 -to "$END" -i "$VIDEO_FILE" -c copy "$OUTPUT_MP4" 2>/dev/null
 echo "▸ Saved trimmed MP4: $OUTPUT_MP4"
 
 # Convert to GIF via ffmpeg (high quality, max ~5MB).
-#   - fps=12, 1080px width, 200 colors, floyd_steinberg dithering
+#   - Crop 134px gray borders from Cypress headless Chrome
+#   - fps=12, 860px width, 210 colors, floyd_steinberg dithering
 #   - palettegen/paletteuse for accurate color reproduction
 echo "▸ Converting to GIF..."
 PALETTE=$(mktemp /tmp/palette-XXXXXX.png)
+CROP="crop=1013:632:134:0"
 ffmpeg -y -i "$OUTPUT_MP4" \
-  -vf "fps=12,scale=1080:-1:flags=lanczos,palettegen=max_colors=200:stats_mode=diff" \
+  -vf "${CROP},fps=12,scale=860:-1:flags=lanczos,palettegen=max_colors=210:stats_mode=diff" \
   "$PALETTE" 2>/dev/null
 
 ffmpeg -y -i "$OUTPUT_MP4" -i "$PALETTE" \
-  -lavfi "fps=12,scale=1080:-1:flags=lanczos [x]; [x][1:v] paletteuse=dither=floyd_steinberg:diff_mode=rectangle" \
+  -lavfi "${CROP},fps=12,scale=860:-1:flags=lanczos [x]; [x][1:v] paletteuse=dither=floyd_steinberg:diff_mode=rectangle" \
   "$OUTPUT_GIF" 2>/dev/null
 
 rm -f "$PALETTE"
