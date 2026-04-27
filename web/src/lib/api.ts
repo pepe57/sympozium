@@ -498,7 +498,7 @@ export interface EnsembleStatus {
   phase?: string;
   agentConfigCount?: number;
   installedCount?: number;
-  installedAgentConfigs?: InstalledAgentConfig[];
+  installedPersonas?: InstalledAgentConfig[];
   sharedMemoryReady?: boolean;
   conditions?: Condition[];
 }

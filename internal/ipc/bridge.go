@@ -390,6 +390,12 @@ func (b *Bridge) subscribeToInbound(ctx context.Context) {
 		return
 	}
 
+	// Subscribe to delegate results (blocking delegation tool polls for these files)
+	delegateResultCh, err := b.EventBus.Subscribe(ctx, fmt.Sprintf("%s.%s", eventbus.TopicAgentDelegateResult, b.AgentRunID))
+	if err != nil {
+		b.Log.Error(err, "failed to subscribe to delegate result events")
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -409,6 +415,22 @@ func (b *Bridge) subscribeToInbound(ctx context.Context) {
 			path := filepath.Join(b.BasePath, DirTools, filename)
 			if err := os.WriteFile(path, event.Data, 0640); err != nil {
 				b.Log.Error(err, "failed to write exec result")
+			}
+
+		case event := <-delegateResultCh:
+			// Write delegate result to /ipc/spawn/result-{requestId}.json so
+			// the blocking delegateToPersonaTool can pick it up.
+			var parsed struct {
+				RequestID string `json:"requestId"`
+			}
+			if json.Unmarshal(event.Data, &parsed) == nil && parsed.RequestID != "" {
+				filename := fmt.Sprintf("result-%s.json", parsed.RequestID)
+				path := filepath.Join(b.BasePath, DirSpawn, filename)
+				if err := os.WriteFile(path, event.Data, 0640); err != nil {
+					b.Log.Error(err, "failed to write delegate result", "requestId", parsed.RequestID)
+				} else {
+					b.Log.Info("Wrote delegate result", "requestId", parsed.RequestID)
+				}
 			}
 		}
 	}

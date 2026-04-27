@@ -20,7 +20,7 @@ spec:
   authRefs:
     - provider: lm-studio
       secret: ""
-  personas:
+  agentConfigs:
     - name: ${PERSONA}
       displayName: Cypress Auditor
       systemPrompt: You are a terse auditor.
@@ -40,7 +40,7 @@ describe("Ensemble — full lifecycle", () => {
     applyPackKubectl();
 
     // Stamped instance should appear on /instances.
-    cy.visit("/instances");
+    cy.visit("/agents");
     cy.contains(STAMPED_INSTANCE, { timeout: 30000 }).should("be.visible");
 
     // Disable via apiserver PATCH (this endpoint DOES exist).
@@ -58,7 +58,7 @@ describe("Ensemble — full lifecycle", () => {
     });
 
     // Stamped instance should eventually disappear from the list.
-    cy.visit("/instances");
+    cy.visit("/agents");
     cy.contains(STAMPED_INSTANCE, { timeout: 30000 }).should("not.exist");
   });
 });

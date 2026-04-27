@@ -1,7 +1,8 @@
 /**
  * Delegation Workflow — validates that a persona can delegate a task to
  * another persona at runtime using the delegate_to_persona tool, and that
- * the delegated run is created and completes successfully.
+ * the delegation is **blocking**: the parent waits for the child to finish
+ * and receives the child's result back before completing.
  *
  * Ensemble:
  *   lead --[delegation]--> researcher
@@ -9,15 +10,18 @@
  * Flow:
  *   1. Dispatch a run to lead
  *   2. Lead calls delegate_to_persona(targetPersona: "researcher", task: ...)
- *   3. Spawner validates the delegation edge exists and creates a child AgentRun
+ *   3. SpawnRouter creates a child AgentRun, transitions parent to AwaitingDelegate
  *   4. Child run executes under the researcher persona's system prompt
- *   5. Child run completes (labeled with sympozium.ai/parent-run)
- *   6. Lead run completes
+ *   5. Child run completes → SpawnRouter delivers result back to parent via IPC
+ *   6. Parent's delegate tool unblocks, LLM incorporates the result
+ *   7. Lead run completes with result that includes the researcher's output
  *
  * This validates:
- *   - delegate_to_persona tool is available and functional
- *   - Spawner validates delegation edges in the relationship graph
- *   - Child run is created with correct parent-run label
+ *   - delegate_to_persona tool is available and blocks until result arrives
+ *   - SpawnRouter creates child run and delivers result back
+ *   - Parent transitions through AwaitingDelegate → Running → Succeeded
+ *   - Parent's DelegateStatus is populated with child info
+ *   - Lead's final result includes the researcher's output
  *   - Both runs complete successfully
  */
 
@@ -96,7 +100,7 @@ function waitForRunWithLabel(
   return poll();
 }
 
-describe("Delegation Workflow — delegate_to_persona runtime tool", () => {
+describe("Delegation Workflow — blocking delegate_to_persona with result delivery", () => {
   after(() => {
     cy.request({
       method: "PATCH",
@@ -130,7 +134,7 @@ describe("Delegation Workflow — delegate_to_persona runtime tool", () => {
           "Delegation: lead delegates research tasks to researcher at runtime",
         category: "test",
         workflowType: "delegation",
-        personas: [
+        agentConfigs: [
           {
             name: LEAD,
             displayName: "Research Lead",
@@ -140,8 +144,9 @@ When you receive a task, you MUST immediately call the delegate_to_persona tool 
   - targetPersona: "researcher"
   - task: the research question you were given
 
-Do NOT attempt to answer the question yourself. Do NOT use any other tools.
-Just delegate and report that you have delegated the task.`,
+After you receive the result from the researcher, summarize it and include the researcher's answer in your response.
+
+Do NOT attempt to answer the question yourself. Do NOT use any other tools besides delegate_to_persona.`,
             model: "qwen/qwen3.5-9b",
             skills: ["memory"],
           },
@@ -168,8 +173,8 @@ Do NOT use any tools. Just provide a direct, factual answer.`,
           enabled: true,
           storageSize: "512Mi",
           accessRules: [
-            { persona: LEAD, access: "read-write" },
-            { persona: RESEARCHER, access: "read-write" },
+            { agentConfig: LEAD, access: "read-write" },
+            { agentConfig: RESEARCHER, access: "read-write" },
           ],
         },
       },
@@ -200,7 +205,7 @@ Do NOT use any tools. Just provide a direct, factual answer.`,
     waitForInstance(RESEARCHER_INSTANCE);
   });
 
-  it("dispatches to lead which delegates to researcher via delegate_to_persona", () => {
+  it("dispatches to lead which delegates to researcher and receives the result", () => {
     // Dispatch a run to the lead — the lead's system prompt instructs it
     // to delegate immediately to the researcher persona.
     cy.dispatchRun(
@@ -242,9 +247,47 @@ Do NOT use any tools. Just provide a direct, factual answer.`,
         }),
       );
 
-      // Wait for the lead run to complete (it should finish after the delegate)
+      // Wait for the lead run to complete — with blocking delegation the
+      // lead waits for the researcher result before finishing.
       cy.waitForRunTerminal(leadRunName, 5 * 60 * 1000).then((phase) => {
         expect(phase).to.eq("Succeeded");
+      });
+
+      // Verify the lead's result includes output from the researcher.
+      // Since delegation is now blocking, the lead receives the researcher's
+      // response and incorporates it into its own result.
+      cy.request({
+        url: `/api/v1/runs/${leadRunName}?namespace=${NS}`,
+        headers: authHeaders(),
+      }).then((resp) => {
+        const result = (resp.body?.status?.result || "") as string;
+        expect(
+          result.length > 0,
+          "lead should produce a non-empty result incorporating delegate output",
+        ).to.be.true;
+      });
+
+      // Verify DelegateStatus was populated on the parent run.
+      cy.request({
+        url: `/api/v1/runs/${leadRunName}?namespace=${NS}`,
+        headers: authHeaders(),
+      }).then((resp) => {
+        const delegates = (resp.body?.status?.delegates || []) as Array<{
+          childRunName: string;
+          targetPersona: string;
+          phase: string;
+          result?: string;
+        }>;
+        expect(
+          delegates.length,
+          "parent should have at least one delegate entry",
+        ).to.be.greaterThan(0);
+        expect(delegates[0].targetPersona).to.eq(RESEARCHER);
+        expect(delegates[0].phase).to.eq("Succeeded");
+        expect(
+          (delegates[0].result || "").length > 0,
+          "delegate status should contain the researcher's result",
+        ).to.be.true;
       });
     });
   });

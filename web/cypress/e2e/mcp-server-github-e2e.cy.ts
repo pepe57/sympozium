@@ -135,7 +135,7 @@ spec:
     cy.exec(`kubectl apply -f cypress/tmp/${INSTANCE}.yaml`);
 
     // Verify instance appears in the UI.
-    cy.visit("/instances");
+    cy.visit("/agents");
     cy.contains(INSTANCE, { timeout: 30000 }).should("be.visible");
 
     // ── Step 7: dispatch a run that exercises a GitHub MCP tool ──────────────

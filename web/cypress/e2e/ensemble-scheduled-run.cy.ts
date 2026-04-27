@@ -58,7 +58,7 @@ spec:
   authRefs:
     - provider: lm-studio
       secret: ""
-  personas:
+  agentConfigs:
     - name: ${PERSONA}
       displayName: Cypress Analyst
       systemPrompt: You are a precise echo service. When asked to reply with a specific string, reply with exactly that string and nothing else.
@@ -72,7 +72,7 @@ spec:
     cy.exec(`kubectl apply -f cypress/tmp/${PACK}.yaml`);
 
     // ── Step 2: wait for the stamped Instance and Schedule to appear ───────
-    cy.visit("/instances");
+    cy.visit("/agents");
     cy.contains(INSTANCE, { timeout: 60000 }).should("be.visible");
 
     cy.visit("/schedules");

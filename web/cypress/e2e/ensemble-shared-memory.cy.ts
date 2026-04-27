@@ -37,7 +37,7 @@ spec:
   enabled: false
   description: Cypress shared memory API test
   category: test
-  personas:
+  agentConfigs:
     - name: alpha
       systemPrompt: "Agent alpha."
       skills: [memory]
@@ -98,9 +98,9 @@ spec:
           enabled: true,
           storageSize: "512Mi",
           accessRules: [
-            { persona: "alpha", access: "read-write" },
-            { persona: "beta", access: "read-write" },
-            { persona: "gamma", access: "read-only" },
+            { agentConfig: "alpha", access: "read-write" },
+            { agentConfig: "beta", access: "read-write" },
+            { agentConfig: "gamma", access: "read-only" },
           ],
         },
       },
@@ -109,11 +109,11 @@ spec:
       const rules = resp.body.spec.sharedMemory.accessRules;
       expect(rules).to.have.length(3);
       expect(rules[0]).to.deep.include({
-        persona: "alpha",
+        agentConfig: "alpha",
         access: "read-write",
       });
       expect(rules[2]).to.deep.include({
-        persona: "gamma",
+        agentConfig: "gamma",
         access: "read-only",
       });
     });
@@ -129,9 +129,9 @@ spec:
           enabled: true,
           storageSize: "512Mi",
           accessRules: [
-            { persona: "alpha", access: "read-write" },
-            { persona: "beta", access: "read-only" },
-            { persona: "gamma", access: "read-only" },
+            { agentConfig: "alpha", access: "read-write" },
+            { agentConfig: "beta", access: "read-only" },
+            { agentConfig: "gamma", access: "read-only" },
           ],
         },
       },
@@ -140,7 +140,7 @@ spec:
       expect(resp.body.spec.sharedMemory.enabled).to.eq(true);
       expect(resp.body.spec.sharedMemory.storageSize).to.eq("512Mi");
       const betaRule = resp.body.spec.sharedMemory.accessRules.find(
-        (r: { persona: string }) => r.persona === "beta",
+        (r: { agentConfig: string }) => r.agentConfig === "beta",
       );
       expect(betaRule.access).to.eq("read-only");
     });
@@ -173,9 +173,9 @@ spec:
           enabled: true,
           storageSize: "1Gi",
           accessRules: [
-            { persona: "alpha", access: "read-write" },
-            { persona: "beta", access: "read-write" },
-            { persona: "gamma", access: "read-only" },
+            { agentConfig: "alpha", access: "read-write" },
+            { agentConfig: "beta", access: "read-write" },
+            { agentConfig: "gamma", access: "read-only" },
           ],
         },
       },
@@ -206,7 +206,7 @@ spec:
   description: Shared memory with relationships
   category: test
   workflowType: delegation
-  personas:
+  agentConfigs:
     - name: coordinator
       displayName: Coordinator
       systemPrompt: "You coordinate."
@@ -224,9 +224,9 @@ spec:
     enabled: true
     storageSize: "1Gi"
     accessRules:
-      - persona: coordinator
+      - agentConfig: coordinator
         access: read-write
-      - persona: worker
+      - agentConfig: worker
         access: read-write
 `;
     cy.writeFile(`cypress/tmp/${PACK}.yaml`, manifest);
@@ -293,8 +293,8 @@ spec:
           enabled: true,
           storageSize: "2Gi",
           accessRules: [
-            { persona: "coordinator", access: "read-write" },
-            { persona: "worker", access: "read-only" },
+            { agentConfig: "coordinator", access: "read-write" },
+            { agentConfig: "worker", access: "read-only" },
           ],
         },
       },
@@ -303,7 +303,7 @@ spec:
       // Shared memory updated
       expect(resp.body.spec.sharedMemory.storageSize).to.eq("2Gi");
       const workerRule = resp.body.spec.sharedMemory.accessRules.find(
-        (r: { persona: string }) => r.persona === "worker",
+        (r: { agentConfig: string }) => r.agentConfig === "worker",
       );
       expect(workerRule.access).to.eq("read-only");
       // Relationships untouched
@@ -331,7 +331,7 @@ spec:
   description: Shared memory UI test
   category: test
   workflowType: delegation
-  personas:
+  agentConfigs:
     - name: analyst
       displayName: Analyst
       systemPrompt: "You analyze."
@@ -355,11 +355,11 @@ spec:
     enabled: true
     storageSize: "1Gi"
     accessRules:
-      - persona: analyst
+      - agentConfig: analyst
         access: read-write
-      - persona: reporter
+      - agentConfig: reporter
         access: read-write
-      - persona: auditor
+      - agentConfig: auditor
         access: read-only
 `;
     cy.writeFile(`cypress/tmp/${PACK}.yaml`, manifest);
@@ -448,7 +448,7 @@ spec:
   enabled: false
   description: No shared memory
   category: test
-  personas:
+  agentConfigs:
     - name: solo
       displayName: Solo
       systemPrompt: "You work alone."
@@ -505,7 +505,7 @@ spec:
   enabled: false
   description: Shared memory list endpoint test
   category: test
-  personas:
+  agentConfigs:
     - name: agent
       systemPrompt: "You are an agent."
       skills: [memory]
@@ -550,7 +550,7 @@ describe("Research Team — shared memory config", () => {
   before(() => {
     // Apply the research-team pack (uses sed to override namespace)
     cy.exec(
-      `sed 's/namespace: sympozium-system/namespace: default/' ${Cypress.config().projectRoot}/../config/personas/research-team.yaml | kubectl apply -f -`,
+      `sed 's/namespace: sympozium-system/namespace: default/' ${Cypress.config().projectRoot}/../config/agent-configs/research-team.yaml | kubectl apply -f -`,
     );
     cy.request({
       url: `/api/v1/ensembles/${PACK}?namespace=${NS}`,
@@ -587,10 +587,10 @@ describe("Research Team — shared memory config", () => {
       // Lead, researcher, writer have read-write; reviewer has read-only
       const rwPersonas = rules
         .filter((r: { access: string }) => r.access === "read-write")
-        .map((r: { persona: string }) => r.persona);
+        .map((r: { agentConfig: string }) => r.agentConfig);
       const roPersonas = rules
         .filter((r: { access: string }) => r.access === "read-only")
-        .map((r: { persona: string }) => r.persona);
+        .map((r: { agentConfig: string }) => r.agentConfig);
 
       expect(rwPersonas).to.include.members(["lead", "researcher", "writer"]);
       expect(roPersonas).to.include.members(["reviewer"]);
@@ -611,7 +611,7 @@ describe("Research Team — shared memory config", () => {
       expect(spec.sharedMemory.enabled).to.eq(true);
 
       // 4 personas
-      expect(spec.personas).to.have.length(4);
+      expect(spec.agentConfigs).to.have.length(4);
 
       // Delegation workflow type
       expect(spec.workflowType).to.eq("delegation");
@@ -675,7 +675,7 @@ spec:
   enabled: false
   description: Edge case test
   category: test
-  personas:
+  agentConfigs:
     - name: one
       systemPrompt: "Agent one."
     - name: two
@@ -683,6 +683,12 @@ spec:
 `;
     cy.writeFile(`cypress/tmp/${PACK}.yaml`, manifest);
     cy.exec(`kubectl apply -f cypress/tmp/${PACK}.yaml`);
+    // Wait for the ensemble to be visible via the API.
+    cy.request({
+      url: `/api/v1/ensembles/${PACK}?namespace=${NS}`,
+      headers: apiHeaders(),
+      retryOnStatusCodeFailure: true,
+    });
   });
 
   after(() => {
@@ -734,8 +740,8 @@ spec:
           enabled: true,
           storageSize: "2Gi",
           accessRules: [
-            { persona: "one", access: "read-write" },
-            { persona: "two", access: "read-only" },
+            { agentConfig: "one", access: "read-write" },
+            { agentConfig: "two", access: "read-only" },
           ],
         },
       },
@@ -764,8 +770,8 @@ spec:
           enabled: true,
           storageSize: "1Gi",
           accessRules: [
-            { persona: "one", access: "read-write" },
-            { persona: "two", access: "read-write" },
+            { agentConfig: "one", access: "read-write" },
+            { agentConfig: "two", access: "read-write" },
           ],
         },
       },

@@ -28,7 +28,7 @@ spec:
   category: test
   version: "1.0"
   workflowType: delegation
-  personas:
+  agentConfigs:
     - name: researcher
       displayName: Researcher
       systemPrompt: "You are a researcher."
@@ -135,7 +135,7 @@ metadata:
 spec:
   enabled: false
   description: Pack with no relationships
-  personas:
+  agentConfigs:
     - name: solo
       displayName: Solo Agent
       systemPrompt: "You work alone."
@@ -176,7 +176,7 @@ metadata:
   namespace: ${NS}
 spec:
   enabled: false
-  personas:
+  agentConfigs:
     - name: alpha
       systemPrompt: "Agent alpha."
     - name: beta

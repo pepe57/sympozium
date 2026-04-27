@@ -4,7 +4,7 @@
 
 describe("Empty States — contextual guidance", () => {
   it("shows contextual empty state on instances page", () => {
-    cy.visit("/instances");
+    cy.visit("/agents");
 
     // Search for something guaranteed not to exist.
     cy.get("input[placeholder*='Search']", { timeout: 20000 })

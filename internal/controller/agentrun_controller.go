@@ -233,6 +233,8 @@ func (r *AgentRunReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		result, err = r.reconcilePostRunning(ctx, log, agentRun)
 	case sympoziumv1alpha1.AgentRunPhaseServing:
 		result, err = r.reconcileServing(ctx, log, agentRun)
+	case sympoziumv1alpha1.AgentRunPhaseAwaitingDelegate:
+		result, err = r.reconcileAwaitingDelegate(ctx, log, agentRun)
 	case sympoziumv1alpha1.AgentRunPhaseSucceeded, sympoziumv1alpha1.AgentRunPhaseFailed:
 		result, err = r.reconcileCompleted(ctx, log, agentRun)
 	default:
@@ -746,6 +748,21 @@ func (r *AgentRunReconciler) reconcileCompleted(ctx context.Context, log logr.Lo
 	return ctrl.Result{}, nil
 }
 
+// reconcileAwaitingDelegate handles AgentRuns that are waiting for a delegated
+// child run to complete. The agent pod is still alive (the delegate tool is
+// blocking), so the main responsibility is to skip timeout enforcement while
+// the parent waits. The SpawnRouter transitions the parent back to Running
+// once the child finishes and delivers the result via IPC.
+func (r *AgentRunReconciler) reconcileAwaitingDelegate(ctx context.Context, log logr.Logger, agentRun *sympoziumv1alpha1.AgentRun) (ctrl.Result, error) {
+	log.Info("AgentRun awaiting delegate completion",
+		"delegates", len(agentRun.Status.Delegates),
+	)
+	// Requeue periodically so the controller can react to phase transitions
+	// made by the SpawnRouter. No timeout check — the parent is blocked on
+	// a delegation tool call and the child may take several minutes.
+	return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+}
+
 // triggerSequentialSuccessors looks up the Ensemble that owns this run's
 // instance. For each sequential relationship where the completed persona is the
 // source, it creates a new AgentRun for the target persona — implementing the
@@ -797,23 +814,16 @@ func (r *AgentRunReconciler) triggerSequentialSuccessors(ctx context.Context, lo
 			continue
 		}
 
-		// Build a task that references the predecessor's result (truncated to
-		// avoid exceeding the model's context window).
-		predecessorResult := agentRun.Status.Result
-		if len(predecessorResult) > 500 {
-			predecessorResult = predecessorResult[:500] + "..."
-		}
-		task := fmt.Sprintf("The previous agent (%s) has completed. Their result:\n\n%s\n\nContinue the workflow as your role requires.",
-			sourcePersona, predecessorResult)
-
-		// Find the target persona spec for its schedule task (if any).
+		// Build a structured handoff card so the successor agent can clearly
+		// distinguish what happened from what it should do next.
+		targetTask := ""
 		for _, p := range ensemble.Spec.AgentConfigs {
 			if p.Name == targetPersona && p.Schedule != nil && p.Schedule.Task != "" {
-				task = fmt.Sprintf("The previous agent (%s) has completed. Their result:\n\n%s\n\nYour task: %s",
-					sourcePersona, predecessorResult, p.Schedule.Task)
+				targetTask = p.Schedule.Task
 				break
 			}
 		}
+		task := buildHandoffTask(sourcePersona, agentRun.Spec.Task, agentRun.Status.Result, targetTask)
 
 		// Create the successor AgentRun.
 		runName := fmt.Sprintf("%s-seq-%d", targetAgentName, time.Now().UnixMilli()%100000)
@@ -840,6 +850,12 @@ func (r *AgentRunReconciler) triggerSequentialSuccessors(ctx context.Context, lo
 				ImagePullSecrets: targetInst.Spec.ImagePullSecrets,
 				Lifecycle:        targetInst.Spec.Agents.Default.Lifecycle,
 			},
+		}
+
+		// Propagate dry run flag through the pipeline.
+		if agentRun.Spec.DryRun {
+			successorRun.Spec.DryRun = true
+			successorRun.Labels["sympozium.ai/dry-run"] = "true"
 		}
 
 		// Copy skills from the target instance.
@@ -875,6 +891,46 @@ func (r *AgentRunReconciler) triggerSequentialSuccessors(ctx context.Context, lo
 	}
 
 	return nil
+}
+
+// buildHandoffTask produces a structured handoff card for sequential pipeline
+// transitions. The card clearly separates what the predecessor was asked to do,
+// what it produced, and what the successor should do next.
+func buildHandoffTask(sourcePersona, predecessorTask, predecessorResult, targetTask string) string {
+	originalTask := extractOriginalTask(predecessorTask)
+	if len(originalTask) > 200 {
+		originalTask = originalTask[:200] + "..."
+	}
+	if len(predecessorResult) > 800 {
+		predecessorResult = predecessorResult[:800] + "..."
+	}
+	if targetTask == "" {
+		targetTask = "Continue the workflow as your role requires."
+	}
+
+	return fmt.Sprintf("## Handoff from %s\n\n### Previous Task\n%s\n\n### Result\n%s\n\n### Your Task\n%s",
+		sourcePersona, originalTask, predecessorResult, targetTask)
+}
+
+// extractOriginalTask strips nested handoff headers from a task string. When
+// pipelines chain (A→B→C), each successor's task is itself a handoff card. This
+// function extracts the original task from the innermost "### Previous Task"
+// section so context doesn't compound across hops.
+func extractOriginalTask(task string) string {
+	if !strings.HasPrefix(task, "## Handoff from") {
+		return task
+	}
+	const marker = "### Previous Task\n"
+	idx := strings.Index(task, marker)
+	if idx < 0 {
+		return task
+	}
+	rest := task[idx+len(marker):]
+	endIdx := strings.Index(rest, "\n### ")
+	if endIdx < 0 {
+		return strings.TrimSpace(rest)
+	}
+	return strings.TrimSpace(rest[:endIdx])
 }
 
 // runHistoryLimit returns the effective run history limit.
@@ -1758,6 +1814,13 @@ func (r *AgentRunReconciler) buildContainers(
 				},
 			},
 		}
+	}
+
+	// Inject DRY_RUN flag so the agent-runner skips the LLM call.
+	if agentRun.Spec.DryRun {
+		containers[0].Env = append(containers[0].Env,
+			corev1.EnvVar{Name: "DRY_RUN", Value: "true"},
+		)
 	}
 
 	// Add memory volume mount if legacy memory is enabled.

@@ -9,7 +9,7 @@ describe("Create Instance — web-endpoint skill", () => {
   });
 
   it("walks the wizard, enables web-endpoint, and creates the instance", () => {
-    cy.visit("/instances");
+    cy.visit("/agents");
     cy.contains("button", "Create Instance", { timeout: 20000 }).click();
 
     // ── Step 1: Name ──────────────────────────────────────────

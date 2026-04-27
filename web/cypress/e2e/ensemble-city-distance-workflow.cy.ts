@@ -70,7 +70,7 @@ describe("City Distance Research — sequential workflow with shared memory", ()
           "Two-agent research team: lead investigator researches London-Cairo distance, fact-checker validates via shared memory.",
         category: "test",
         workflowType: "delegation",
-        personas: [
+        agentConfigs: [
           {
             name: LEAD,
             displayName: "Lead Investigator",
@@ -113,14 +113,14 @@ Do NOT write code. Just search memory, verify the fact, store your result, and r
           enabled: true,
           storageSize: "512Mi",
           accessRules: [
-            { persona: LEAD, access: "read-write" },
-            { persona: CHECKER, access: "read-write" },
+            { agentConfig: LEAD, access: "read-write" },
+            { agentConfig: CHECKER, access: "read-write" },
           ],
         },
       },
     }).then((resp) => {
       expect(resp.status).to.eq(201);
-      expect(resp.body.spec.personas).to.have.length(2);
+      expect(resp.body.spec.agentConfigs).to.have.length(2);
       expect(resp.body.spec.relationships).to.have.length(1);
       expect(resp.body.spec.sharedMemory.enabled).to.eq(true);
     });
@@ -134,7 +134,7 @@ Do NOT write code. Just search memory, verify the fact, store your result, and r
       const spec = resp.body.spec;
 
       // Two personas
-      const names = spec.personas.map((p: { name: string }) => p.name);
+      const names = spec.agentConfigs.map((p: { name: string }) => p.name);
       expect(names).to.include.members([LEAD, CHECKER]);
 
       // Sequential relationship

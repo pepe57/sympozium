@@ -38,6 +38,19 @@ spec:
       target: reviewer
       type: supervision
 
+  sharedMemory:
+    enabled: true
+    storageSize: "1Gi"
+    accessRules:
+      - agentConfig: lead
+        access: read-write
+      - agentConfig: researcher
+        access: read-write
+      - agentConfig: writer
+        access: read-write
+      - agentConfig: reviewer
+        access: read-only
+
   agentConfigs:
     - name: lead
       displayName: "Research Lead"

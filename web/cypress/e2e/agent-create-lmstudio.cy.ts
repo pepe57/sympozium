@@ -8,7 +8,7 @@ describe("Create Instance — LM Studio", () => {
   });
 
   it("walks through the wizard and creates the instance", () => {
-    cy.visit("/instances");
+    cy.visit("/agents");
 
     cy.contains("button", "Create Instance", { timeout: 20000 }).click();
 

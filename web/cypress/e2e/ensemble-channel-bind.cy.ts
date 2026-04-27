@@ -25,7 +25,7 @@ spec:
   authRefs:
     - provider: lm-studio
       secret: ""
-  personas:
+  agentConfigs:
     - name: ${PERSONA}
       systemPrompt: You notify via channel.
       model: qwen/qwen3.5-9b
@@ -35,7 +35,7 @@ spec:
     cy.writeFile(`cypress/tmp/${PACK}.yaml`, manifest);
     cy.exec(`kubectl apply -f cypress/tmp/${PACK}.yaml`);
 
-    cy.visit("/instances");
+    cy.visit("/agents");
     cy.contains(STAMPED_INSTANCE, { timeout: 30000 })
       .should("be.visible")
       .click();

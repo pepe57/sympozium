@@ -3,7 +3,7 @@
 
 describe("Instance name validation", () => {
   beforeEach(() => {
-    cy.visit("/instances");
+    cy.visit("/agents");
     cy.contains("button", "Create Instance", { timeout: 20000 }).click();
   });
 

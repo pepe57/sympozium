@@ -413,8 +413,8 @@ export function EnsembleDetailPage() {
           </div>
 
           {/* Installed Instances */}
-          {pack.status?.installedAgentConfigs &&
-            pack.status.installedAgentConfigs.length > 0 && (
+          {pack.status?.installedPersonas &&
+            pack.status.installedPersonas.length > 0 && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">
@@ -423,7 +423,7 @@ export function EnsembleDetailPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {pack.status.installedAgentConfigs.map((ip) => (
+                    {pack.status.installedPersonas.map((ip) => (
                       <Link
                         key={ip.agentName}
                         to={`/agents/${ip.agentName}`}
@@ -476,7 +476,7 @@ export function EnsembleDetailPage() {
               Personas ({pack.spec.agentConfigs?.length ?? 0})
             </h2>
             {pack.spec.agentConfigs?.map((persona, i) => {
-              const installed = pack.status?.installedAgentConfigs?.some(
+              const installed = pack.status?.installedPersonas?.some(
                 (ip) => ip.name === persona.name,
               );
               const isEditing = editingPersona === persona.name;

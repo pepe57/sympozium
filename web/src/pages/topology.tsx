@@ -55,7 +55,7 @@ import { Link } from "react-router-dom";
 
 function K8sNodeNode({ data }: NodeProps<Node<K8sNodeData>>) {
   return (
-    <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-4 py-3 min-w-[200px] shadow-md">
+    <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-4 py-3 min-w-[240px] shadow-md">
       <Handle type="source" position={Position.Bottom} className="!bg-emerald-500 !w-2 !h-2" />
       <div className="flex items-center gap-2 mb-2">
         <Server className="h-4 w-4 text-emerald-400" />
@@ -297,8 +297,8 @@ const nodeTypes = {
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 
-const COL_GAP = 280;
-const ROW_GAP = 120;
+const COL_GAP = 340;
+const ROW_GAP = 180;
 
 /** Center a layer of N items horizontally around x=0 with COL_GAP spacing. */
 function centerX(count: number, index: number): number {
@@ -424,7 +424,7 @@ function buildTopology(
         routes: webEndpointAgents,
       },
     });
-    layerY += 80;
+    layerY += 100;
   }
 
   // ── Layer 1: K8s Nodes ──────────────────────────────────────────────────
@@ -475,7 +475,7 @@ function buildTopology(
         }
       }
     });
-    layerY += 70;
+    layerY += 90;
   }
 
   // Cloud/external providers — standalone, positioned to the right.
@@ -483,7 +483,7 @@ function buildTopology(
     // Place cloud providers at the same Y as the K8s node but offset right.
     const cloudBaseX = (providerNodes.length > 0 ? providerNodes.length : 1) * COL_GAP / 2 + 200;
     const cloudY = providerNodes.length > 0
-      ? layerY - 70 - ROW_GAP + 30 // align with the node layer
+      ? layerY - 90 - ROW_GAP + 30 // align with the node layer
       : layerY;
     cloudProvEntries.forEach(([prov, label], i) => {
       nodes.push({
@@ -546,7 +546,7 @@ function buildTopology(
 
   // ── Layer 3: Ensembles ───────────────────────────────────────────────
   // Split into active (expanded with personas) and inactive (compact grid).
-  const PERSONA_COL_W = 170;
+  const PERSONA_COL_W = 210;
   const activeEnsembles = ensembles.filter((e) => e.spec.enabled);
   const inactiveEnsembles = ensembles.filter((e) => !e.spec.enabled);
 
@@ -607,9 +607,9 @@ function buildTopology(
 
   // 3a. Active ensembles — each gets a group box with personas expanded inside.
   // Pre-compute widths so we can lay them out without overlapping.
-  const ACTIVE_GAP = 40; // px between group boxes
-  const PERSONA_MAX_COLS = 3;
-  const PERSONA_ROW_H = 50;
+  const ACTIVE_GAP = 60; // px between group boxes
+  const PERSONA_MAX_COLS = 2;
+  const PERSONA_ROW_H = 70;
   const activeWidths = activeEnsembles.map((ens) => {
     const n = (ens.spec.agentConfigs || []).length;
     const cols = Math.min(n, PERSONA_MAX_COLS);
@@ -718,7 +718,7 @@ function buildTopology(
       const h = rows > 0 ? 60 + rows * PERSONA_ROW_H + 10 : 50;
       return Math.max(max, h);
     }, 0);
-    layerY += maxGroupH + 30;
+    layerY += maxGroupH + 50;
   }
 
   // 3b. Inactive ensembles — faded, spread wider to the sides.

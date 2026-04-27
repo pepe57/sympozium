@@ -19,7 +19,7 @@ describe("Research Team — default pack with relationships", () => {
     // Apply the research-team pack to the default namespace.
     // Use sed to override the namespace from sympozium-system to default.
     cy.exec(
-      `sed 's/namespace: sympozium-system/namespace: default/' ${Cypress.config().projectRoot}/../config/personas/research-team.yaml | kubectl apply -f -`,
+      `sed 's/namespace: sympozium-system/namespace: default/' ${Cypress.config().projectRoot}/../config/agent-configs/research-team.yaml | kubectl apply -f -`,
     );
     // Wait for API to serve it
     cy.request({
@@ -48,8 +48,8 @@ describe("Research Team — default pack with relationships", () => {
       const spec = resp.body.spec;
 
       // 4 personas
-      expect(spec.personas).to.have.length(4);
-      const names = spec.personas.map(
+      expect(spec.agentConfigs).to.have.length(4);
+      const names = spec.agentConfigs.map(
         (p: { name: string }) => p.name,
       );
       expect(names).to.include.members([

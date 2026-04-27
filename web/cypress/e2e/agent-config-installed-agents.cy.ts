@@ -24,7 +24,7 @@ spec:
   authRefs:
     - provider: lm-studio
       secret: ""
-  personas:
+  agentConfigs:
     - name: ${PERSONA}
       systemPrompt: You are a helper.
       model: qwen/qwen3.5-9b
@@ -33,7 +33,7 @@ spec:
     cy.exec(`kubectl apply -f cypress/tmp/${PACK}.yaml`);
 
     // Wait for the instance to be stamped.
-    cy.visit("/instances");
+    cy.visit("/agents");
     cy.contains(STAMPED_INSTANCE, { timeout: 30000 }).should("be.visible");
 
     // Navigate to the ensemble detail page.
@@ -41,7 +41,7 @@ spec:
 
     // The "Installed Instances" section should show the stamped instance.
     cy.contains("Installed Instances", { timeout: 20000 }).should("be.visible");
-    cy.contains(STAMPED_INSTANCE).should("be.visible");
+    cy.contains(STAMPED_INSTANCE, { timeout: 30000 }).should("be.visible");
 
     // Click the instance link — should navigate to instance detail.
     cy.contains("a", STAMPED_INSTANCE).click();

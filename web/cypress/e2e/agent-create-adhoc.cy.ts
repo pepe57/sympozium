@@ -16,7 +16,7 @@ describe("Ad-hoc Instance — Create and Run", () => {
   });
 
   it("creates an instance via the wizard", () => {
-    cy.visit("/instances");
+    cy.visit("/agents");
 
     cy.contains("button", "Create Instance", { timeout: 20000 }).click();
 

@@ -128,7 +128,7 @@ describe("Sequential Workflow — automatic trigger on completion", () => {
           "Sequential: researcher-0 discovers, researcher-1 auto-triggered to validate",
         category: "test",
         workflowType: "delegation",
-        personas: [
+        agentConfigs: [
           {
             name: R0,
             displayName: "Primary Researcher",
@@ -160,8 +160,8 @@ When triggered, call workflow_memory_search to find the primary researcher's fin
           enabled: true,
           storageSize: "512Mi",
           accessRules: [
-            { persona: R0, access: "read-write" },
-            { persona: R1, access: "read-write" },
+            { agentConfig: R0, access: "read-write" },
+            { agentConfig: R1, access: "read-write" },
           ],
         },
       },

@@ -8,7 +8,7 @@ describe("Create Instance — llama-server", () => {
   });
 
   it("walks through the wizard and creates the instance", () => {
-    cy.visit("/instances");
+    cy.visit("/agents");
 
     cy.contains("button", "Create Instance", { timeout: 20000 }).click();
 

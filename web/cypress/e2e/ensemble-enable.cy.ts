@@ -52,7 +52,7 @@ describe("Ensemble — Enable via Wizard", () => {
   });
 
   it("selects a ensemble, configures LM Studio, and activates it", () => {
-    cy.visit("/personas");
+    cy.visit("/ensembles");
 
     // Wait for the ensembles to render and find an Enable button.
     cy.contains("button", "Enable", { timeout: 20000 }).should("be.visible");
@@ -91,9 +91,9 @@ describe("Ensemble — Enable via Wizard", () => {
     // Step: Skills — accept defaults.
     cy.wizardNext();
 
-    // Step: Heartbeat — accept pack default.
+    // Step: Heartbeat — accept ensemble default.
     cy.get("[role='dialog']")
-      .contains("button", "Pack default")
+      .contains("button", "Ensemble default")
       .click({ force: true });
     cy.wizardNext();
 
@@ -111,7 +111,7 @@ describe("Ensemble — Enable via Wizard", () => {
     cy.get("[role='dialog']").should("not.exist", { timeout: 20000 });
 
     // ── Verify instances were created by the pack ─────────────
-    cy.visit("/instances");
+    cy.visit("/agents");
     // Ensemble activation creates stamped instances — at least one should exist.
     cy.get("table", { timeout: 20000 }).should("exist");
   });

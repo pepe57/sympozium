@@ -423,11 +423,11 @@ function styledEdge(
 /** Build a run-phase map from runs: persona name → { phase, task } */
 function buildRunPhaseMap(
   runs: AgentRun[] | undefined,
-  installedAgentConfigs: Array<{ name: string; agentName: string }> | undefined,
+  installedPersonas: Array<{ name: string; agentName: string }> | undefined,
 ): Map<string, { phase: string; task?: string }> {
   const map = new Map<string, { phase: string; task?: string }>();
-  if (!runs || !installedAgentConfigs) return map;
-  for (const ip of installedAgentConfigs) {
+  if (!runs || !installedPersonas) return map;
+  for (const ip of installedPersonas) {
     const instanceRuns = runs
       .filter((r) => r.spec.agentRef === ip.agentName)
       .sort(
@@ -798,8 +798,8 @@ export function EnsembleCanvas({ pack }: EnsembleCanvasProps) {
   }, [models]);
 
   const runPhaseMap = useMemo(
-    () => buildRunPhaseMap(runs, pack.status?.installedAgentConfigs),
-    [runs, pack.status?.installedAgentConfigs],
+    () => buildRunPhaseMap(runs, pack.status?.installedPersonas),
+    [runs, pack.status?.installedPersonas],
   );
 
   const initialNodes = useMemo(() => {
@@ -813,7 +813,7 @@ export function EnsembleCanvas({ pack }: EnsembleCanvasProps) {
     const sharedMemEnabled = pack.spec.sharedMemory?.enabled ?? false;
     for (const node of nodes) {
       node.data.hasSharedMemory = sharedMemEnabled;
-      const ip = pack.status?.installedAgentConfigs?.find(
+      const ip = pack.status?.installedPersonas?.find(
         (p) => p.name === node.id,
       );
       if (ip) node.data.agentName = ip.agentName;
@@ -833,7 +833,7 @@ export function EnsembleCanvas({ pack }: EnsembleCanvasProps) {
     relationships,
     pack,
     pack.spec.sharedMemory?.enabled,
-    pack.status?.installedAgentConfigs,
+    pack.status?.installedPersonas,
     runPhaseMap,
     modelMap,
   ]);
@@ -1107,7 +1107,7 @@ export function GlobalEnsembleCanvas() {
         node.data.packName = pack.metadata.name;
         node.data.hasSharedMemory = sharedMemoryEnabled;
         const personaName = node.id.split("/")[1] || node.id;
-        const ip = pack.status?.installedAgentConfigs?.find(
+        const ip = pack.status?.installedPersonas?.find(
           (p) => p.name === personaName,
         );
         if (ip) node.data.agentName = ip.agentName;
@@ -1134,7 +1134,7 @@ export function GlobalEnsembleCanvas() {
     for (const pack of enabledPacks) {
       runPhaseMaps.set(
         pack.metadata.name,
-        buildRunPhaseMap(runs, pack.status?.installedAgentConfigs),
+        buildRunPhaseMap(runs, pack.status?.installedPersonas),
       );
     }
     return layoutedNodes.map((node) => {
@@ -1246,7 +1246,7 @@ export function DashboardEnsembleCanvas() {
           visiblePacks.length > 1 ? pack.metadata.name : undefined;
         node.data.hasSharedMemory = sharedMemEnabled;
         const personaName = node.id.split("/")[1] || node.id;
-        const ip = pack.status?.installedAgentConfigs?.find(
+        const ip = pack.status?.installedPersonas?.find(
           (p) => p.name === personaName,
         );
         if (ip) node.data.agentName = ip.agentName;
@@ -1272,7 +1272,7 @@ export function DashboardEnsembleCanvas() {
     for (const pack of visiblePacks) {
       runPhaseMaps.set(
         pack.metadata.name,
-        buildRunPhaseMap(runs, pack.status?.installedAgentConfigs),
+        buildRunPhaseMap(runs, pack.status?.installedPersonas),
       );
     }
     return dashLayoutNodes.map((node) => {

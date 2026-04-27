@@ -367,9 +367,11 @@ func sendChannelMessageTool(args map[string]any) string {
 
 // --- Delegate to persona tool (IPC-based) ---
 
-// delegateToPersonaTool writes a spawn request to /ipc/spawn/ with
-// targetPersona and packName for the IPC bridge to forward to the spawner.
-// The spawner resolves the persona to the correct Agent.
+// delegateToPersonaTool writes a spawn request to /ipc/spawn/ and blocks
+// until the delegate child run completes, returning the result to the LLM.
+// The IPC bridge forwards the request to the SpawnRouter which creates the
+// child AgentRun. When the child finishes, the SpawnRouter publishes the
+// result back through the bridge to /ipc/spawn/result-{requestID}.json.
 func delegateToPersonaTool(args map[string]any) string {
 	targetPersona, _ := args["targetPersona"].(string)
 	task, _ := args["task"].(string)
@@ -387,12 +389,16 @@ func delegateToPersonaTool(args map[string]any) string {
 			"ENSEMBLE_NAME environment variable is not set."
 	}
 
+	requestID := fmt.Sprintf("%d", time.Now().UnixNano())
+
 	req := struct {
+		RequestID     string `json:"requestId"`
 		Task          string `json:"task"`
 		AgentID       string `json:"agentId"`
 		TargetPersona string `json:"targetPersona"`
 		PackName      string `json:"packName"`
 	}{
+		RequestID:     requestID,
 		Task:          task,
 		AgentID:       "default",
 		TargetPersona: targetPersona,
@@ -406,17 +412,42 @@ func delegateToPersonaTool(args map[string]any) string {
 
 	dir := "/ipc/spawn"
 	_ = os.MkdirAll(dir, 0o755)
-	id := fmt.Sprintf("%d", time.Now().UnixNano())
-	path := filepath.Join(dir, fmt.Sprintf("request-%s.json", id))
+	reqPath := filepath.Join(dir, fmt.Sprintf("request-%s.json", requestID))
+	resPath := filepath.Join(dir, fmt.Sprintf("result-%s.json", requestID))
 
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(reqPath, data, 0o644); err != nil {
 		return fmt.Sprintf("Error writing spawn request: %v", err)
 	}
 
-	log.Printf("Delegated to persona %q in pack %q: task=%s", targetPersona, packName, truncateStr(task, 100))
-	return fmt.Sprintf("Delegation request sent to persona '%s'. "+
-		"A new AgentRun will be created for the target persona. "+
-		"The result will be available once the delegate completes.", targetPersona)
+	log.Printf("Delegated to persona %q in pack %q (requestID=%s): task=%s",
+		targetPersona, packName, requestID, truncateStr(task, 100))
+
+	// Block until the delegate result arrives or timeout.
+	deadline := time.Now().Add(10 * time.Minute)
+	for time.Now().Before(deadline) {
+		resData, err := os.ReadFile(resPath)
+		if err == nil && len(resData) > 0 {
+			var result struct {
+				Status   string `json:"status"`
+				Response string `json:"response"`
+				Error    string `json:"error"`
+			}
+			if json.Unmarshal(resData, &result) == nil {
+				_ = os.Remove(reqPath)
+				_ = os.Remove(resPath)
+				if result.Status == "error" {
+					log.Printf("Delegation to %q failed: %s", targetPersona, result.Error)
+					return fmt.Sprintf("Delegation to '%s' failed: %s", targetPersona, result.Error)
+				}
+				log.Printf("Delegation to %q succeeded (%d bytes)", targetPersona, len(result.Response))
+				return fmt.Sprintf("Result from %s:\n\n%s", targetPersona, result.Response)
+			}
+		}
+		time.Sleep(2 * time.Second)
+	}
+
+	log.Printf("Delegation to %q timed out after 10 minutes", targetPersona)
+	return fmt.Sprintf("Error: delegation to '%s' timed out after 10 minutes", targetPersona)
 }
 
 // --- Web fetch tool (runs in the agent container) ---

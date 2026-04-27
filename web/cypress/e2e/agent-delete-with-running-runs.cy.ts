@@ -21,12 +21,12 @@ describe("Instance delete — with recent runs", () => {
   });
 
   it("deletes instance cleanly and removes it from the list", () => {
-    cy.visit("/instances");
+    cy.visit("/agents");
     cy.contains(INSTANCE, { timeout: 20000 }).should("be.visible");
 
     cy.deleteAgent(INSTANCE);
 
-    cy.visit("/instances");
+    cy.visit("/agents");
     cy.contains(INSTANCE, { timeout: 20000 }).should("not.exist");
 
     // Runs page should still render without errors, and the old run row

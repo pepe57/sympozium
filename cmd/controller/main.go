@@ -229,6 +229,16 @@ func main() {
 				os.Exit(1)
 			}
 
+			spawnRouter := &controller.SpawnRouter{
+				Client:   mgr.GetClient(),
+				EventBus: eb,
+				Log:      ctrl.Log.WithName("spawn-router"),
+			}
+			if err := mgr.Add(spawnRouter); err != nil {
+				setupLog.Error(err, "unable to add spawn router")
+				os.Exit(1)
+			}
+
 			setupLog.Info("Channel message router enabled", "natsURL", natsURL)
 		}
 	} else {

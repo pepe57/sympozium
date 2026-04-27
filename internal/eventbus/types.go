@@ -55,6 +55,7 @@ const (
 	TopicToolExecResult       = "tool.exec.result"
 	TopicToolApprovalRequest  = "tool.approval.request"
 	TopicToolApprovalResponse = "tool.approval.response"
+	TopicAgentDelegateResult  = "agent.delegate.result" // per-run: agent.delegate.result.{parentRunID}
 	TopicScheduleUpsert       = "schedule.upsert"
 )
 

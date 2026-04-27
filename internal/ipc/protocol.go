@@ -46,6 +46,10 @@ type StreamChunk struct {
 
 // SpawnRequest is written to /ipc/spawn/request-*.json to request sub-agent creation.
 type SpawnRequest struct {
+	// RequestID correlates this spawn request with the result delivered back
+	// to the caller. The delegate tool blocks until result-{RequestID}.json appears.
+	RequestID string `json:"requestId,omitempty"`
+
 	Task         string   `json:"task"`
 	SystemPrompt string   `json:"systemPrompt,omitempty"`
 	AgentID      string   `json:"agentId"`
@@ -58,6 +62,16 @@ type SpawnRequest struct {
 	// PackName is the Ensemble containing both the source and target personas.
 	// Required when TargetPersona is set.
 	PackName string `json:"packName,omitempty"`
+}
+
+// DelegateResult is written to /ipc/spawn/result-{requestID}.json by the IPC
+// bridge when a delegated child run completes. The delegate_to_persona tool
+// polls for this file to deliver the result back to the LLM.
+type DelegateResult struct {
+	RequestID string `json:"requestId"`
+	Status    string `json:"status"` // "success" or "error"
+	Response  string `json:"response,omitempty"`
+	Error     string `json:"error,omitempty"`
 }
 
 // ExecRequest is written to /ipc/tools/exec-request-*.json for sandbox execution.

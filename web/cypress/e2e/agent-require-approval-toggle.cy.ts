@@ -15,7 +15,7 @@ describe("Instance -- require approval toggle", () => {
 
   it("enables and disables approval via the detail page toggle", () => {
     // Instance list should NOT show gate badge initially.
-    cy.visit("/instances");
+    cy.visit("/agents");
     cy.contains("td", INSTANCE, { timeout: 20000 })
       .parents("tr")
       .within(() => {
@@ -39,7 +39,7 @@ describe("Instance -- require approval toggle", () => {
 
     // Instance list should now show the gate badge.
     cy.wait(2000);
-    cy.visit("/instances");
+    cy.visit("/agents");
     cy.contains("td", INSTANCE, { timeout: 20000 })
       .parents("tr")
       .within(() => {
@@ -80,7 +80,7 @@ describe("Instance -- require approval toggle", () => {
 
     // Instance list should no longer show the gate badge.
     cy.wait(2000);
-    cy.visit("/instances");
+    cy.visit("/agents");
     cy.contains("td", INSTANCE, { timeout: 20000 })
       .parents("tr")
       .within(() => {

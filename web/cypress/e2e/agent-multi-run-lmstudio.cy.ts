@@ -23,7 +23,7 @@ describe("Ad-hoc Instance — Multiple Runs and Delete", () => {
   });
 
   it("creates the LM Studio instance via the wizard", () => {
-    cy.visit("/instances");
+    cy.visit("/agents");
 
     cy.contains("button", "Create Instance", { timeout: 20000 }).click();
 
@@ -116,7 +116,7 @@ describe("Ad-hoc Instance — Multiple Runs and Delete", () => {
     cy.waitForDeleted(`/api/v1/agents/${INSTANCE}?namespace=default`);
 
     // UI: instance no longer shown in the list.
-    cy.visit("/instances");
+    cy.visit("/agents");
     cy.contains(INSTANCE, { timeout: 20000 }).should("not.exist");
   });
 });
