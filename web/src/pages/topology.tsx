@@ -1063,7 +1063,7 @@ function TopologyCanvas() {
           className="topology-canvas"
         >
           <Background color="#333" />
-          <Controls />
+          <Controls showInteractive={false} />
           <MiniMap
             style={{ background: "hsl(var(--card))" }}
             maskColor="rgba(0,0,0,0.6)"
