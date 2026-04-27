@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.5](https://github.com/sympozium-ai/sympozium/compare/v0.10.4...v0.10.5) (2026-04-27)
+
+
+### Bug Fixes
+
+* topology page TypeScript build errors ([8a9b712](https://github.com/sympozium-ai/sympozium/commit/8a9b712e55827c975e653c9d3f4a3779ea5684af))
+
 ## [0.10.4](https://github.com/sympozium-ai/sympozium/compare/v0.10.3...v0.10.4) (2026-04-27)
 
 
