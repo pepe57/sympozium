@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.10.8](https://github.com/sympozium-ai/sympozium/compare/v0.10.7...v0.10.8) (2026-04-28)
+
+
+### Features
+
+* add ensemble delete button + auto-derive permeability from relationships ([93a8ec1](https://github.com/sympozium-ai/sympozium/commit/93a8ec1c3496742275365ee2f410de7ac488e08a))
+* add synthetic membrane layer for shared workflow memory ([5a30192](https://github.com/sympozium-ai/sympozium/commit/5a3019269a3ee9f7e73e5eab6cc30755b52f552d))
+* synthetic membrane layer for shared workflow memory ([a582317](https://github.com/sympozium-ai/sympozium/commit/a5823176a3e03bd80489ea9542c0c78b2c0b4154))
+
+
+### Bug Fixes
+
+* update expected default Ensemble count from 5 to 6 ([e2aedf3](https://github.com/sympozium-ai/sympozium/commit/e2aedf3d5bf23f1ccddf6f9191338ad005d929bb))
+
 ## [0.10.7](https://github.com/sympozium-ai/sympozium/compare/v0.10.6...v0.10.7) (2026-04-28)
 
 
