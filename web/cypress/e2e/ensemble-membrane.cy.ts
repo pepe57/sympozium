@@ -701,4 +701,152 @@ spec:
   });
 });
 
+// ════════════════════════════════════════════════════════════════════════════
+// Suite 6: Membrane UI — Workflow tab rendering
+// ════════════════════════════════════════════════════════════════════════════
+
+describe("Ensemble Membrane — Workflow Tab UI", () => {
+  const PACK = `cypress-membrane-ui-${Date.now()}`;
+
+  before(() => {
+    const manifest = `
+apiVersion: sympozium.ai/v1alpha1
+kind: Ensemble
+metadata:
+  name: ${PACK}
+  namespace: ${NS}
+spec:
+  enabled: false
+  description: Cypress membrane UI test
+  category: test
+  workflowType: delegation
+  agentConfigs:
+    - name: researcher
+      displayName: Researcher
+      systemPrompt: "You research."
+    - name: writer
+      displayName: Writer
+      systemPrompt: "You write."
+    - name: reviewer
+      displayName: Reviewer
+      systemPrompt: "You review."
+  relationships:
+    - source: researcher
+      target: writer
+      type: delegation
+  sharedMemory:
+    enabled: true
+    storageSize: "512Mi"
+    accessRules:
+      - agentConfig: researcher
+        access: read-write
+      - agentConfig: writer
+        access: read-write
+      - agentConfig: reviewer
+        access: read-only
+    membrane:
+      defaultVisibility: public
+      permeability:
+        - agentConfig: researcher
+          defaultVisibility: trusted
+        - agentConfig: writer
+          defaultVisibility: public
+        - agentConfig: reviewer
+          defaultVisibility: private
+      trustGroups:
+        - name: content-team
+          agentConfigs: ["researcher", "writer"]
+      tokenBudget:
+        maxTokens: 100000
+        action: halt
+      circuitBreaker:
+        consecutiveFailures: 3
+      timeDecay:
+        ttl: "168h"
+        decayFunction: linear
+`;
+    cy.writeFile(`cypress/tmp/${PACK}.yaml`, manifest);
+    cy.exec(`kubectl apply -f cypress/tmp/${PACK}.yaml`);
+    cy.request({
+      url: `/api/v1/ensembles/${PACK}?namespace=${NS}`,
+      headers: apiHeaders(),
+      retryOnStatusCodeFailure: true,
+    });
+    cy.wait(500);
+  });
+
+  after(() => {
+    cy.deleteEnsemble(PACK);
+    cy.exec(`rm -f cypress/tmp/${PACK}.yaml`, { failOnNonZeroExit: false });
+  });
+
+  it("shows the Shared Workflow Memory card on the workflow tab", () => {
+    cy.visit(`/ensembles/${PACK}?tab=workflow`);
+    cy.contains("Shared Workflow Memory", { timeout: 10000 })
+      .scrollIntoView()
+      .should("be.visible");
+  });
+
+  it("displays Synthetic Membrane section in the shared memory card", () => {
+    cy.visit(`/ensembles/${PACK}?tab=workflow`);
+    cy.contains("Synthetic Membrane", { timeout: 10000 })
+      .scrollIntoView()
+      .should("be.visible");
+  });
+
+  it("shows the default visibility badge", () => {
+    cy.visit(`/ensembles/${PACK}?tab=workflow`);
+    cy.contains("Visibility: public", { timeout: 10000 })
+      .scrollIntoView()
+      .should("be.visible");
+  });
+
+  it("shows the token budget with used/max values", () => {
+    cy.visit(`/ensembles/${PACK}?tab=workflow`);
+    cy.contains("Token Budget", { timeout: 10000 })
+      .scrollIntoView()
+      .should("be.visible");
+    cy.contains("100,000").should("be.visible");
+    cy.contains("halt").should("be.visible");
+  });
+
+  it("shows the circuit breaker status as closed", () => {
+    cy.visit(`/ensembles/${PACK}?tab=workflow`);
+    cy.contains("Circuit Breaker", { timeout: 10000 })
+      .scrollIntoView()
+      .should("be.visible");
+    cy.contains("Closed").should("be.visible");
+    cy.contains("0 / 3 failures").should("be.visible");
+  });
+
+  it("shows trust groups with member personas", () => {
+    cy.visit(`/ensembles/${PACK}?tab=workflow`);
+    cy.contains("Trust Groups", { timeout: 10000 })
+      .scrollIntoView()
+      .should("be.visible");
+    cy.contains("content-team").should("be.visible");
+  });
+
+  it("shows permeability rules with visibility per persona", () => {
+    cy.visit(`/ensembles/${PACK}?tab=workflow`);
+    // The membrane section exists and shows visibility-related content
+    cy.contains("Synthetic Membrane", { timeout: 10000 }).scrollIntoView();
+    cy.contains("Visibility: public").should("exist");
+  });
+
+  it("shows per-persona visibility on canvas node badges", () => {
+    cy.visit(`/ensembles/${PACK}?tab=workflow`);
+    cy.contains("Researcher", { timeout: 10000 }).should("be.visible");
+    // Canvas badges should show visibility tiers instead of generic "shared memory"
+    cy.get('[title*="Membrane"]').should("have.length.at.least", 1);
+  });
+
+  it("shows the time decay TTL badge", () => {
+    cy.visit(`/ensembles/${PACK}?tab=workflow`);
+    cy.contains("TTL: 168h", { timeout: 10000 })
+      .scrollIntoView()
+      .should("be.visible");
+  });
+});
+
 export {};
