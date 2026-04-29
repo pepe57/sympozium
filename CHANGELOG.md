@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.9](https://github.com/sympozium-ai/sympozium/compare/v0.10.8...v0.10.9) (2026-04-29)
+
+
+### Bug Fixes
+
+* security hardening for Model, AgentRun, and Ensemble features ([21fc58d](https://github.com/sympozium-ai/sympozium/commit/21fc58dc46b3ad0935f184afd90fd5359cd8e5eb))
+
 ## [0.10.8](https://github.com/sympozium-ai/sympozium/compare/v0.10.7...v0.10.8) (2026-04-28)
 
 
