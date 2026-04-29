@@ -24,6 +24,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -2796,9 +2797,17 @@ func (r *AgentRunReconciler) buildVolumes(agentRun *sympoziumv1alpha1.AgentRun, 
 	// names already used (reserved + agent-run + sidecar-contributed)
 	// to avoid duplicate volume entries when multiple sidecars declare
 	// the same volume name.
-	seen := make(map[string]struct{}, len(volumes))
+	//
+	// Collision policy:
+	//   - Reserved name → drop, warn (Sympozium owns that name).
+	//   - Same name, structurally-equal VolumeSource → drop the duplicate
+	//     silently (no-op; the existing volume already provides it).
+	//   - Same name, different VolumeSource → drop, send warning. The
+	//     admission webhook is expected to reject this case before it
+	//     reaches the controller; the warn here is a safety net.
+	seen := make(map[string]corev1.Volume, len(volumes))
 	for _, v := range volumes {
-		seen[v.Name] = struct{}{}
+		seen[v.Name] = v
 	}
 	for _, sc := range sidecars {
 		for _, v := range sc.sidecar.Volumes {
@@ -2813,17 +2822,21 @@ func (r *AgentRunReconciler) buildVolumes(agentRun *sympoziumv1alpha1.AgentRun, 
 				)
 				continue
 			}
-			if _, dup := seen[v.Name]; dup {
-				slog.Warn("dropping skill sidecar volume: duplicate volume name already declared on this pod",
+			if existing, dup := seen[v.Name]; dup {
+				if apiequality.Semantic.DeepEqual(existing.VolumeSource, v.VolumeSource) {
+					// Identical declaration — silently no-op.
+					continue
+				}
+				slog.Warn("dropping skill sidecar volume: another declaration with the same name but a different VolumeSource is already on this pod",
 					"agentrun", agentRun.Name,
 					"namespace", agentRun.Namespace,
 					"volume", v.Name,
 					"skillpack", sc.skillPackName,
-					"hint", "another SkillPack, the AgentRun, or core Sympozium already contributes this volume name; rename to avoid the collision",
+					"hint", "another SkillPack, the AgentRun, or core Sympozium already contributes this volume name with a different source; rename to avoid the collision",
 				)
 				continue
 			}
-			seen[v.Name] = struct{}{}
+			seen[v.Name] = v
 			volumes = append(volumes, v)
 		}
 	}
