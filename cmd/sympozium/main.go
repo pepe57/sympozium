@@ -1418,7 +1418,7 @@ func runUninstall() error {
 	// Strip finalizers from all Sympozium CRD instances BEFORE deleting the
 	// controller, so resources don't get stuck in Terminating state.
 	fmt.Println("  Removing finalizers from Sympozium resources...")
-	resources := []string{"agentruns", "agents", "sympoziumpolicies", "skillpacks", "sympoziumschedules", "ensembles"}
+	resources := []string{"agentruns", "agents", "sympoziumpolicies", "skillpacks", "sympoziumschedules", "ensembles", "sympoziumconfigs"}
 	for _, res := range resources {
 		stripFinalizers(res)
 	}
