@@ -1648,6 +1648,7 @@ func (r *AgentRunReconciler) buildJob(
 		"sympozium.ai/agent-run":       agentRun.Name,
 		"sympozium.ai/instance":        agentRun.Spec.AgentRef,
 		"sympozium.ai/component":       "agent-run",
+		"sympozium.ai/role":            "agent",
 		"app.kubernetes.io/part-of":    "sympozium",
 		"app.kubernetes.io/managed-by": "sympozium-controller",
 	}

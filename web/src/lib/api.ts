@@ -331,6 +331,7 @@ export interface CanaryConfigResponse {
   lastRunResult?: string;
 }
 
+
 export interface PatchCanaryConfigRequest {
   enabled?: boolean;
   interval?: string;

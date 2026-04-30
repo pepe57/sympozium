@@ -39,9 +39,11 @@ import {
   Cloud,
   Terminal,
   Settings,
+  Wifi,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCapabilities, useModels } from "@/hooks/use-api";
+import { api } from "@/lib/api";
 import {
   YamlModal,
   instanceYamlFromWizard,
@@ -429,6 +431,76 @@ function ModelSelector({
           ✓ Live models fetched from {provider} API
         </p>
       )}
+    </div>
+  );
+}
+
+// ── Canary connection test ───────────────────────────────────────────────────
+
+function CanaryConnectionTest({ baseURL }: { baseURL: string }) {
+  const [result, setResult] = useState<{
+    reachable?: boolean;
+    error?: string;
+    models?: number;
+    testing?: boolean;
+  }>({});
+
+  async function runTest() {
+    setResult({ testing: true });
+    try {
+      // Use the same in-cluster proxy endpoint that model listing uses,
+      // so the test exercises the real network path (pod → provider).
+      const res = await api.providers.models(baseURL);
+      setResult({
+        reachable: true,
+        models: res.models.length,
+      });
+    } catch (err) {
+      setResult({ reachable: false, error: String(err) });
+    }
+  }
+
+  return (
+    <div className="space-y-2 pt-2">
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={runTest}
+          disabled={result.testing}
+          className="text-xs"
+        >
+          {result.testing ? (
+            <>
+              <Loader2 className="h-3 w-3 animate-spin mr-1" />
+              Testing...
+            </>
+          ) : (
+            <>
+              <Wifi className="h-3 w-3 mr-1" />
+              Test Connection
+            </>
+          )}
+        </Button>
+        {result.reachable === true && (
+          <span className="flex items-center gap-1 text-xs text-green-400">
+            <Check className="h-3 w-3" />
+            Reachable
+            {result.models !== undefined &&
+              result.models > 0 &&
+              ` · ${result.models} model${result.models === 1 ? "" : "s"}`}
+          </span>
+        )}
+        {result.reachable === false && (
+          <span className="text-xs text-red-400 truncate max-w-xs" title={result.error}>
+            Not reachable{result.error ? `: ${result.error.split(":").slice(-1)[0].trim()}` : ""}
+          </span>
+        )}
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        Tests if the provider URL is reachable from inside the cluster.
+      </p>
     </div>
   );
 }
@@ -1127,6 +1199,9 @@ export function OnboardingWizard({
                 Applied to all{" "}
                 <span className="text-blue-400">{agentConfigCount}</span> personas.
               </p>
+            )}
+            {mode === "canary" && form.baseURL && (
+              <CanaryConnectionTest baseURL={form.baseURL} />
             )}
           </div>
         )}
