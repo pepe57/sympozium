@@ -1483,7 +1483,16 @@ func (s *Server) listEnsembles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, list.Items)
+	// Filter out system canary — it has its own dedicated UI section.
+	filtered := make([]sympoziumv1alpha1.Ensemble, 0, len(list.Items))
+	for _, e := range list.Items {
+		if e.Labels["sympozium.ai/canary"] == "true" {
+			continue
+		}
+		filtered = append(filtered, e)
+	}
+
+	writeJSON(w, filtered)
 }
 
 func (s *Server) getEnsemble(w http.ResponseWriter, r *http.Request) {
