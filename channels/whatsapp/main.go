@@ -197,12 +197,19 @@ func (wc *WhatsAppChannel) handleInboundMessage(evt *events.Message) {
 		evt.Info.Sender.String(), evt.Info.Chat.String(), evt.Info.IsFromMe, evt.Info.IsGroup, evt.Info.Chat.Server,
 		truncateText(extractText(evt.Message), 50))
 
-	// Only process messages from the device owner (self-chat mode).
-	// Skip status broadcasts, group chats, and messages from other people.
+	// Only process self-chat messages (user messaging themselves).
+	// Skip broadcasts, groups, and messages the user sends to other people.
 	if evt.Info.Chat.Server == "broadcast" {
 		return
 	}
 	if !evt.Info.IsFromMe {
+		return
+	}
+	// In 1:1 chats with other people, IsFromMe is still true for outgoing
+	// messages but Chat is the other person's JID. In self-chat, Chat and
+	// Sender share the same User (phone number). Compare User to avoid
+	// server suffix mismatches (@s.whatsapp.net vs @lid).
+	if evt.Info.Chat.User != evt.Info.Sender.User {
 		return
 	}
 
