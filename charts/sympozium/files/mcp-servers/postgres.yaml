@@ -14,6 +14,9 @@ spec:
     - execute_write_query
   deployment:
     image: crystaldba/postgres-mcp:latest
+    cmd: /app/docker-entrypoint.sh
+    args:
+      - postgres-mcp
     secretRefs:
       - name: mcp-postgres-token
     resources:

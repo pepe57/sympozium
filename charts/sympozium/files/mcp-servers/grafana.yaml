@@ -12,6 +12,7 @@ spec:
   timeout: 30
   deployment:
     image: mcp/grafana
+    cmd: /app/mcp-grafana
     args:
       - -t
       - stdio

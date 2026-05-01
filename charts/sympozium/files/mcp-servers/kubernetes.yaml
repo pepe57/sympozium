@@ -1,7 +1,7 @@
 apiVersion: sympozium.ai/v1alpha1
 kind: MCPServer
 metadata:
-  name: kubernetes
+  name: k8s-mcp
   namespace: sympozium-system
   labels:
     app.kubernetes.io/managed-by: sympozium

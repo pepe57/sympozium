@@ -376,7 +376,7 @@ kubectl create secret generic mcp-argocd-token \
 # Postgres
 kubectl create secret generic mcp-postgres-token \
   -n sympozium-system \
-  --from-literal=DATABASE_URL=postgresql://user:pass@host:5432/dbname
+  --from-literal=DATABASE_URI=postgresql://user:pass@host:5432/dbname
 ```
 
 The **Kubernetes** MCP server uses an in-cluster ServiceAccount (`k8s-mcp`) with read-only RBAC — no Secret needed. It is configured with `toolsDeny` to block write operations (`delete_resource`, `create_resource`, `update_resource`) by default. To enable write access, remove these entries from the MCPServer CR's `toolsDeny` list and expand the ClusterRole verbs.

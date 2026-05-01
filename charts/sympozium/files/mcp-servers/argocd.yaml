@@ -12,7 +12,9 @@ spec:
   timeout: 30
   deployment:
     image: quay.io/argoprojlabs/mcp-for-argocd:latest
+    cmd: node
     args:
+      - dist/index.js
       - stdio
     secretRefs:
       - name: mcp-argocd-token
