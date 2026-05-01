@@ -221,6 +221,17 @@ type ChannelSpec struct {
 	// When nil, all users and chats are allowed.
 	// +optional
 	AccessControl *ChannelAccessControl `json:"accessControl,omitempty"`
+
+	// Volumes are extra pod volumes for the channel pod (e.g. CSI
+	// SecretProviderClass priming the configRef Secret). Channel pods are
+	// independent of agent pods, so these are managed separately from
+	// AgentSpec.Volumes.
+	// +optional
+	Volumes []corev1.Volume `json:"volumes,omitempty"`
+
+	// VolumeMounts are extra mounts for the channel container.
+	// +optional
+	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
 }
 
 // ChannelAccessControl restricts which users and chats can interact via a channel.

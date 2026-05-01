@@ -382,6 +382,12 @@ func (r *EnsembleReconciler) reconcileAgentConfig(
 						cs.AccessControl = ac
 					}
 				}
+				if v, ok := pack.Spec.ChannelVolumes[ch]; ok {
+					cs.Volumes = v
+				}
+				if vm, ok := pack.Spec.ChannelVolumeMounts[ch]; ok {
+					cs.VolumeMounts = vm
+				}
 				channelSpecs = append(channelSpecs, cs)
 			}
 			existingInst.Spec.Channels = channelSpecs
@@ -601,6 +607,12 @@ func (r *EnsembleReconciler) buildAgent(
 			if ac, ok := pack.Spec.ChannelAccessControl[ch]; ok {
 				cs.AccessControl = ac
 			}
+		}
+		if v, ok := pack.Spec.ChannelVolumes[ch]; ok {
+			cs.Volumes = v
+		}
+		if vm, ok := pack.Spec.ChannelVolumeMounts[ch]; ok {
+			cs.VolumeMounts = vm
 		}
 		inst.Spec.Channels = append(inst.Spec.Channels, cs)
 	}

@@ -307,6 +307,17 @@ func (r *AgentReconciler) buildChannelDeployment(
 		}
 	}
 
+	// Per-channel volumes (e.g. CSI SecretProviderClass priming the
+	// configRef Secret). Applied last so per-channel volumes are appended
+	// alongside any built-in volumes (e.g. WhatsApp's credential PVC).
+	if len(ch.Volumes) > 0 {
+		deploy.Spec.Template.Spec.Volumes = append(deploy.Spec.Template.Spec.Volumes, ch.Volumes...)
+	}
+	if len(ch.VolumeMounts) > 0 {
+		c := &deploy.Spec.Template.Spec.Containers[0]
+		c.VolumeMounts = append(c.VolumeMounts, ch.VolumeMounts...)
+	}
+
 	return deploy
 }
 
