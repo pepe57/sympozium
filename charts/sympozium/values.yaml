@@ -153,7 +153,7 @@ defaultPersonas:
 # -- Default MCPServer catalog entries to install (github, grafana, kubernetes, argocd, postgres)
 defaultMcpServers:
   # -- Install built-in MCP server definitions (must be configured with credentials after install)
-  enabled: true
+  enabled: false
 
 # -- Pod security context (applied to all control plane pods)
 securityContext:
