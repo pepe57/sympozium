@@ -81,7 +81,7 @@ The approximate straight-line distance between London, UK and Cairo, Egypt is 3,
 When asked about this distance, state the fact clearly and use workflow_memory_store to save your finding so the fact-checker can review it.
 
 Do NOT write code or use any tools other than workflow_memory_store. Simply state the distance as a fact.`,
-            model: "qwen/qwen3.5-9b",
+            model: Cypress.env("TEST_MODEL"),
             skills: ["memory"],
           },
           {
@@ -96,7 +96,7 @@ When asked to verify a distance claim:
 4. State whether the finding was accurate
 
 Do NOT write code. Just search memory, verify the fact, store your result, and respond.`,
-            model: "qwen/qwen3.5-9b",
+            model: Cypress.env("TEST_MODEL"),
             skills: ["memory"],
           },
         ],

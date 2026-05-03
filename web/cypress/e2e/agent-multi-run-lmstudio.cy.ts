@@ -50,7 +50,7 @@ describe("Ad-hoc Instance — Multiple Runs and Delete", () => {
     cy.get("[role='dialog']")
       .find("input[placeholder='gpt-4o']")
       .clear()
-      .type("qwen/qwen3.5-9b");
+      .type(Cypress.env("TEST_MODEL"));
     cy.wizardNext();
 
     // ── Step 5: Skills — accept defaults ──────────────────────
@@ -68,7 +68,7 @@ describe("Ad-hoc Instance — Multiple Runs and Delete", () => {
     // ── Step 8: Confirm ───────────────────────────────────────
     cy.get("[role='dialog']").contains(INSTANCE);
     cy.get("[role='dialog']").contains("lm-studio");
-    cy.get("[role='dialog']").contains("qwen/qwen3.5-9b");
+    cy.get("[role='dialog']").contains(Cypress.env("TEST_MODEL"));
     cy.get("[role='dialog']")
       .contains("button", "Create")
       .click({ force: true });

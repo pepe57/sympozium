@@ -68,6 +68,11 @@ declare global {
   }
 }
 
+/** Returns the test model name from Cypress.env, defaulting to qwen/qwen3.5-9b. */
+function getTestModel(): string {
+  return Cypress.env("TEST_MODEL") || "qwen/qwen3.5-9b";
+}
+
 function authHeaders(): Record<string, string> {
   const token = Cypress.env("API_TOKEN");
   const h: Record<string, string> = { "Content-Type": "application/json" };
@@ -143,7 +148,7 @@ Cypress.Commands.add("createLMStudioAgent", (name: string, opts) => {
   const body: Record<string, unknown> = {
     name,
     provider: "lm-studio",
-    model: "qwen/qwen3.5-9b",
+    model: getTestModel(),
     baseURL: "http://host.docker.internal:1234/v1",
   };
   if (opts?.skills?.length) {

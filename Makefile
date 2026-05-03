@@ -85,26 +85,27 @@ integration-tests: ## Run API smoke regression tests (Ensembles, ad-hoc Instance
 
 UX_PORT ?= $(shell lsof -ti :5173 >/dev/null 2>&1 && echo 5173 || (lsof -ti :5174 >/dev/null 2>&1 && echo 5174 || echo 5173))
 SERVE_PORT ?= 9090
+CYPRESS_TEST_MODEL ?= qwen/qwen3.5-9b
 
 ux-tests: web-install ## Run Cypress UX tests against Vite dev server (make web-dev-serve)
 	$(eval API_TOKEN := $(shell kubectl get secret -n sympozium-system sympozium-ui-token -o jsonpath='{.data.token}' 2>/dev/null | base64 -d))
 	@./hack/check-ux-backend.sh $(UX_PORT) "$(API_TOKEN)"
-	cd web && CYPRESS_BASE_URL=http://localhost:$(UX_PORT) CYPRESS_API_TOKEN=$(API_TOKEN) npx cypress run
+	cd web && CYPRESS_BASE_URL=http://localhost:$(UX_PORT) CYPRESS_API_TOKEN=$(API_TOKEN) CYPRESS_TEST_MODEL=$(CYPRESS_TEST_MODEL) npx cypress run
 
 ux-tests-open: web-install ## Open Cypress interactive runner against Vite dev server (make web-dev-serve)
 	$(eval API_TOKEN := $(shell kubectl get secret -n sympozium-system sympozium-ui-token -o jsonpath='{.data.token}' 2>/dev/null | base64 -d))
 	@./hack/check-ux-backend.sh $(UX_PORT) "$(API_TOKEN)"
-	cd web && CYPRESS_BASE_URL=http://localhost:$(UX_PORT) CYPRESS_API_TOKEN=$(API_TOKEN) npx cypress open
+	cd web && CYPRESS_BASE_URL=http://localhost:$(UX_PORT) CYPRESS_API_TOKEN=$(API_TOKEN) CYPRESS_TEST_MODEL=$(CYPRESS_TEST_MODEL) npx cypress open
 
 ux-tests-serve: web-install ## Run Cypress UX tests against `sympozium serve` (port 9090 by default; override SERVE_PORT)
 	$(eval API_TOKEN := $(shell kubectl get secret -n sympozium-system sympozium-ui-token -o jsonpath='{.data.token}' 2>/dev/null | base64 -d))
 	@./hack/check-ux-backend.sh $(SERVE_PORT) "$(API_TOKEN)"
-	cd web && CYPRESS_BASE_URL=http://localhost:$(SERVE_PORT) CYPRESS_API_TOKEN=$(API_TOKEN) npx cypress run
+	cd web && CYPRESS_BASE_URL=http://localhost:$(SERVE_PORT) CYPRESS_API_TOKEN=$(API_TOKEN) CYPRESS_TEST_MODEL=$(CYPRESS_TEST_MODEL) npx cypress run
 
 ux-tests-serve-open: web-install ## Open Cypress interactive runner against `sympozium serve` (port 9090 by default)
 	$(eval API_TOKEN := $(shell kubectl get secret -n sympozium-system sympozium-ui-token -o jsonpath='{.data.token}' 2>/dev/null | base64 -d))
 	@./hack/check-ux-backend.sh $(SERVE_PORT) "$(API_TOKEN)"
-	cd web && CYPRESS_BASE_URL=http://localhost:$(SERVE_PORT) CYPRESS_API_TOKEN=$(API_TOKEN) npx cypress open
+	cd web && CYPRESS_BASE_URL=http://localhost:$(SERVE_PORT) CYPRESS_API_TOKEN=$(API_TOKEN) CYPRESS_TEST_MODEL=$(CYPRESS_TEST_MODEL) npx cypress open
 
 test-web-proxy: ## Run web-proxy HTTP API tests (requires a running web-endpoint service)
 	bash ./test/integration/test-web-proxy-api.sh

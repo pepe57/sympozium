@@ -35,7 +35,7 @@ describe("Create Agent — web-endpoint skill", () => {
     cy.get("[role='dialog']")
       .find("input[placeholder='gpt-4o']")
       .clear()
-      .type("qwen/qwen3.5-9b");
+      .type(Cypress.env("TEST_MODEL"));
     cy.wizardNext();
 
     // ── Step 5: Skills — toggle web-endpoint ──────────────────

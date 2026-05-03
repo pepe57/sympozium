@@ -139,7 +139,7 @@ RULES:
 2. Then call workflow_memory_store to save your finding.
 3. Your final response MUST include the actual number (e.g. "2.1 million" or "10,500 km").
 4. Do NOT use any tools except workflow_memory_store.`,
-            model: "brooooooklyn/qwen3.6-27b-ud-mlx",
+            model: Cypress.env("TEST_MODEL"),
             skills: ["memory"],
           },
           {
@@ -152,7 +152,7 @@ RULES:
 2. Verify the findings and state whether they are correct.
 3. Call workflow_memory_store to save your verification.
 4. Do NOT use any tools except workflow_memory_search and workflow_memory_store.`,
-            model: "brooooooklyn/qwen3.6-27b-ud-mlx",
+            model: Cypress.env("TEST_MODEL"),
             skills: ["memory"],
           },
         ],

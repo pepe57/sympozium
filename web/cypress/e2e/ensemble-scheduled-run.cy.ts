@@ -62,7 +62,7 @@ spec:
     - name: ${PERSONA}
       displayName: Cypress Analyst
       systemPrompt: You are a precise echo service. When asked to reply with a specific string, reply with exactly that string and nothing else.
-      model: qwen/qwen3.5-9b
+      model: ${Cypress.env("TEST_MODEL")}
       schedule:
         type: scheduled
         cron: "0 * * * *"

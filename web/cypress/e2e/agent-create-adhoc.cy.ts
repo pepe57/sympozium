@@ -43,7 +43,7 @@ describe("Ad-hoc Instance — Create and Run", () => {
     cy.get("[role='dialog']")
       .find("input[placeholder='gpt-4o']")
       .clear()
-      .type("qwen/qwen3.5-9b");
+      .type(Cypress.env("TEST_MODEL"));
     cy.wizardNext();
 
     // ── Step 5: Skills — accept defaults ──────────────────────
@@ -61,7 +61,7 @@ describe("Ad-hoc Instance — Create and Run", () => {
     // ── Step 8: Confirm ───────────────────────────────────────
     cy.get("[role='dialog']").contains(INSTANCE);
     cy.get("[role='dialog']").contains("lm-studio");
-    cy.get("[role='dialog']").contains("qwen/qwen3.5-9b");
+    cy.get("[role='dialog']").contains(Cypress.env("TEST_MODEL"));
     cy.get("[role='dialog']")
       .contains("button", "Create")
       .click({ force: true });
@@ -77,7 +77,7 @@ describe("Ad-hoc Instance — Create and Run", () => {
     cy.visit(`/agents/${INSTANCE}`);
 
     cy.contains(INSTANCE, { timeout: 20000 }).should("be.visible");
-    cy.contains("qwen/qwen3.5-9b").should("be.visible");
+    cy.contains(Cypress.env("TEST_MODEL")).should("be.visible");
     cy.contains("http://localhost:1234/v1").should("be.visible");
   });
 

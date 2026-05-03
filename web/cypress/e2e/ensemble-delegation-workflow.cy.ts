@@ -145,14 +145,14 @@ RULES:
 2. Do NOT think about the answer. Do NOT write any text before calling the tool.
 3. After you receive the researcher's result, repeat it verbatim in your response.
 4. The ONLY tool you may use is delegate_to_persona.`,
-            model: "qwen/qwen3.5-9b",
+            model: Cypress.env("TEST_MODEL"),
             skills: ["memory"],
           },
           {
             name: RESEARCHER,
             displayName: "Researcher",
             systemPrompt: `You are a researcher. Answer questions with specific facts and numbers. Be concise. Do NOT use any tools. Just provide a direct factual answer.`,
-            model: "qwen/qwen3.5-9b",
+            model: Cypress.env("TEST_MODEL"),
             skills: ["memory"],
           },
         ],

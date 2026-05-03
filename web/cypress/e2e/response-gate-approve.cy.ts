@@ -16,7 +16,7 @@ spec:
       secret: ""
   agents:
     default:
-      model: qwen/qwen3.5-9b
+      model: ${Cypress.env("TEST_MODEL")}
       baseURL: http://host.docker.internal:1234/v1
       lifecycle:
         rbac:

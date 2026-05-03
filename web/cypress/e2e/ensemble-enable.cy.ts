@@ -85,7 +85,7 @@ describe("Ensemble — Enable via Wizard", () => {
     cy.get("[role='dialog']")
       .find("input[placeholder='gpt-4o']")
       .clear()
-      .type("qwen/qwen3.5-9b");
+      .type(Cypress.env("TEST_MODEL"));
     cy.wizardNext();
 
     // Step: Skills — accept defaults.
@@ -102,7 +102,7 @@ describe("Ensemble — Enable via Wizard", () => {
 
     // Step: Confirm — verify summary and activate (or finalize channels first).
     cy.get("[role='dialog']").contains("lm-studio");
-    cy.get("[role='dialog']").contains("qwen/qwen3.5-9b");
+    cy.get("[role='dialog']").contains(Cypress.env("TEST_MODEL"));
     cy.get("[role='dialog']").then(($dialog) => {
       // If the ensemble has channels, the button says "Finalize Channels"
       // and we need to go through channel action steps before the dialog closes.

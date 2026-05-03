@@ -3,6 +3,9 @@ import { defineConfig } from "cypress";
 export default defineConfig({
   e2e: {
     baseUrl: process.env.CYPRESS_BASE_URL || "http://localhost:5173",
+    env: {
+      TEST_MODEL: process.env.CYPRESS_TEST_MODEL || "qwen/qwen3.5-9b",
+    },
     // Tests run against the live dev server + cluster — no mocking.
     supportFile: "cypress/support/e2e.ts",
     specPattern: "cypress/e2e/**/*.cy.ts",

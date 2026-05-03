@@ -24,7 +24,7 @@ spec:
     - name: ${PERSONA}
       displayName: Cypress Auditor
       systemPrompt: You are a terse auditor.
-      model: qwen/qwen3.5-9b
+      model: ${Cypress.env("TEST_MODEL")}
 `;
   cy.writeFile(`cypress/tmp/${PACK}.yaml`, manifest);
   cy.exec(`kubectl apply -f cypress/tmp/${PACK}.yaml`);

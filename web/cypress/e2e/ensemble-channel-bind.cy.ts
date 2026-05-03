@@ -28,7 +28,7 @@ spec:
   agentConfigs:
     - name: ${PERSONA}
       systemPrompt: You notify via channel.
-      model: qwen/qwen3.5-9b
+      model: ${Cypress.env("TEST_MODEL")}
       channels:
         - slack
 `;
