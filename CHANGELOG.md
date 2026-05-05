@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.18](https://github.com/sympozium-ai/sympozium/compare/v0.10.17...v0.10.18) (2026-05-05)
+
+
+### Features
+
+* add Stimulus node type for auto-triggered workflow prompts ([59fc3be](https://github.com/sympozium-ai/sympozium/commit/59fc3be965733570e91da4e6aa2b3fb06ccf7fd3))
+
 ## [0.10.17](https://github.com/sympozium-ai/sympozium/compare/v0.10.16...v0.10.17) (2026-05-03)
 
 
