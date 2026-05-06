@@ -26,7 +26,7 @@ describe("Run — delete", () => {
 
   it("removes the run from the list and returns 404 on direct GET", () => {
     cy.visit("/runs");
-    cy.contains(RUN_NAME, { timeout: 20000 }).should("be.visible");
+    cy.contains(RUN_NAME, { timeout: 20000 }).scrollIntoView().should("be.visible");
 
     cy.deleteRun(RUN_NAME);
 

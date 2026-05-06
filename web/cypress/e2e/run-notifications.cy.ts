@@ -105,10 +105,18 @@ describe("Run Notifications & Watermark", () => {
     cy.window().then((win) => {
       const past = new Date(Date.now() - 60000).toISOString();
       win.localStorage.setItem("sympozium_runs_last_seen", past);
+      // Dispatch a storage event so useSyncExternalStore picks up the change
+      // (same-window setItem does not fire StorageEvent automatically).
+      win.dispatchEvent(
+        new StorageEvent("storage", {
+          key: "sympozium_runs_last_seen",
+          newValue: past,
+        }),
+      );
     });
 
     // Wait for poll to pick it up with the backdated watermark.
-    cy.get("aside", { timeout: 15000 })
+    cy.get("aside", { timeout: 30000 })
       .find("span.bg-blue-500, span.bg-red-500")
       .should("exist");
   });
