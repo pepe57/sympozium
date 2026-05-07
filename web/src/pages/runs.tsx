@@ -83,9 +83,11 @@ export function RunsPage() {
     return () => clearTimeout(timer);
   }, [isLoading, data, markAllSeen]);
 
-  const sorted = (data || []).sort((a, b) =>
-    a.metadata.name.localeCompare(b.metadata.name),
-  );
+  const sorted = (data || []).sort((a, b) => {
+    const ta = a.metadata.creationTimestamp ? new Date(a.metadata.creationTimestamp).getTime() : 0;
+    const tb = b.metadata.creationTimestamp ? new Date(b.metadata.creationTimestamp).getTime() : 0;
+    return tb - ta;
+  });
 
   const filtered = sorted.filter(
     (r) =>
