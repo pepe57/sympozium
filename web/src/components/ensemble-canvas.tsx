@@ -186,25 +186,21 @@ export function EnsembleCanvas({ pack }: EnsembleCanvasProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
-  // Sync run status into nodes when polling data changes — preserves
-  // user-dragged positions while updating phase/task indicators.
+  // Sync nodes when the underlying data changes (spec edits, run status) —
+  // preserves user-dragged positions while updating data fields.
   useEffect(() => {
-    setNodes((prev) =>
-      prev.map((node) => {
-        const personaName = node.id;
-        const status = runPhaseMap.get(personaName);
-        const newPhase = status?.phase;
-        const newTask = status?.task;
-        if (node.data.runPhase === newPhase && node.data.runTask === newTask) {
-          return node; // no change — keep reference stable
-        }
-        return {
-          ...node,
-          data: { ...node.data, runPhase: newPhase, runTask: newTask },
-        };
-      }),
-    );
-  }, [runPhaseMap, setNodes]);
+    setNodes((prev) => {
+      const posMap = new Map(prev.map((n) => [n.id, n.position]));
+      return initialNodes.map((node) => ({
+        ...node,
+        position: posMap.get(node.id) ?? node.position,
+      }));
+    });
+  }, [initialNodes, setNodes]);
+
+  useEffect(() => {
+    setEdges(initialEdges);
+  }, [initialEdges, setEdges]);
 
   const onConnect = useCallback(
     (connection: Connection) => {

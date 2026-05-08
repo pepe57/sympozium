@@ -1808,6 +1808,7 @@ type CreateEnsembleRequest struct {
 	Relationships []sympoziumv1alpha1.AgentConfigRelationship `json:"relationships,omitempty"`
 	SharedMemory  *sympoziumv1alpha1.SharedMemorySpec         `json:"sharedMemory,omitempty"`
 	ModelRef      string                                      `json:"modelRef,omitempty"`
+	Stimulus      *sympoziumv1alpha1.StimulusSpec             `json:"stimulus,omitempty"`
 }
 
 func (s *Server) createEnsemble(w http.ResponseWriter, r *http.Request) {
@@ -1844,6 +1845,7 @@ func (s *Server) createEnsemble(w http.ResponseWriter, r *http.Request) {
 			Relationships: req.Relationships,
 			SharedMemory:  req.SharedMemory,
 			ModelRef:      req.ModelRef,
+			Stimulus:      req.Stimulus,
 		},
 	}
 
@@ -1912,6 +1914,7 @@ func (s *Server) cloneEnsemble(w http.ResponseWriter, r *http.Request) {
 			SkillParams:   source.Spec.SkillParams,
 			TaskOverride:  source.Spec.TaskOverride,
 			AgentSandbox:  source.Spec.AgentSandbox,
+			Stimulus:      source.Spec.Stimulus,
 			// Intentionally omitted: Enabled, AuthRefs, ChannelConfigs, BaseURL, ExcludeAgentConfigs
 		},
 	}

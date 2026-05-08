@@ -817,6 +817,34 @@ func (r *EnsembleReconciler) cleanupPersona(
 ) error {
 	instanceName := pack.Name + "-" + persona.Name
 
+	// Cancel running AgentRuns for this persona by marking them Failed
+	// and deleting their pods.
+	var runList sympoziumv1alpha1.AgentRunList
+	if err := r.List(ctx, &runList, client.InNamespace(pack.Namespace), client.MatchingLabels{"sympozium.ai/instance": instanceName}); err == nil {
+		for i := range runList.Items {
+			run := &runList.Items[i]
+			if run.Status.Phase == sympoziumv1alpha1.AgentRunPhaseRunning ||
+				run.Status.Phase == sympoziumv1alpha1.AgentRunPhaseAwaitingDelegate ||
+				run.Status.Phase == sympoziumv1alpha1.AgentRunPhasePending ||
+				run.Status.Phase == sympoziumv1alpha1.AgentRunPhaseServing {
+				log.Info("Cancelling running AgentRun for disabled persona", "agentrun", run.Name)
+				// Delete the pod first to stop the workload.
+				if run.Status.PodName != "" {
+					pod := &corev1.Pod{}
+					if err := r.Get(ctx, client.ObjectKey{Name: run.Status.PodName, Namespace: pack.Namespace}, pod); err == nil {
+						if err := r.Delete(ctx, pod); err != nil && !errors.IsNotFound(err) {
+							log.Error(err, "Failed to delete pod for cancelled AgentRun", "pod", run.Status.PodName)
+						}
+					}
+				}
+				run.Status.Phase = sympoziumv1alpha1.AgentRunPhaseFailed
+				if err := r.Status().Update(ctx, run); err != nil && !errors.IsNotFound(err) {
+					log.Error(err, "Failed to mark AgentRun as failed", "agentrun", run.Name)
+				}
+			}
+		}
+	}
+
 	// Delete Agent
 	inst := &sympoziumv1alpha1.Agent{}
 	if err := r.Get(ctx, client.ObjectKey{Name: instanceName, Namespace: pack.Namespace}, inst); err == nil {
