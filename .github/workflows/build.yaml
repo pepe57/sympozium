@@ -125,6 +125,7 @@ jobs:
           - skill-memory
           - mcp-bridge
           - node-probe
+          - llmfit-daemon
     steps:
       - uses: actions/checkout@v4
 

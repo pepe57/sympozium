@@ -86,6 +86,7 @@ jobs:
           - mcp-bridge
           - web-proxy
           - node-probe
+          - llmfit-daemon
     steps:
       - uses: actions/checkout@v4
 
