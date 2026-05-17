@@ -194,7 +194,9 @@ func (r *MCPServerReconciler) reconcileDeployment(ctx context.Context, ms *sympo
 		deploy.Spec.Template.ObjectMeta = metav1.ObjectMeta{Labels: labels}
 
 		if ms.Spec.TransportType == "stdio" {
-			r.buildStdioPodSpec(ctx, ms, &deploy.Spec.Template.Spec)
+			if err := r.buildStdioPodSpec(ctx, ms, &deploy.Spec.Template.Spec); err != nil {
+				return err
+			}
 		} else {
 			r.buildHTTPPodSpec(ms, &deploy.Spec.Template.Spec)
 		}
@@ -207,8 +209,25 @@ func (r *MCPServerReconciler) reconcileDeployment(ctx context.Context, ms *sympo
 	return nil
 }
 
-func (r *MCPServerReconciler) buildStdioPodSpec(ctx context.Context, ms *sympoziumv1alpha1.MCPServer, podSpec *corev1.PodSpec) {
+// reservedStdioVolumeName is the volume name used internally by stdio
+// transports to share the mcp-bridge binary between the init and main
+// containers. User-supplied Volumes / VolumeMounts must not collide.
+const reservedStdioVolumeName = "adapter-bin"
+
+func (r *MCPServerReconciler) buildStdioPodSpec(ctx context.Context, ms *sympoziumv1alpha1.MCPServer, podSpec *corev1.PodSpec) error {
 	dep := ms.Spec.Deployment
+
+	for _, v := range dep.Volumes {
+		if v.Name == reservedStdioVolumeName {
+			return fmt.Errorf("spec.deployment.volumes: name %q is reserved for stdio transports", reservedStdioVolumeName)
+		}
+	}
+	for _, vm := range dep.VolumeMounts {
+		if vm.Name == reservedStdioVolumeName {
+			return fmt.Errorf("spec.deployment.volumeMounts: name %q is reserved for stdio transports", reservedStdioVolumeName)
+		}
+	}
+
 	bridgeImage := r.mcpBridgeImage()
 
 	// Init container: copy adapter binary
@@ -307,10 +326,13 @@ func (r *MCPServerReconciler) buildStdioPodSpec(ctx context.Context, ms *sympozi
 			VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
 		},
 	}
+	podSpec.Volumes = append(podSpec.Volumes, dep.Volumes...)
+	podSpec.Containers[0].VolumeMounts = append(podSpec.Containers[0].VolumeMounts, dep.VolumeMounts...)
 
 	if dep.ServiceAccountName != "" {
 		podSpec.ServiceAccountName = dep.ServiceAccountName
 	}
+	return nil
 }
 
 func (r *MCPServerReconciler) buildHTTPPodSpec(ms *sympoziumv1alpha1.MCPServer, podSpec *corev1.PodSpec) {
@@ -360,10 +382,14 @@ func (r *MCPServerReconciler) buildHTTPPodSpec(ms *sympoziumv1alpha1.MCPServer, 
 
 	if dep.Cmd != "" {
 		container.Command = []string{dep.Cmd}
+	}
+	if len(dep.Args) > 0 {
 		container.Args = dep.Args
 	}
 
+	container.VolumeMounts = append(container.VolumeMounts, dep.VolumeMounts...)
 	podSpec.Containers = []corev1.Container{container}
+	podSpec.Volumes = append(podSpec.Volumes, dep.Volumes...)
 
 	if dep.ServiceAccountName != "" {
 		podSpec.ServiceAccountName = dep.ServiceAccountName
