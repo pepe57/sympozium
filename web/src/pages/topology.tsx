@@ -71,6 +71,7 @@ import type {
   DensityNodeSummary,
 } from "@/lib/api";
 import { Link } from "react-router-dom";
+import { useArrowKeyPan, KeyboardGuide } from "@/hooks/use-arrow-key-pan";
 import Dagre from "@dagrejs/dagre";
 
 // ── Custom node components ────────────────────────────────────────────────────
@@ -433,7 +434,7 @@ interface GatewayNodeData {
   [key: string]: unknown;
 }
 
-const nodeTypes = {
+export const nodeTypes = {
   k8sNode: K8sNodeNode,
   model: ModelNode,
   ensemble: EnsembleNode,
@@ -447,7 +448,7 @@ const nodeTypes = {
 // ── Layout ────────────────────────────────────────────────────────────────────
 
 /** Estimated node dimensions for dagre layout (width, height). */
-const NODE_SIZES: Record<string, [number, number]> = {
+export const NODE_SIZES: Record<string, [number, number]> = {
   gateway:       [220, 70],
   k8sNode:       [280, 110],
   cloudProvider: [180, 50],
@@ -459,7 +460,7 @@ const NODE_SIZES: Record<string, [number, number]> = {
 };
 
 /** Run dagre layout on nodes and edges, positioning top-to-bottom. */
-function applyDagreLayout(nodes: Node[], edges: Edge[]): void {
+export function applyDagreLayout(nodes: Node[], edges: Edge[]): void {
   const g = new Dagre.graphlib.Graph({ compound: true })
     .setDefaultEdgeLabel(() => ({}))
     .setGraph({
@@ -1014,6 +1015,7 @@ function TopologyCanvas() {
   const { data: gateway } = useGatewayConfig();
   const { data: densityData } = useDensityNodes();
   const { fitView } = useReactFlow();
+  useArrowKeyPan();
 
   const [rfNodes, setNodesState] = useState<Node[]>([]);
   const [rfEdges, setEdgesState] = useState<Edge[]>([]);
@@ -1324,6 +1326,7 @@ function TopologyCanvas() {
         >
           <Background color="#e8562a" gap={48} size={0.5} />
           <Controls showInteractive={false} />
+          <KeyboardGuide />
           <MiniMap
             style={{ background: "hsl(var(--card))" }}
             maskColor="rgba(0,0,0,0.6)"

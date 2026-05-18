@@ -20,6 +20,7 @@ import { ModelsPage } from "@/pages/models";
 import { ModelDetailPage } from "@/pages/model-detail";
 import { SettingsPage } from "@/pages/settings";
 import { TopologyPage } from "@/pages/topology";
+import { TopologyDemoPage } from "@/pages/topology-demo";
 import { SyntheticMembranePage } from "@/pages/synthetic-membrane";
 import { ModelDensityPage } from "@/pages/model-density";
 
@@ -53,6 +54,7 @@ export default function App() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/topology" element={<TopologyPage />} />
+        <Route path="/topology/demo" element={<TopologyDemoPage />} />
         <Route path="/agents" element={<AgentsPage />} />
         <Route path="/agents/:name" element={<AgentDetailPage />} />
         <Route path="/runs" element={<RunsPage />} />
