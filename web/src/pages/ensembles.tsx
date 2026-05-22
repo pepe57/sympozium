@@ -411,6 +411,7 @@ export function EnsemblesPage() {
           provider: wizardPack?.spec.authRefs?.[0]?.provider || "",
           secretName: wizardPack?.spec.authRefs?.[0]?.secret || "",
           model: wizardPack?.spec.agentConfigs?.[0]?.model || "",
+          baseURL: wizardPack?.spec.baseURL || "",
           skills: Array.from(
             new Set(
               (wizardPack?.spec.agentConfigs || []).flatMap((p) => p.skills || []),
