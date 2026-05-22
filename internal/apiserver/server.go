@@ -1702,9 +1702,10 @@ func (s *Server) patchEnsemble(w http.ResponseWriter, r *http.Request) {
 	} else if req.BaseURL != "" {
 		pp.Spec.BaseURL = req.BaseURL
 		pp.Spec.ModelRef = ""
-	} else if pp.Spec.BaseURL == "" && req.Provider != "" {
-		// Apply default baseURL for keyless local providers so the
-		// controller can reach the inference server (fixes #39).
+	} else if req.Provider != "" {
+		// Apply the provider's default baseURL. For cloud providers this
+		// is empty, which clears any stale local proxy URL. For local
+		// providers this sets the conventional endpoint.
 		pp.Spec.BaseURL = defaultProviderBaseURL(req.Provider)
 	}
 
