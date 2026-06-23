@@ -17,8 +17,10 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
-// maxToolIterations is the maximum number of tool-call round-trips before
-// the agent stops and returns whatever text it has.
+// maxToolIterations is the maximum number of LLM reasoning rounds before
+// the agent stops and returns whatever text it has. Each round consists of
+// one LLM call (which may produce multiple parallel tool calls) followed by
+// tool execution and feeding results back to the LLM.
 var maxToolIterations = 50
 
 // llmRequestTimeout is the per-request timeout for individual LLM API calls.

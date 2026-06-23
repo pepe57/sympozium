@@ -8,7 +8,7 @@
 | `DATABASE_URL` | API Server | PostgreSQL connection string |
 | `INSTANCE_NAME` | Channels | Owning Agent name |
 | `MEMORY_ENABLED` | Agent Runner | Whether persistent memory is active |
-| `MAX_TOOL_ITERATIONS` | Agent Runner | Maximum tool-call iterations (default: 50). Can also be set per-run via `spec.env` in AgentRun CR. |
+| `MAX_TOOL_ITERATIONS` | Agent Runner | Maximum LLM round-trips before the agent stops (default: 50). Each round may contain multiple parallel tool calls. Can also be set per-run via `spec.env` in AgentRun CR. |
 | `TELEGRAM_BOT_TOKEN` | Telegram | Bot API token |
 | `SLACK_BOT_TOKEN` | Slack | Bot OAuth token |
 | `SLACK_APP_TOKEN` | Slack | App-level token for Socket Mode |

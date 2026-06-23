@@ -8,10 +8,10 @@ This guide explains how to add new tools to the Sympozium agent-runner. Tools ar
 
 ### MAX_TOOL_ITERATIONS
 
-Environment variable to configure maximum tool-call iterations (default: 50):
+Environment variable to configure the maximum number of LLM round-trips (default: 50). Each round consists of one LLM call that may produce multiple tool calls, followed by the agent executing all of those tool calls and feeding the results back to the LLM. A single round can therefore contain several parallel tool calls -- the limit controls how many times the LLM gets to reason and respond, not how many individual tools are invoked.
 
 ```bash
-export MAX_TOOL_ITERATIONS=50
+export MAX_TOOL_ITERATIONS=50  # Allow up to 50 LLM rounds
 sympozium serve --agent-runner
 ```
 
@@ -34,7 +34,7 @@ spec:
     model: qwen3.5
     baseURL: http://localhost:11434/v1
   env:
-    MAX_TOOL_ITERATIONS: "50"  # Per-run override
+    MAX_TOOL_ITERATIONS: "50"  # Max LLM rounds (each round may invoke multiple tools)
 ```
 
 This is useful when different runs need different iteration limits without rebuilding the agent-runner image.
