@@ -159,20 +159,26 @@ func (r *SympoziumScheduleReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	}
 
-	// Check concurrency policy.
-	if schedule.Spec.ConcurrencyPolicy == "Forbid" && schedule.Status.LastRunName != "" {
-		lastAgentRun := &sympoziumv1alpha1.AgentRun{}
-		if err := r.Get(ctx, client.ObjectKey{
-			Namespace: schedule.Namespace,
-			Name:      schedule.Status.LastRunName,
-		}, lastAgentRun); err == nil {
-			if lastAgentRun.Status.Phase == sympoziumv1alpha1.AgentRunPhaseRunning ||
-				lastAgentRun.Status.Phase == sympoziumv1alpha1.AgentRunPhasePending ||
-				lastAgentRun.Status.Phase == sympoziumv1alpha1.AgentRunPhaseServing ||
-				lastAgentRun.Status.Phase == "" {
-				log.Info("Skipping trigger — previous run still active (Forbid policy)")
-				_ = r.Status().Update(ctx, schedule)
-				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	// Check concurrency policy by listing live runs (not cached status) to
+	// avoid the TOCTOU race where two reconcile loops both read the same
+	// stale LastRunName, both pass the check, and both create a new run.
+	if schedule.Spec.ConcurrencyPolicy == "Forbid" {
+		var scheduleRuns sympoziumv1alpha1.AgentRunList
+		if err := r.List(ctx, &scheduleRuns,
+			client.InNamespace(schedule.Namespace),
+			client.MatchingLabels{"sympozium.ai/schedule": schedule.Name},
+		); err == nil {
+			for i := range scheduleRuns.Items {
+				phase := scheduleRuns.Items[i].Status.Phase
+				if phase == sympoziumv1alpha1.AgentRunPhaseRunning ||
+					phase == sympoziumv1alpha1.AgentRunPhasePending ||
+					phase == sympoziumv1alpha1.AgentRunPhaseServing ||
+					phase == "" {
+					log.Info("Skipping trigger — active run exists (Forbid policy)",
+						"activeRun", scheduleRuns.Items[i].Name, "phase", phase)
+					_ = r.Status().Update(ctx, schedule)
+					return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+				}
 			}
 		}
 	}
