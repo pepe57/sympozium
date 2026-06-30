@@ -11,6 +11,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // Memory tool name constants.
@@ -36,8 +38,16 @@ func isMemoryTool(name string) bool {
 // Set from MEMORY_SERVER_URL env var at startup.
 var memoryServerURL string
 
-// memoryHTTPClient is a shared HTTP client with reasonable timeouts.
-var memoryHTTPClient = &http.Client{Timeout: 5 * time.Second}
+// memoryHTTPClient is a shared HTTP client with reasonable timeouts. The
+// otelhttp transport injects the W3C traceparent header into every request and
+// emits a client span per call, so memory reads/writes appear as spans nested
+// under the agent run trace and connect to the memory-server's server span
+// (ISI-1406 gap 6 — "spans on the memory part"). When OTel is disabled the
+// global propagator/tracer are no-ops, so this adds no header and no span.
+var memoryHTTPClient = &http.Client{
+	Timeout:   5 * time.Second,
+	Transport: otelhttp.NewTransport(http.DefaultTransport),
+}
 
 const (
 	memoryMaxRetries  = 3
@@ -271,7 +281,10 @@ const memoryContextMaxChars = 2000
 // queryMemoryContext queries the memory server for entries related to the
 // current task and returns pre-formatted context for injection into the
 // system prompt. Returns empty string on any error or if no results match.
-func queryMemoryContext(task string, maxResults int) string {
+// The parent context carries the run span and the W3C trace context extracted
+// from the controller, so this pre-flight /search nests under the BMAD chain
+// instead of surfacing as an orphaned single-span trace (ISI-1406).
+func queryMemoryContext(parent context.Context, task string, maxResults int) string {
 	if memoryServerURL == "" {
 		return ""
 	}
@@ -283,7 +296,7 @@ func queryMemoryContext(task string, maxResults int) string {
 		query = query[:200]
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 3*time.Second)
 	defer cancel()
 
 	body, _ := json.Marshal(map[string]any{
@@ -335,8 +348,11 @@ func queryMemoryContext(task string, maxResults int) string {
 
 // autoStoreMemory stores a summary of the completed task and response in the
 // memory server so future agent runs have context. This is fire-and-forget —
-// errors are logged but do not affect the agent run.
-func autoStoreMemory(task, response string) {
+// errors are logged but do not affect the agent run. The parent context carries
+// the agent run span so the auto-store write emits a span under the run trace
+// (ISI-1406 gap 6); previously this used context.Background(), which detached
+// the write from the trace and left memory writes span-less.
+func autoStoreMemory(parent context.Context, task, response string) {
 	if memoryServerURL == "" {
 		return
 	}
@@ -353,7 +369,7 @@ func autoStoreMemory(task, response string) {
 
 	content := fmt.Sprintf("Task: %s\n\nResponse: %s", task, response)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
 
 	body := map[string]any{
@@ -694,7 +710,9 @@ const workflowMemoryContextMaxChars = 800
 
 // queryWorkflowMemoryContext queries the shared workflow memory server for
 // entries relevant to the current task. Returns pre-formatted context or empty string.
-func queryWorkflowMemoryContext(task string, maxResults int) string {
+// The parent context carries the run span and the extracted controller trace,
+// so this pre-flight /search joins the BMAD chain instead of orphaning (ISI-1406).
+func queryWorkflowMemoryContext(parent context.Context, task string, maxResults int) string {
 	if workflowMemoryServerURL == "" {
 		return ""
 	}
@@ -704,7 +722,7 @@ func queryWorkflowMemoryContext(task string, maxResults int) string {
 		query = query[:200]
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 3*time.Second)
 	defer cancel()
 
 	searchBody := map[string]any{

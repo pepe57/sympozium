@@ -11,6 +11,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -22,10 +23,113 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sympozium-ai/sympozium/pkg/telemetry"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	_ "modernc.org/sqlite"
 )
 
 const defaultDBPath = "/data/memory.db"
+
+// memObservability holds the OTel instruments for the memory sidecar. Agents
+// in an Ensemble read and write a shared memory store, but that interaction was
+// previously unmeasurable (ISI-1406 gap 6). These counters expose read/write
+// volume per agent and operation so memory traffic is visible in Dynatrace.
+type memObservability struct {
+	enabled  bool
+	shutdown func(context.Context) error
+	reads    metric.Int64Counter
+	writes   metric.Int64Counter
+}
+
+var memObs = &memObservability{shutdown: func(context.Context) error { return nil }}
+
+// agentName is the owning agent's name, stamped on every memory metric so a
+// shared-memory Ensemble can be broken down per agent.
+var agentName = envOr("MEMORY_AGENT", "")
+
+// initMemObservability bootstraps OTel via the shared pkg/telemetry path when an
+// OTLP endpoint is configured. It is a no-op (counters stay nil) otherwise, so
+// the sidecar runs unchanged in environments without observability.
+func initMemObservability(ctx context.Context) {
+	endpoint := firstNonEmptyEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "SYMPOZIUM_OTEL_OTLP_ENDPOINT")
+	if endpoint == "" {
+		return
+	}
+	serviceName := firstNonEmptyEnv("OTEL_SERVICE_NAME", "SYMPOZIUM_OTEL_SERVICE_NAME")
+	if serviceName == "" {
+		serviceName = "sympozium-memory-server"
+	}
+	tel, err := telemetry.Init(ctx, telemetry.Config{
+		ServiceName:     serviceName,
+		BatchTimeout:    1 * time.Second,
+		ShutdownTimeout: 3 * time.Second,
+	})
+	if err != nil {
+		log.Printf("[memory-server] OTel init failed, metrics disabled: %v", err)
+		return
+	}
+	meter := otel.Meter("sympozium.ai/memory-server")
+	reads, err := meter.Int64Counter("sympozium.memory.read",
+		metric.WithUnit("{op}"), metric.WithDescription("Memory read operations (search/list/provenance)"))
+	if err != nil {
+		log.Printf("[memory-server] failed creating sympozium.memory.read: %v", err)
+	}
+	writes, err := meter.Int64Counter("sympozium.memory.write",
+		metric.WithUnit("{op}"), metric.WithDescription("Memory write operations (store)"))
+	if err != nil {
+		log.Printf("[memory-server] failed creating sympozium.memory.write: %v", err)
+	}
+	memObs = &memObservability{enabled: true, shutdown: tel.Shutdown, reads: reads, writes: writes}
+	log.Printf("[memory-server] OTel metrics enabled, endpoint=%s service=%s", endpoint, serviceName)
+}
+
+// recordRead increments the read counter. op is the read kind (search/list/...),
+// status is "ok" or "error". caller is the requesting agent when provided.
+func (o *memObservability) recordRead(ctx context.Context, op, status, caller string) {
+	if o == nil || !o.enabled || o.reads == nil {
+		return
+	}
+	o.reads.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("op", op),
+		attribute.String("status", status),
+		attribute.String("agent", agentName),
+	))
+	// caller_agent is caller-controlled (read from the request body/query on a
+	// plain HTTP endpoint), so it stays off the bounded counter and goes on the
+	// span instead, where high cardinality is acceptable.
+	if caller != "" {
+		oteltrace.SpanFromContext(ctx).SetAttributes(attribute.String("caller_agent", caller))
+	}
+}
+
+// recordWrite increments the write counter. status is "ok" or "error", source
+// is the agent that produced the entry when provided.
+func (o *memObservability) recordWrite(ctx context.Context, status, source string) {
+	if o == nil || !o.enabled || o.writes == nil {
+		return
+	}
+	o.writes.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("status", status),
+		attribute.String("agent", agentName),
+	))
+	// source_agent is caller-controlled; keep it on the span, not the counter.
+	if source != "" {
+		oteltrace.SpanFromContext(ctx).SetAttributes(attribute.String("source_agent", source))
+	}
+}
+
+func firstNonEmptyEnv(keys ...string) string {
+	for _, k := range keys {
+		if v := os.Getenv(k); v != "" {
+			return v
+		}
+	}
+	return ""
+}
 
 // apiResponse is the standard JSON response format.
 type apiResponse struct {
@@ -85,6 +189,14 @@ func main() {
 		log.Fatalf("failed to run evidence migration: %v", err)
 	}
 
+	// Bootstrap OTel (ISI-1406 gap 6). No-op when no OTLP endpoint is set.
+	initMemObservability(context.Background())
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = memObs.shutdown(shutdownCtx)
+	}()
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /search", searchHandler(db))
 	mux.HandleFunc("POST /store", storeHandler(db))
@@ -96,9 +208,26 @@ func main() {
 		fmt.Fprint(w, "ok")
 	})
 
+	// Wrap the router with otelhttp so each memory operation emits a server
+	// span (ISI-1406 gap 6 — "spans on the memory part"). The handler extracts
+	// the W3C traceparent from the incoming request (the agent-runner injects it
+	// via its otelhttp client), so memory reads/writes nest under the agent's
+	// run trace and the full BMAD chain instead of appearing as orphans. Spans
+	// are named by route (e.g. "memory POST /store"); /health is left
+	// uninstrumented to avoid probe noise. No-op when OTel is disabled — the
+	// global TracerProvider is then a noop and spans are dropped cheaply.
+	handler := otelhttp.NewHandler(mux, "memory-server",
+		otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+			return "memory " + r.Method + " " + r.URL.Path
+		}),
+		otelhttp.WithFilter(func(r *http.Request) bool {
+			return r.URL.Path != "/health"
+		}),
+	)
+
 	addr := ":" + port
 	log.Printf("[memory-server] listening on %s, db=%s", addr, dbPath)
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	if err := http.ListenAndServe(addr, handler); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
 }
@@ -132,10 +261,12 @@ func searchHandler(db *sql.DB) http.HandlerFunc {
 		results, err := searchMemories(db, req.Query, req.TopK, req.CallerAgent, req.TrustPeers, req.AcceptTags, req.MaxAge, req.MinKind)
 		if err != nil {
 			log.Printf("[search] error: %v", err)
+			memObs.recordRead(r.Context(), "search", "error", req.CallerAgent)
 			writeJSON(w, http.StatusInternalServerError, apiResponse{Error: err.Error()})
 			return
 		}
 		log.Printf("[search] returned %d result(s)", len(results))
+		memObs.recordRead(r.Context(), "search", "ok", req.CallerAgent)
 		writeJSON(w, http.StatusOK, apiResponse{Success: true, Content: results})
 	}
 }
@@ -169,10 +300,12 @@ func storeHandler(db *sql.DB) http.HandlerFunc {
 		id, seq, storedAt, err := storeMemory(db, req.Content, req.Tags, req.Visibility, req.SourceAgent, req.ParentID, req.Evidence)
 		if err != nil {
 			log.Printf("[store] error: %v", err)
+			memObs.recordWrite(r.Context(), "error", req.SourceAgent)
 			writeJSON(w, http.StatusInternalServerError, apiResponse{Error: err.Error()})
 			return
 		}
 		log.Printf("[store] saved id=%d seq=%d at=%s", id, seq, storedAt)
+		memObs.recordWrite(r.Context(), "ok", req.SourceAgent)
 		writeJSON(w, http.StatusOK, apiResponse{
 			Success: true,
 			Content: map[string]any{"id": id, "seq": seq, "stored_at": storedAt},
@@ -202,10 +335,12 @@ func listHandler(db *sql.DB) http.HandlerFunc {
 		results, err := listMemories(db, tags, limit, callerAgent, trustPeers, maxAge, minKind, sourceAgent)
 		if err != nil {
 			log.Printf("[list] error: %v", err)
+			memObs.recordRead(r.Context(), "list", "error", callerAgent)
 			writeJSON(w, http.StatusInternalServerError, apiResponse{Error: err.Error()})
 			return
 		}
 		log.Printf("[list] returned %d entry/entries", len(results))
+		memObs.recordRead(r.Context(), "list", "ok", callerAgent)
 		writeJSON(w, http.StatusOK, apiResponse{Success: true, Content: results})
 	}
 }
@@ -271,9 +406,11 @@ func provenanceHandler(db *sql.DB) http.HandlerFunc {
 
 		chain, err := getProvenanceChain(db, id)
 		if err != nil {
+			memObs.recordRead(r.Context(), "provenance", "error", r.URL.Query().Get("caller_agent"))
 			writeJSON(w, http.StatusInternalServerError, apiResponse{Error: err.Error()})
 			return
 		}
+		memObs.recordRead(r.Context(), "provenance", "ok", r.URL.Query().Get("caller_agent"))
 		writeJSON(w, http.StatusOK, apiResponse{Success: true, Content: chain})
 	}
 }

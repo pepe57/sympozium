@@ -314,6 +314,60 @@ func main() {
 		log.Printf("tools enabled: %d tool(s) registered", len(tools))
 	}
 
+	// Establish the run timeout, observability, and the distributed trace
+	// context BEFORE any memory auto-injection. The startup memory queries
+	// below (queryMemoryContext / queryWorkflowMemoryContext) issue real
+	// /search calls to the memory server; if the run span and the global OTel
+	// propagator are not yet set up, those calls carry no W3C traceparent and
+	// surface as orphaned single-span traces instead of nesting under the BMAD
+	// chain (ISI-1406: board observed /search and /list disconnected while
+	// /store was end-to-end). Wiring trace setup first lets the pre-flight
+	// reads join the same trace as the rest of the run.
+	rt := effectiveRunTimeout(provider)
+	log.Printf("run_timeout=%s", rt)
+	ctx, cancel := context.WithTimeout(context.Background(), rt)
+	defer cancel()
+
+	obs := initObservability(ctx)
+	defer func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer shutdownCancel()
+		if err := obs.shutdown(shutdownCtx); err != nil {
+			log.Printf("failed to shutdown OTel providers: %v", err)
+		}
+	}()
+
+	// Extract TRACEPARENT from env so the runner trace joins the controller trace.
+	if tp := os.Getenv("TRACEPARENT"); tp != "" {
+		debug := os.Getenv("DEBUG") == "true"
+		if debug {
+			log.Printf("TRACEPARENT env var found: %s", tp)
+		}
+		prop := propagation.TraceContext{}
+		carrier := propagation.MapCarrier{"traceparent": tp}
+		ctx = prop.Extract(ctx, carrier)
+		if debug {
+			sc := oteltrace.SpanContextFromContext(ctx)
+			log.Printf("after extraction: traceID=%s spanID=%s remote=%v valid=%v", sc.TraceID(), sc.SpanID(), sc.IsRemote(), sc.IsValid())
+		}
+	} else if os.Getenv("DEBUG") == "true" {
+		log.Println("TRACEPARENT env var not set")
+	}
+
+	ctx, runSpan := obs.startRunSpan(ctx,
+		attribute.String("instance", getEnv("INSTANCE_NAME", "")),
+		attribute.String("tenant.namespace", getEnv("AGENT_NAMESPACE", "")),
+		attribute.String("model", modelName),
+		attribute.String("task.summary", truncate(task, 200)),
+	)
+	writeTraceContextMetadata(ctx)
+	logWithTrace(ctx, "info", "agent run started", map[string]any{
+		"instance":  getEnv("INSTANCE_NAME", ""),
+		"namespace": getEnv("AGENT_NAMESPACE", ""),
+		"provider":  provider,
+		"model":     modelName,
+	})
+
 	// Load memory tools if the memory server is available (standalone deployment).
 	if memoryTools := initMemoryTools(); len(memoryTools) > 0 {
 		tools = append(tools, memoryTools...)
@@ -321,7 +375,7 @@ func main() {
 		// Auto-inject relevant memory context so the agent has immediate
 		// awareness of past findings without relying on it to call memory_search.
 		var memoryContextBlock string
-		if memCtx := queryMemoryContext(task, 3); memCtx != "" {
+		if memCtx := queryMemoryContext(ctx, task, 3); memCtx != "" {
 			memoryContextBlock = "\n\n## Relevant Past Context (auto-retrieved)\n\n" +
 				"The following memories were automatically retrieved based on your current task:\n\n" +
 				memCtx
@@ -369,7 +423,7 @@ func main() {
 		tools = append(tools, wfMemTools...)
 
 		// Auto-inject shared team memory context alongside private memory.
-		if wfMemCtx := queryWorkflowMemoryContext(task, 3); wfMemCtx != "" {
+		if wfMemCtx := queryWorkflowMemoryContext(ctx, task, 3); wfMemCtx != "" {
 			systemPrompt += "\n\n## Team Knowledge (Shared Workflow Memory)\n\n" +
 				"The following shared memories were contributed by other personas in your team:\n\n" +
 				wfMemCtx + "\n\n" +
@@ -412,46 +466,6 @@ func main() {
 	}
 
 	_ = os.MkdirAll("/ipc/output", 0o755)
-
-	rt := effectiveRunTimeout(provider)
-	log.Printf("run_timeout=%s", rt)
-	ctx, cancel := context.WithTimeout(context.Background(), rt)
-	defer cancel()
-
-	obs := initObservability(ctx)
-	defer func() {
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer shutdownCancel()
-		if err := obs.shutdown(shutdownCtx); err != nil {
-			log.Printf("failed to shutdown OTel providers: %v", err)
-		}
-	}()
-
-	// Extract TRACEPARENT from env so the runner trace joins the controller trace.
-	if tp := os.Getenv("TRACEPARENT"); tp != "" {
-		log.Printf("TRACEPARENT env var found: %s", tp)
-		prop := propagation.TraceContext{}
-		carrier := propagation.MapCarrier{"traceparent": tp}
-		ctx = prop.Extract(ctx, carrier)
-		sc := oteltrace.SpanContextFromContext(ctx)
-		log.Printf("after extraction: traceID=%s spanID=%s remote=%v valid=%v", sc.TraceID(), sc.SpanID(), sc.IsRemote(), sc.IsValid())
-	} else {
-		log.Println("TRACEPARENT env var not set")
-	}
-
-	ctx, runSpan := obs.startRunSpan(ctx,
-		attribute.String("instance", getEnv("INSTANCE_NAME", "")),
-		attribute.String("tenant.namespace", getEnv("AGENT_NAMESPACE", "")),
-		attribute.String("model", modelName),
-		attribute.String("task.summary", truncate(task, 200)),
-	)
-	writeTraceContextMetadata(ctx)
-	logWithTrace(ctx, "info", "agent run started", map[string]any{
-		"instance":  getEnv("INSTANCE_NAME", ""),
-		"namespace": getEnv("AGENT_NAMESPACE", ""),
-		"provider":  provider,
-		"model":     modelName,
-	})
 
 	start := time.Now()
 
@@ -508,7 +522,7 @@ func main() {
 	// Must be synchronous — the process exits shortly after this point,
 	// so a goroutine would be killed before the HTTP POST completes.
 	if res.Status == "success" && res.Response != "" {
-		autoStoreMemory(task, res.Response)
+		autoStoreMemory(ctx, task, res.Response)
 	}
 
 	// Extract and emit memory update before stripping markers from the response.
