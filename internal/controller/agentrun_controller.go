@@ -1266,7 +1266,6 @@ func (r *AgentRunReconciler) triggerDelegationSuccessors(ctx context.Context, lo
 	selected := scored[:1]
 
 	// Spawn the selected edge(s).
-	triggered := false
 	for _, se := range selected {
 		rel := se.rel
 		targetPersona := rel.Target
@@ -1361,7 +1360,6 @@ func (r *AgentRunReconciler) triggerDelegationSuccessors(ctx context.Context, lo
 			continue
 		}
 		log.Info("Created delegation successor run", "run", runName, "target", targetPersona)
-		triggered = true
 
 		// Handoff latency metric for delegation lane.
 		if agentRun.Status.CompletedAt != nil {
