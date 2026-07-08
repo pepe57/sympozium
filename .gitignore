@@ -60,4 +60,3 @@ mcp-bridge
 
 # Local machine-specific Claude notes (not shared)
 CLAUDE.local.md
-charts/sympozium/charts/*.tgz
