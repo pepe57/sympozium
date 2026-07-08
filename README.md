@@ -101,6 +101,8 @@ Containers needed orchestration. Agents need coordination.
 
 Sympozium is a **Kubernetes-native coordination layer** for multi-agent AI systems. It solves the same problem Kubernetes solved for containers &mdash; but for agents that need to share context, hand off tasks, and maintain shared situational awareness.
 
+**And that is the whole product.** Sympozium decides what agents *do*. Where compute *happens* is the job of a capability layer &mdash; [llmfit-dra](https://github.com/sympozium-ai/llmfit-dra), a Kubernetes DRA driver that places models by physics through the stock scheduler. How tokens *move* is the serving engine's job (vLLM, SGLang, llama.cpp). When an agent needs a model, Sympozium *claims* one the way an application claims a PersistentVolume &mdash; it never decides where it runs. See [Positioning](https://deploy.sympozium.ai/docs/positioning/) for the boundary and what's deliberately out of scope.
+
 ### Agent Coordination
 
 | | |
@@ -114,7 +116,7 @@ Sympozium is a **Kubernetes-native coordination layer** for multi-agent AI syste
 
 | | |
 |---|---|
-| **Local Model Inference** | Declare GGUF models as CRDs &mdash; weights are downloaded, llama-server deployed, and OpenAI-compatible endpoints exposed. No API keys required |
+| **Model Endpoints for Agents** | Declare GGUF models as CRDs &mdash; weights are downloaded, llama-server deployed, and OpenAI-compatible endpoints exposed for your personas. No API keys required. Placement is *claimed*, not decided here: with [llmfit-dra](https://github.com/sympozium-ai/llmfit-dra) installed, the stock scheduler places models by physics |
 | **Skill Sidecars** | Every skill runs in its own sidecar with ephemeral least-privilege RBAC, garbage-collected on completion |
 | **Multi-Channel** | Telegram, Slack, Discord, WhatsApp &mdash; each channel is a dedicated Deployment backed by NATS JetStream |
 | **Persistent Memory** | SQLite + FTS5 on a PersistentVolume &mdash; memories survive across ephemeral pod runs |
@@ -131,6 +133,7 @@ Sympozium is a **Kubernetes-native coordination layer** for multi-agent AI syste
 | Topic | Link |
 |-------|------|
 | Getting Started | [deploy.sympozium.ai/docs/getting-started](https://deploy.sympozium.ai/docs/getting-started/) |
+| Positioning &mdash; what Sympozium is (and isn't) | [deploy.sympozium.ai/docs/positioning](https://deploy.sympozium.ai/docs/positioning/) |
 | Architecture | [deploy.sympozium.ai/docs/architecture](https://deploy.sympozium.ai/docs/architecture/) |
 | Custom Resources | [deploy.sympozium.ai/docs/concepts/custom-resources](https://deploy.sympozium.ai/docs/concepts/custom-resources/) |
 | Ensembles | [deploy.sympozium.ai/docs/concepts/ensembles](https://deploy.sympozium.ai/docs/concepts/ensembles/) |

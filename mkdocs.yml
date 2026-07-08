@@ -75,6 +75,7 @@ copyright: Copyright &copy; 2024-2026 Alex Jones — MIT License
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
+  - Positioning: positioning.md
   - Architecture: architecture.md
   - Concepts:
     - Custom Resources: concepts/custom-resources.md

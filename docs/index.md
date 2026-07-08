@@ -1,10 +1,14 @@
 # Sympozium
 
-**Kubernetes-native AI Agent Orchestration Platform**
+**A coordination layer for multi-agent AI systems on Kubernetes**
 
 Every agent is an ephemeral Pod. Every policy is a CRD. Every execution is a Job.
-Orchestrate multi-agent workflows on Kubernetes — from single tasks to coordinated teams.
+Coordinate multi-agent workflows on Kubernetes — from single tasks to coordinated teams.
 Multi-tenant. Horizontally scalable. Safe by design.
+
+Sympozium decides what agents *do*. Where compute happens belongs to
+[llmfit-dra](https://github.com/sympozium-ai/llmfit-dra); how tokens move belongs
+to the serving engine. See [Positioning](positioning.md) for the boundary.
 
 <p align="center">
   <img src="assets/demo.gif" alt="Sympozium TUI demo" width="800px">
