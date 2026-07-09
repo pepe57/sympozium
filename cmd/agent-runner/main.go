@@ -41,6 +41,13 @@ var llmMaxRetries = -1 // -1 means "use provider-appropriate default"
 // Override with RUN_TIMEOUT env var (Go duration string, e.g. "30m", "1h").
 var runTimeout time.Duration // 0 means "use provider-appropriate default"
 
+// delegateTimeout bounds how long delegate_to_persona and spawn_subagents block
+// waiting for a child run's IPC result. By default the wait inherits whatever
+// remains of the run's context deadline, so raising RUN_TIMEOUT raises the
+// delegate wait with it. Override with DELEGATE_TIMEOUT (Go duration string) to
+// cap a delegate wait below the run budget.
+var delegateTimeout time.Duration // 0 means "inherit the run deadline"
+
 func init() {
 	if val := os.Getenv("MAX_TOOL_ITERATIONS"); val != "" {
 		if n, err := strconv.Atoi(val); err == nil && n > 0 {
@@ -60,6 +67,11 @@ func init() {
 	if val := os.Getenv("RUN_TIMEOUT"); val != "" {
 		if d, err := time.ParseDuration(val); err == nil && d > 0 {
 			runTimeout = d
+		}
+	}
+	if val := os.Getenv("DELEGATE_TIMEOUT"); val != "" {
+		if d, err := time.ParseDuration(val); err == nil && d > 0 {
+			delegateTimeout = d
 		}
 	}
 }
@@ -103,6 +115,20 @@ func effectiveRunTimeout(provider string) time.Duration {
 	}
 	if isLocalProvider(provider) {
 		return 30 * time.Minute
+	}
+	return 10 * time.Minute
+}
+
+// effectiveDelegateTimeout returns how long a delegate or subagent spawn may
+// block. An explicit DELEGATE_TIMEOUT wins; otherwise the wait inherits the
+// remaining run budget from ctx. The 10-minute fallback only applies to a ctx
+// with no deadline (tests, direct calls).
+func effectiveDelegateTimeout(ctx context.Context) time.Duration {
+	if delegateTimeout > 0 {
+		return delegateTimeout
+	}
+	if deadline, ok := ctx.Deadline(); ok {
+		return time.Until(deadline).Round(time.Second)
 	}
 	return 10 * time.Minute
 }

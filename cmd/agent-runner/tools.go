@@ -15,6 +15,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/sympozium-ai/sympozium/internal/ipc"
 	"github.com/sympozium-ai/sympozium/pkg/sidecartools"
 	"golang.org/x/net/html"
 )
@@ -356,9 +357,9 @@ func executeToolCall(ctx context.Context, name string, argsJSON string) string {
 	case ToolScheduleTask:
 		return scheduleTaskTool(args)
 	case ToolDelegateToPersona:
-		return delegateToPersonaTool(args)
+		return delegateToPersonaTool(ctx, args)
 	case ToolSpawnSubagents:
-		return spawnSubagentsTool(args)
+		return spawnSubagentsTool(ctx, args)
 	default:
 		// Check if this is a memory tool from the memory-server sidecar.
 		if isMemoryTool(name) {
@@ -492,6 +493,55 @@ func sendChannelMessageTool(args map[string]any) string {
 	return fmt.Sprintf("Message sent to %s channel (target: %s)", channel, target)
 }
 
+// --- Spawn IPC round-trip (shared by delegate_to_persona and spawn_subagents) ---
+
+// spawnDir is where the agent and the IPC bridge exchange spawn requests and
+// their results. spawnPollInterval is how often the agent restats the result.
+const (
+	spawnDir          = "/ipc/spawn"
+	spawnPollInterval = 2 * time.Second
+)
+
+// ipcRoundTrip writes req as JSON to reqPath, then polls resPath every poll
+// until it decodes into out, the run context is cancelled, or timeout elapses.
+// A result that fails to decode is a partially written file, so the poll
+// continues. Both files are removed once the result decodes; on failure the
+// request is left in place, since the SpawnRouter may still be acting on it.
+func ipcRoundTrip(ctx context.Context, reqPath, resPath string, poll, timeout time.Duration, req, out any) error {
+	if timeout <= 0 {
+		return fmt.Errorf("no time left in the run budget")
+	}
+
+	data, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("marshalling request: %w", err)
+	}
+	_ = os.MkdirAll(filepath.Dir(reqPath), 0o755)
+	if err := os.WriteFile(reqPath, data, 0o644); err != nil {
+		return fmt.Errorf("writing request: %w", err)
+	}
+
+	ticker := time.NewTicker(poll)
+	defer ticker.Stop()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	for {
+		if res, err := os.ReadFile(resPath); err == nil && len(res) > 0 && json.Unmarshal(res, out) == nil {
+			_ = os.Remove(reqPath)
+			_ = os.Remove(resPath)
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+			return fmt.Errorf("timed out after %s", timeout)
+		case <-ticker.C:
+		}
+	}
+}
+
 // --- Delegate to persona tool (IPC-based) ---
 
 // delegateToPersonaTool writes a spawn request to /ipc/spawn/ and blocks
@@ -499,7 +549,7 @@ func sendChannelMessageTool(args map[string]any) string {
 // The IPC bridge forwards the request to the SpawnRouter which creates the
 // child AgentRun. When the child finishes, the SpawnRouter publishes the
 // result back through the bridge to /ipc/spawn/result-{requestID}.json.
-func delegateToPersonaTool(args map[string]any) string {
+func delegateToPersonaTool(ctx context.Context, args map[string]any) string {
 	targetPersona, _ := args["targetPersona"].(string)
 	task, _ := args["task"].(string)
 
@@ -517,14 +567,7 @@ func delegateToPersonaTool(args map[string]any) string {
 	}
 
 	requestID := fmt.Sprintf("%d", time.Now().UnixNano())
-
-	req := struct {
-		RequestID     string `json:"requestId"`
-		Task          string `json:"task"`
-		AgentID       string `json:"agentId"`
-		TargetPersona string `json:"targetPersona"`
-		PackName      string `json:"packName"`
-	}{
+	req := ipc.SpawnRequest{
 		RequestID:     requestID,
 		Task:          task,
 		AgentID:       "default",
@@ -532,56 +575,32 @@ func delegateToPersonaTool(args map[string]any) string {
 		PackName:      packName,
 	}
 
-	data, err := json.Marshal(req)
-	if err != nil {
-		return fmt.Sprintf("Error marshalling spawn request: %v", err)
-	}
+	reqPath := filepath.Join(spawnDir, fmt.Sprintf("request-%s.json", requestID))
+	resPath := filepath.Join(spawnDir, fmt.Sprintf("result-%s.json", requestID))
 
-	dir := "/ipc/spawn"
-	_ = os.MkdirAll(dir, 0o755)
-	reqPath := filepath.Join(dir, fmt.Sprintf("request-%s.json", requestID))
-	resPath := filepath.Join(dir, fmt.Sprintf("result-%s.json", requestID))
-
-	if err := os.WriteFile(reqPath, data, 0o644); err != nil {
-		return fmt.Sprintf("Error writing spawn request: %v", err)
-	}
-
-	log.Printf("Delegated to persona %q in pack %q (requestID=%s): task=%s",
+	log.Printf("Delegating to persona %q in pack %q (requestID=%s): task=%s",
 		targetPersona, packName, requestID, truncateStr(task, 100))
 
-	// Block until the delegate result arrives or timeout.
-	deadline := time.Now().Add(10 * time.Minute)
-	for time.Now().Before(deadline) {
-		resData, err := os.ReadFile(resPath)
-		if err == nil && len(resData) > 0 {
-			var result struct {
-				Status   string `json:"status"`
-				Response string `json:"response"`
-				Error    string `json:"error"`
-			}
-			if json.Unmarshal(resData, &result) == nil {
-				_ = os.Remove(reqPath)
-				_ = os.Remove(resPath)
-				if result.Status == "error" {
-					log.Printf("Delegation to %q failed: %s", targetPersona, result.Error)
-					return fmt.Sprintf("Delegation to '%s' failed: %s", targetPersona, result.Error)
-				}
-				log.Printf("Delegation to %q succeeded (%d bytes)", targetPersona, len(result.Response))
-				return fmt.Sprintf("Result from %s:\n\n%s", targetPersona, result.Response)
-			}
-		}
-		time.Sleep(2 * time.Second)
+	var result ipc.DelegateResult
+	if err := ipcRoundTrip(ctx, reqPath, resPath, spawnPollInterval,
+		effectiveDelegateTimeout(ctx), req, &result); err != nil {
+		log.Printf("Delegation to %q did not complete: %v", targetPersona, err)
+		return fmt.Sprintf("Error: delegation to '%s' did not complete: %v", targetPersona, err)
 	}
 
-	log.Printf("Delegation to %q timed out after 10 minutes", targetPersona)
-	return fmt.Sprintf("Error: delegation to '%s' timed out after 10 minutes", targetPersona)
+	if result.Status == "error" {
+		log.Printf("Delegation to %q failed: %s", targetPersona, result.Error)
+		return fmt.Sprintf("Delegation to '%s' failed: %s", targetPersona, result.Error)
+	}
+	log.Printf("Delegation to %q succeeded (%d bytes)", targetPersona, len(result.Response))
+	return fmt.Sprintf("Result from %s:\n\n%s", targetPersona, result.Response)
 }
 
 // --- Spawn subagents tool (IPC-based) ---
 
 // spawnSubagentsTool writes a batch spawn request to /ipc/spawn/ and blocks
 // until all sub-agent children complete, returning the aggregated results.
-func spawnSubagentsTool(args map[string]any) string {
+func spawnSubagentsTool(ctx context.Context, args map[string]any) string {
 	tasksRaw, ok := args["tasks"]
 	if !ok {
 		return "Error: 'tasks' is required — provide an array of {id, task} objects"
@@ -597,14 +616,7 @@ func spawnSubagentsTool(args map[string]any) string {
 	}
 	failurePolicy, _ := args["failurePolicy"].(string)
 
-	type taskEntry struct {
-		ID           string `json:"id"`
-		Task         string `json:"task"`
-		SystemPrompt string `json:"systemPrompt,omitempty"`
-		Timeout      string `json:"timeout,omitempty"`
-	}
-
-	var tasks []taskEntry
+	var tasks []ipc.SubagentTask
 	for i, t := range tasksSlice {
 		m, ok := t.(map[string]any)
 		if !ok {
@@ -615,7 +627,7 @@ func spawnSubagentsTool(args map[string]any) string {
 		if id == "" || task == "" {
 			return fmt.Sprintf("Error: tasks[%d] requires both 'id' and 'task' fields", i)
 		}
-		entry := taskEntry{
+		entry := ipc.SubagentTask{
 			ID:   id,
 			Task: task,
 		}
@@ -629,80 +641,43 @@ func spawnSubagentsTool(args map[string]any) string {
 	}
 
 	batchID := fmt.Sprintf("%d", time.Now().UnixNano())
-
-	req := struct {
-		BatchID       string      `json:"batchId"`
-		Strategy      string      `json:"strategy"`
-		FailurePolicy string      `json:"failurePolicy"`
-		Tasks         []taskEntry `json:"tasks"`
-	}{
+	req := ipc.SubagentSpawnRequest{
 		BatchID:       batchID,
 		Strategy:      strategy,
 		FailurePolicy: failurePolicy,
 		Tasks:         tasks,
 	}
 
-	data, err := json.Marshal(req)
-	if err != nil {
-		return fmt.Sprintf("Error marshalling subagent spawn request: %v", err)
-	}
-
-	dir := "/ipc/spawn"
-	_ = os.MkdirAll(dir, 0o755)
-	reqPath := filepath.Join(dir, fmt.Sprintf("subagent-request-%s.json", batchID))
-	resPath := filepath.Join(dir, fmt.Sprintf("subagent-result-%s.json", batchID))
-
-	if err := os.WriteFile(reqPath, data, 0o644); err != nil {
-		return fmt.Sprintf("Error writing subagent spawn request: %v", err)
-	}
+	reqPath := filepath.Join(spawnDir, fmt.Sprintf("subagent-request-%s.json", batchID))
+	resPath := filepath.Join(spawnDir, fmt.Sprintf("subagent-result-%s.json", batchID))
 
 	log.Printf("Spawning %d subagents (strategy=%s, failurePolicy=%s, batchID=%s)",
 		len(tasks), strategy, failurePolicy, batchID)
 
-	// Block until the batch result arrives or timeout.
-	deadline := time.Now().Add(10 * time.Minute)
-	for time.Now().Before(deadline) {
-		resData, err := os.ReadFile(resPath)
-		if err == nil && len(resData) > 0 {
-			var result struct {
-				BatchID string `json:"batchId"`
-				Status  string `json:"status"`
-				Results []struct {
-					ID       string `json:"id"`
-					RunName  string `json:"runName"`
-					Status   string `json:"status"`
-					Response string `json:"response"`
-					Error    string `json:"error"`
-				} `json:"results"`
-			}
-			if json.Unmarshal(resData, &result) == nil {
-				_ = os.Remove(reqPath)
-				_ = os.Remove(resPath)
-
-				var sb strings.Builder
-				sb.WriteString(fmt.Sprintf("Subagent batch %s (status: %s)\n\n", result.Status, result.Status))
-				for _, r := range result.Results {
-					sb.WriteString(fmt.Sprintf("### Task: %s", r.ID))
-					if r.RunName != "" {
-						sb.WriteString(fmt.Sprintf(" (run: %s)", r.RunName))
-					}
-					sb.WriteString("\n")
-					if r.Status == "error" {
-						sb.WriteString(fmt.Sprintf("**Error:** %s\n\n", r.Error))
-					} else {
-						sb.WriteString(fmt.Sprintf("%s\n\n", r.Response))
-					}
-				}
-
-				log.Printf("Subagent batch %s completed (status=%s, results=%d)", batchID, result.Status, len(result.Results))
-				return sb.String()
-			}
-		}
-		time.Sleep(2 * time.Second)
+	var result ipc.SubagentBatchResult
+	if err := ipcRoundTrip(ctx, reqPath, resPath, spawnPollInterval,
+		effectiveDelegateTimeout(ctx), req, &result); err != nil {
+		log.Printf("Subagent batch %s did not complete: %v", batchID, err)
+		return fmt.Sprintf("Error: subagent batch did not complete: %v (batchId=%s)", err, batchID)
 	}
 
-	log.Printf("Subagent batch %s timed out after 10 minutes", batchID)
-	return fmt.Sprintf("Error: subagent batch timed out after 10 minutes (batchId=%s)", batchID)
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Subagent batch %s (status: %s)\n\n", batchID, result.Status))
+	for _, r := range result.Results {
+		sb.WriteString(fmt.Sprintf("### Task: %s", r.ID))
+		if r.RunName != "" {
+			sb.WriteString(fmt.Sprintf(" (run: %s)", r.RunName))
+		}
+		sb.WriteString("\n")
+		if r.Status == "error" {
+			sb.WriteString(fmt.Sprintf("**Error:** %s\n\n", r.Error))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s\n\n", r.Response))
+		}
+	}
+
+	log.Printf("Subagent batch %s completed (status=%s, results=%d)", batchID, result.Status, len(result.Results))
+	return sb.String()
 }
 
 // --- Web fetch tool (runs in the agent container) ---
