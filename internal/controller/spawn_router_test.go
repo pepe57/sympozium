@@ -26,7 +26,7 @@ func newTestSpawnRouter(t *testing.T, objs ...client.Object) *SpawnRouter {
 	cl := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithObjects(objs...).
-		WithStatusSubresource(&sympoziumv1alpha1.Ensemble{}).
+		WithStatusSubresource(&sympoziumv1alpha1.Ensemble{}, &sympoziumv1alpha1.AgentRun{}).
 		Build()
 
 	return &SpawnRouter{

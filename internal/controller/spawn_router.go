@@ -10,8 +10,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/go-logr/logr"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -43,11 +46,17 @@ type SpawnRouter struct {
 }
 
 // pendingDelegation tracks the mapping from a child run to the parent that
-// requested it and the request ID for result correlation.
+// requested it and the request ID for result correlation. It is stored by
+// pointer so the edge timer can be attached after the entry is published to
+// sr.pending, closing the window where a short timer fires before the store.
 type pendingDelegation struct {
 	RequestID       string
 	ParentRunID     string
 	ParentNamespace string
+
+	// timer fires the relationships[].timeout for this delegation edge, or is
+	// nil when the edge declares none. Stopped when the child settles.
+	timer *time.Timer
 }
 
 // pendingBatch tracks the state of an in-flight subagent batch spawn.
@@ -212,11 +221,24 @@ func (sr *SpawnRouter) handleSpawnRequest(ctx context.Context, event *eventbus.E
 	)
 
 	// Track the child → parent mapping for result delivery.
-	sr.pending.Store(result.RunName, pendingDelegation{
+	pd := &pendingDelegation{
 		RequestID:       req.RequestID,
 		ParentRunID:     parentRunID,
 		ParentNamespace: parentRun.Namespace,
-	})
+	}
+	sr.pending.Store(result.RunName, pd)
+
+	// Enforce the Ensemble's relationships[].timeout for this edge. Without a
+	// declared timeout the delegate wait is bounded only by the parent's run
+	// budget, which is the pre-existing behavior.
+	if d, ok := sr.delegationEdgeTimeout(ctx, parentRun.Namespace, instanceName, req.PackName, req.TargetPersona); ok {
+		childRun, persona := result.RunName, req.TargetPersona
+		pd.timer = time.AfterFunc(d, func() {
+			sr.expireDelegation(ctx, childRun, persona, d)
+		})
+		sr.Log.Info("Armed delegation edge timeout",
+			"childRun", childRun, "targetPersona", persona, "timeout", d)
+	}
 
 	// Patch parent run to AwaitingDelegate and populate DelegateStatus.
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -249,7 +271,10 @@ func (sr *SpawnRouter) handleChildCompleted(ctx context.Context, event *eventbus
 	if !ok {
 		return // Not a delegation child.
 	}
-	pd := val.(pendingDelegation)
+	pd := val.(*pendingDelegation)
+	if pd.timer != nil {
+		pd.timer.Stop()
+	}
 
 	// Extract the response from the completion event data.
 	var data struct {
@@ -293,7 +318,10 @@ func (sr *SpawnRouter) handleChildFailed(ctx context.Context, event *eventbus.Ev
 	if !ok {
 		return // Not a delegation child.
 	}
-	pd := val.(pendingDelegation)
+	pd := val.(*pendingDelegation)
+	if pd.timer != nil {
+		pd.timer.Stop()
+	}
 
 	var data struct {
 		Error string `json:"error"`
@@ -1043,4 +1071,85 @@ func (sr *SpawnRouter) getEnsembleForRunByParent(ctx context.Context, parentRunI
 		return nil, err
 	}
 	return &pack, nil
+}
+
+// delegationEdgeTimeout resolves relationships[].timeout for the delegation
+// edge running from the parent's persona to targetPersona. The source persona
+// is resolved from the Ensemble's installed agent configs keyed by the parent's
+// instance name, the same way Spawner.resolvePersonaTarget authorizes the edge.
+//
+// It reports false when the Ensemble or source persona cannot be resolved, or
+// when no delegation edge declares a timeout — in which case the delegate wait
+// is bounded only by the parent's run budget. Note that the spawner authorizes
+// sequential edges too, and those carry no delegate timeout. A malformed
+// duration is ignored rather than treated as zero, which would expire the
+// delegation immediately.
+func (sr *SpawnRouter) delegationEdgeTimeout(ctx context.Context, namespace, instanceName, packName, targetPersona string) (time.Duration, bool) {
+	if packName == "" || instanceName == "" {
+		return 0, false
+	}
+
+	var pack sympoziumv1alpha1.Ensemble
+	if err := sr.Client.Get(ctx, types.NamespacedName{Name: packName, Namespace: namespace}, &pack); err != nil {
+		sr.Log.Error(err, "cannot load ensemble for delegation edge timeout", "ensemble", packName)
+		return 0, false
+	}
+
+	var source string
+	for _, ac := range pack.Status.InstalledAgentConfigs {
+		if ac.InstanceName == instanceName {
+			source = ac.Name
+			break
+		}
+	}
+	if source == "" {
+		return 0, false
+	}
+
+	for _, rel := range pack.Spec.Relationships {
+		if rel.Type != "delegation" || rel.Source != source || rel.Target != targetPersona || rel.Timeout == "" {
+			continue
+		}
+		d, err := time.ParseDuration(rel.Timeout)
+		if err != nil || d <= 0 {
+			sr.Log.Error(err, "ignoring invalid relationships[].timeout",
+				"ensemble", packName, "source", source, "target", targetPersona, "timeout", rel.Timeout)
+			return 0, false
+		}
+		return d, true
+	}
+	return 0, false
+}
+
+// expireDelegation fires when a delegation edge exceeds relationships[].timeout.
+// LoadAndDelete is the arbiter: exactly one of this timer and the child's
+// completion/failure handler claims the pending entry, so the parent is
+// unblocked exactly once.
+func (sr *SpawnRouter) expireDelegation(ctx context.Context, childRunName, targetPersona string, d time.Duration) {
+	val, ok := sr.pending.LoadAndDelete(childRunName)
+	if !ok {
+		return // The child already settled; nothing to expire.
+	}
+	pd := val.(*pendingDelegation)
+
+	errMsg := fmt.Sprintf("timed out after %s (Ensemble relationship timeout)", d)
+	sr.Log.Info("Delegation edge timed out",
+		"childRun", childRunName, "parentRun", pd.ParentRunID,
+		"targetPersona", targetPersona, "timeout", d)
+
+	// Unblock the parent's delegate_to_persona call first; everything after
+	// this is cleanup the parent does not wait on.
+	sr.publishDelegateResult(ctx, pd.ParentRunID, pd.RequestID, "", errMsg)
+	sr.updateParentDelegateStatus(ctx, pd.ParentRunID, pd.ParentNamespace, childRunName,
+		sympoziumv1alpha1.AgentRunPhaseFailed, "", errMsg)
+	sr.incrementCircuitBreaker(ctx, pd.ParentRunID, pd.ParentNamespace)
+
+	// Stop the child burning tokens on a result nobody will read. Its later
+	// failure event is a no-op: the pending entry is already gone.
+	child := &sympoziumv1alpha1.AgentRun{
+		ObjectMeta: metav1.ObjectMeta{Name: childRunName, Namespace: pd.ParentNamespace},
+	}
+	if err := sr.Client.Delete(ctx, child); err != nil && !apierrors.IsNotFound(err) {
+		sr.Log.Error(err, "failed to delete timed-out delegate child", "childRun", childRunName)
+	}
 }

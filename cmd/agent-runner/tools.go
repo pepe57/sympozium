@@ -583,7 +583,7 @@ func delegateToPersonaTool(ctx context.Context, args map[string]any) string {
 
 	var result ipc.DelegateResult
 	if err := ipcRoundTrip(ctx, reqPath, resPath, spawnPollInterval,
-		effectiveDelegateTimeout(ctx), req, &result); err != nil {
+		delegateWaitBudget(ctx), req, &result); err != nil {
 		log.Printf("Delegation to %q did not complete: %v", targetPersona, err)
 		return fmt.Sprintf("Error: delegation to '%s' did not complete: %v", targetPersona, err)
 	}
@@ -656,7 +656,7 @@ func spawnSubagentsTool(ctx context.Context, args map[string]any) string {
 
 	var result ipc.SubagentBatchResult
 	if err := ipcRoundTrip(ctx, reqPath, resPath, spawnPollInterval,
-		effectiveDelegateTimeout(ctx), req, &result); err != nil {
+		delegateWaitBudget(ctx), req, &result); err != nil {
 		log.Printf("Subagent batch %s did not complete: %v", batchID, err)
 		return fmt.Sprintf("Error: subagent batch did not complete: %v (batchId=%s)", err, batchID)
 	}

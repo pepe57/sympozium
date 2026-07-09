@@ -100,23 +100,15 @@ func TestRoundTripCtxCancel(t *testing.T) {
 	}
 }
 
-// The wait inherits the run deadline.
-func TestEffectiveDelegateTimeout(t *testing.T) {
-	delegateTimeout = 0
-
+// The backstop wait is bounded by the run deadline.
+func TestDelegateWaitBudget(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Minute)
 	defer cancel()
-	if d := effectiveDelegateTimeout(ctx); d < 59*time.Minute {
+	if d := delegateWaitBudget(ctx); d < 59*time.Minute {
 		t.Errorf("should inherit the 60m run budget, got %s", d)
 	}
 
-	if d := effectiveDelegateTimeout(context.Background()); d != 10*time.Minute {
+	if d := delegateWaitBudget(context.Background()); d != 10*time.Minute {
 		t.Errorf("no-deadline ctx should fall back to 10m, got %s", d)
-	}
-
-	delegateTimeout = 15 * time.Minute
-	defer func() { delegateTimeout = 0 }()
-	if d := effectiveDelegateTimeout(ctx); d != 15*time.Minute {
-		t.Errorf("DELEGATE_TIMEOUT should cap below the run budget, got %s", d)
 	}
 }
