@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.10.42](https://github.com/sympozium-ai/sympozium/compare/v0.10.41...v0.10.42) (2026-07-09)
+
+
+### Features
+
+* **web+apiserver:** decorate topology nodes with llmfit-dra accelerator inventory ([4bcaeef](https://github.com/sympozium-ai/sympozium/commit/4bcaeef1fe1912f6c988153fb6cdb69739cef544))
+* **web:** accelerator tree leaves on density nodes and topology cards ([2bebd1a](https://github.com/sympozium-ai/sympozium/commit/2bebd1aec653c18a82c01eccac01d3ec38f93734))
+
+
+### Bug Fixes
+
+* **web:** stack and group topology accelerator chips ([77f63b3](https://github.com/sympozium-ai/sympozium/commit/77f63b3cdc9b32d4bee461a048d0f513912f25f5))
+
 ## [0.10.41](https://github.com/sympozium-ai/sympozium/compare/v0.10.40...v0.10.41) (2026-07-08)
 
 
