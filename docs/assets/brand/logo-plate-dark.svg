@@ -1,12 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 535 96" width="535" height="96">
   <g transform="scale(0.8000)">
-  <rect x="8" y="6" width="104" height="26" fill="#f2eee6" stroke="#f2eee6" stroke-width="0.8"/>
-  <rect x="8" y="32" width="50" height="16" fill="#f2eee6" stroke="#f2eee6" stroke-width="0.8"/>
-  <rect x="58" y="32" width="16" height="8" fill="#f2eee6" stroke="#f2eee6" stroke-width="0.8"/>
-  <rect x="8" y="48" width="104" height="24" fill="#f2eee6" stroke="#f2eee6" stroke-width="0.8"/>
-  <rect x="62" y="72" width="50" height="16" fill="#f2eee6" stroke="#f2eee6" stroke-width="0.8"/>
-  <rect x="46" y="80" width="16" height="8" fill="#f2eee6" stroke="#f2eee6" stroke-width="0.8"/>
-  <rect x="8" y="88" width="104" height="26" fill="#f2eee6" stroke="#f2eee6" stroke-width="0.8"/>
+  <rect x="6" y="6.0" width="108" height="21.6" fill="#f2eee6" stroke="#f2eee6" stroke-width="0.8"/>
+  <rect x="6" y="27.6" width="108" height="5.399999999999999" fill="#f2eee6" stroke="#f2eee6" stroke-width="0.8"/>
+  <rect x="81" y="27.6" width="33" height="5.399999999999999" fill="#f2eee6" stroke="#f2eee6" stroke-width="0.8"/>
+  <rect x="6" y="38.4" width="37" height="5.399999999999999" fill="#f2eee6" stroke="#f2eee6" stroke-width="0.8"/>
+  <rect x="6" y="43.8" width="108" height="10.800000000000004" fill="#f2eee6" stroke="#f2eee6" stroke-width="0.8"/>
+  <rect x="6" y="60.0" width="108" height="10.799999999999997" fill="#f2eee6" stroke="#f2eee6" stroke-width="0.8"/>
+  <rect x="81" y="70.8" width="33" height="16.200000000000003" fill="#f2eee6" stroke="#f2eee6" stroke-width="0.8"/>
+  <rect x="6" y="87.0" width="37" height="5.400000000000006" fill="#f2eee6" stroke="#f2eee6" stroke-width="0.8"/>
+  <rect x="6" y="92.4" width="108" height="21.599999999999994" fill="#f2eee6" stroke="#f2eee6" stroke-width="0.8"/>
   </g>
   <rect x="108" y="8" width="2" height="80" fill="#f2eee6" opacity="0.35"/>
   <g transform="translate(122 46)">
