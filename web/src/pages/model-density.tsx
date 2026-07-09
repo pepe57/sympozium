@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useDensityNodes, useDensityQuery, useModelCatalog } from "@/hooks/use-api";
+import { useDensityNodes, useDensityQuery, useDraNodes, useModelCatalog } from "@/hooks/use-api";
+import { AcceleratorLeaves } from "@/components/accelerator-leaves";
 import {
   Table,
   TableHeader,
@@ -45,10 +46,18 @@ function formatRAM(gb: number) {
 export function ModelDensityPage() {
   const [modelQuery, setModelQuery] = useState("");
   const { data: nodesData, isLoading: nodesLoading } = useDensityNodes();
+  const { data: draData } = useDraNodes();
   const { data: catalogData, isLoading: catalogLoading } = useModelCatalog();
   const { data: queryData } = useDensityQuery(modelQuery);
 
   const nodes = nodesData?.nodes || [];
+  const draByNode = new Map(
+    (draData?.nodes || []).map((n) => [n.nodeName, n.devices]),
+  );
+  const densityNames = new Set(nodes.map((n) => n.nodeName));
+  const draOnlyNodes = (draData?.nodes || []).filter(
+    (n) => !densityNames.has(n.nodeName),
+  );
   const catalog = catalogData?.models || [];
 
   return (
@@ -66,7 +75,7 @@ export function ModelDensityPage() {
             <Skeleton key={i} className="h-32" />
           ))}
         </div>
-      ) : nodes.length === 0 ? (
+      ) : nodes.length === 0 && draOnlyNodes.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-muted-foreground">
             <Activity className="mx-auto h-10 w-10 mb-3 opacity-50" />
@@ -134,6 +143,22 @@ export function ModelDensityPage() {
                           ))}
                       </div>
                     )}
+                    <AcceleratorLeaves devices={draByNode.get(node.nodeName) || []} />
+                  </CardContent>
+                </Card>
+              ))}
+              {draOnlyNodes.map((n) => (
+                <Card key={n.nodeName}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium flex items-center justify-between">
+                      <span className="font-mono">{n.nodeName}</span>
+                      <Badge variant="outline" className="text-xs">
+                        dra
+                      </Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    <AcceleratorLeaves devices={n.devices} />
                   </CardContent>
                 </Card>
               ))}
