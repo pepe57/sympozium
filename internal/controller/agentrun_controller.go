@@ -2315,6 +2315,12 @@ func (r *AgentRunReconciler) buildContainers(
 		corev1.EnvVar{Name: "TOOLS_ENABLED", Value: "true"},
 	)
 
+	if agentRun.Spec.ToolPolicy != nil && len(agentRun.Spec.ToolPolicy.Deny) > 0 {
+		containers[0].Env = append(containers[0].Env,
+			corev1.EnvVar{Name: "TOOL_POLICY_DENY", Value: strings.Join(agentRun.Spec.ToolPolicy.Deny, ",")},
+		)
+	}
+
 	// Expose the list of attached skill-sidecar targets to the agent runner
 	// so it can advise the LLM (and validate) on the optional `target` arg
 	// of the execute_command tool. Comma-separated, in spec order.
