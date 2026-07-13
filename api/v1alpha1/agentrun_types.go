@@ -322,6 +322,15 @@ type AgentRunStatus struct {
 	// +optional
 	TokenUsage *TokenUsage `json:"tokenUsage,omitempty"`
 
+	// CostEstimate is the estimated dollar cost of this run, derived from
+	// tokenUsage and the cluster price table at completion time. It is an
+	// ESTIMATE, not billing data: retried runs count only the final attempt
+	// and failed runs report no usage. Absent (never zero) when the provider
+	// is local/self-hosted, the run uses modelRef, or no price-table entry
+	// matches.
+	// +optional
+	CostEstimate *CostEstimate `json:"costEstimate,omitempty"`
+
 	// DeploymentName is the name of the Deployment created for server-mode runs.
 	// +optional
 	DeploymentName string `json:"deploymentName,omitempty"`
@@ -405,6 +414,39 @@ type TokenUsage struct {
 
 	// DurationMs is the wall-clock time of the LLM interaction in milliseconds.
 	DurationMs int64 `json:"durationMs"`
+}
+
+// CostEstimate is an estimated dollar cost in integer micro-USD (1e-6 USD).
+// Floats are forbidden in CRD types by Kubernetes API conventions.
+type CostEstimate struct {
+	// AmountMicro is the total estimated cost in micro-USD.
+	AmountMicro int64 `json:"amountMicro"`
+
+	// InputAmountMicro is the input-token share of the total.
+	// +optional
+	InputAmountMicro int64 `json:"inputAmountMicro,omitempty"`
+
+	// OutputAmountMicro is the output-token share of the total.
+	// +optional
+	OutputAmountMicro int64 `json:"outputAmountMicro,omitempty"`
+
+	// Currency is always "USD" in v1.
+	Currency string `json:"currency"`
+
+	// Source identifies the price table used. Persisted estimates are always
+	// "defaultTable"; "simulated" appears only in apiserver responses and is
+	// never written to status.
+	// +kubebuilder:validation:Enum=defaultTable;simulated
+	Source string `json:"source"`
+
+	// PriceKey is the matched table entry ("provider/matchPrefix") for audit.
+	// +optional
+	PriceKey string `json:"priceKey,omitempty"`
+
+	// EstimatedAt records when the estimate was frozen. Estimates are never
+	// recomputed when the price table changes.
+	// +optional
+	EstimatedAt *metav1.Time `json:"estimatedAt,omitempty"`
 }
 
 // LifecycleHookContainer defines a container to run as a lifecycle hook.

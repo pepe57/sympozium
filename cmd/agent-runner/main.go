@@ -17,6 +17,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/sympozium-ai/sympozium/internal/ipc"
+	"github.com/sympozium-ai/sympozium/internal/llmprovider"
 )
 
 // maxToolIterations is the maximum number of LLM reasoning rounds before
@@ -67,11 +68,7 @@ func init() {
 // isLocalProvider returns true for providers that run inference locally
 // (single-GPU, request queuing) where per-request timeouts matter.
 func isLocalProvider(provider string) bool {
-	switch provider {
-	case "ollama", "lm-studio", "llama-server", "unsloth", "vllm", "llamacpp", "local":
-		return true
-	}
-	return false
+	return llmprovider.IsLocal(provider)
 }
 
 // effectiveMaxRetries returns the retry count for the given provider.

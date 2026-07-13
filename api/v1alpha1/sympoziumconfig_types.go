@@ -15,6 +15,57 @@ type SympoziumConfigSpec struct {
 	// validates end-to-end platform health.
 	// +optional
 	Canary *CanarySpec `json:"canary,omitempty"`
+
+	// Pricing configures simulated model pricing. Simulated prices are a
+	// display-only overlay applied by the apiserver at read time; they are
+	// never persisted into AgentRun status, never exported as metrics, and
+	// never feed budget enforcement.
+	// +optional
+	Pricing *PricingSpec `json:"pricing,omitempty"`
+}
+
+// PricingSpec configures user-defined simulated model pricing.
+type PricingSpec struct {
+	// SimulatedEnabled toggles the read-time simulated-cost overlay.
+	// +optional
+	SimulatedEnabled bool `json:"simulatedEnabled,omitempty"`
+
+	// SimulatedPrices are user-defined rates, including for local/self-hosted
+	// providers that are exempt from real cost estimation (e.g. internal
+	// chargeback rates).
+	// +optional
+	// +kubebuilder:validation:MaxItems=500
+	SimulatedPrices []SimulatedPrice `json:"simulatedPrices,omitempty"`
+
+	// UpdatedAt records the last modification of this block.
+	// +optional
+	UpdatedAt *metav1.Time `json:"updatedAt,omitempty"`
+
+	// UpdatedBy records the caller identity when apiserver auth is enabled.
+	// +optional
+	UpdatedBy string `json:"updatedBy,omitempty"`
+}
+
+// SimulatedPrice prices one provider/model-prefix pair in micro-USD per one
+// million tokens.
+type SimulatedPrice struct {
+	// Provider is the model provider id; may name a local provider.
+	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$`
+	Provider string `json:"provider"`
+
+	// Match is a literal prefix of the model identifier.
+	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9][a-zA-Z0-9._:/ -]{0,127}$`
+	Match string `json:"match"`
+
+	// InputPerMTokMicro is micro-USD per one million input tokens.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=1000000000
+	InputPerMTokMicro int64 `json:"inputPerMTokMicro"`
+
+	// OutputPerMTokMicro is micro-USD per one million output tokens.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=1000000000
+	OutputPerMTokMicro int64 `json:"outputPerMTokMicro"`
 }
 
 // CanarySpec configures the built-in system health canary.

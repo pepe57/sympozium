@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import {
   Clock,
   Cpu,
+  DollarSign,
   Zap,
   AlertTriangle,
   ShieldCheck,
@@ -25,6 +26,15 @@ import {
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { useRunsSeen } from "@/hooks/use-runs-seen";
 import { formatAge } from "@/lib/utils";
+
+/** Format micro-USD as dollars: 4 decimal places under $1, 2 above. */
+function formatUsd(micro: number): string {
+  const dollars = micro / 1e6;
+  return `$${dollars.toFixed(dollars < 1 ? 4 : 2)}`;
+}
+
+const SIMULATED_TITLE =
+  "Hypothetical cost from user-defined simulated prices. Estimate covers the final attempt only.";
 
 export function RunDetailPage() {
   const { name } = useParams<{ name: string }>();
@@ -61,6 +71,8 @@ export function RunDetailPage() {
   const duration = usage?.durationMs
     ? `${(usage.durationMs / 1000).toFixed(1)}s`
     : "—";
+  const cost = run.status?.costEstimate;
+  const simCost = run.simulatedCostEstimate;
 
   return (
     <div className="space-y-6">
@@ -84,48 +96,102 @@ export function RunDetailPage() {
       </div>
 
       {/* Stats row */}
-      {usage && (
+      {(usage || cost || simCost) && (
         <div className="grid gap-4 sm:grid-cols-4">
-          <Card>
-            <CardContent className="flex items-center gap-3 p-4">
-              <Zap className="h-5 w-5 text-amber-400" />
-              <div>
-                <p className="text-sm text-muted-foreground">Total Tokens</p>
-                <p className="text-lg font-bold">
-                  {usage.totalTokens.toLocaleString()}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex items-center gap-3 p-4">
-              <Cpu className="h-5 w-5 text-blue-400" />
-              <div>
-                <p className="text-sm text-muted-foreground">Tool Calls</p>
-                <p className="text-lg font-bold">{usage.toolCalls}</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex items-center gap-3 p-4">
-              <Clock className="h-5 w-5 text-purple-400" />
-              <div>
-                <p className="text-sm text-muted-foreground">Duration</p>
-                <p className="text-lg font-bold">{duration}</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex items-center gap-3 p-4">
-              <div>
-                <p className="text-sm text-muted-foreground">In / Out</p>
-                <p className="text-sm font-mono">
-                  {usage.inputTokens.toLocaleString()} /{" "}
-                  {usage.outputTokens.toLocaleString()}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          {usage && (
+            <>
+              <Card>
+                <CardContent className="flex items-center gap-3 p-4">
+                  <Zap className="h-5 w-5 text-amber-400" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Total Tokens
+                    </p>
+                    <p className="text-lg font-bold">
+                      {usage.totalTokens.toLocaleString()}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex items-center gap-3 p-4">
+                  <Cpu className="h-5 w-5 text-blue-400" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Tool Calls</p>
+                    <p className="text-lg font-bold">{usage.toolCalls}</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex items-center gap-3 p-4">
+                  <Clock className="h-5 w-5 text-purple-400" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Duration</p>
+                    <p className="text-lg font-bold">{duration}</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex items-center gap-3 p-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">In / Out</p>
+                    <p className="text-sm font-mono">
+                      {usage.inputTokens.toLocaleString()} /{" "}
+                      {usage.outputTokens.toLocaleString()}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
+          {(cost || simCost) && (
+            <Card>
+              <CardContent className="flex items-center gap-3 p-4">
+                <DollarSign className="h-5 w-5 text-green-400" />
+                <div className="min-w-0">
+                  <p className="text-sm text-muted-foreground">Est. spend</p>
+                  {cost ? (
+                    <>
+                      <p className="text-lg font-bold">
+                        {formatUsd(cost.amountMicro)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        in {formatUsd(cost.inputAmountMicro)} · out{" "}
+                        {formatUsd(cost.outputAmountMicro)}
+                      </p>
+                    </>
+                  ) : (
+                    <p
+                      className="text-lg font-bold flex items-center gap-1.5"
+                      title={SIMULATED_TITLE}
+                    >
+                      ~{formatUsd(simCost!.amountMicro)}
+                      <Badge
+                        variant="outline"
+                        className="border-amber-500/40 text-amber-400 px-1 py-0 text-[10px]"
+                      >
+                        SIMULATED
+                      </Badge>
+                    </p>
+                  )}
+                  {cost && simCost && (
+                    <p
+                      className="text-xs text-muted-foreground flex items-center gap-1.5"
+                      title={SIMULATED_TITLE}
+                    >
+                      ~{formatUsd(simCost.amountMicro)}
+                      <Badge
+                        variant="outline"
+                        className="border-amber-500/40 text-amber-400 px-1 py-0 text-[10px]"
+                      >
+                        SIMULATED
+                      </Badge>
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 

@@ -1,0 +1,24 @@
+{{- if .Values.pricing.enabled }}
+# Model price table for AgentRun cost estimation. The controller reads this at
+# run completion (fail-open: if missing/malformed, runs simply get no
+# estimate). Local/self-hosted providers are always exempt. Edit prices here
+# via values `pricing.extraEntries`; entries appended there win ties against
+# the shipped defaults.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sympozium-model-pricing
+  namespace: {{ include "sympozium.namespace" . }}
+  labels:
+    {{- include "sympozium.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pricing
+data:
+  pricing.yaml: |
+    version: 1
+    currency: USD
+    entries:
+{{ .Files.Get "files/pricing/defaults.yaml" | indent 6 }}
+{{- with .Values.pricing.extraEntries }}
+{{ toYaml . | indent 6 }}
+{{- end }}
+{{- end }}

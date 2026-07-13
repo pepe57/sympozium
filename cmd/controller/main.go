@@ -27,6 +27,7 @@ import (
 	"github.com/sympozium-ai/sympozium/internal/dra"
 	"github.com/sympozium-ai/sympozium/internal/eventbus"
 	"github.com/sympozium-ai/sympozium/internal/orchestrator"
+	"github.com/sympozium-ai/sympozium/internal/pricing"
 	"github.com/sympozium-ai/sympozium/pkg/telemetry"
 )
 
@@ -139,6 +140,23 @@ func main() {
 		setupLog.Info("Agent Sandbox explicitly disabled via AGENT_SANDBOX_ENABLED=false")
 	}
 
+	// Cost estimation price table. The Loader must use the uncached APIReader:
+	// no ConfigMap informer exists, and a cached Get would silently start a
+	// cluster-wide ConfigMap list+watch.
+	var pricingLoader *pricing.Loader
+	if cmName := os.Getenv("SYMPOZIUM_PRICING_CONFIGMAP"); cmName != "" {
+		cmNamespace := os.Getenv("SYMPOZIUM_PRICING_NAMESPACE")
+		if cmNamespace == "" {
+			cmNamespace = os.Getenv("POD_NAMESPACE")
+		}
+		pricingLoader = &pricing.Loader{
+			Reader:    mgr.GetAPIReader(),
+			Name:      cmName,
+			Namespace: cmNamespace,
+		}
+		setupLog.Info("Cost estimation enabled", "configMap", cmName, "namespace", cmNamespace)
+	}
+
 	agentRunReconciler := &controller.AgentRunReconciler{
 		Client:          mgr.GetClient(),
 		APIReader:       mgr.GetAPIReader(),
@@ -149,6 +167,7 @@ func main() {
 		ImageTag:        imageTag,
 		RunHistoryLimit: maxRunHistory,
 		DynamicClient:   dynamicClient,
+		Pricing:         pricingLoader,
 	}
 	if err := agentRunReconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "AgentRun")

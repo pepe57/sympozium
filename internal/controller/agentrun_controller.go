@@ -43,6 +43,7 @@ import (
 	"github.com/sympozium-ai/sympozium/internal/eventbus"
 	"github.com/sympozium-ai/sympozium/internal/ipc"
 	"github.com/sympozium-ai/sympozium/internal/orchestrator"
+	"github.com/sympozium-ai/sympozium/internal/pricing"
 	"github.com/sympozium-ai/sympozium/pkg/sidecartools"
 	"gopkg.in/yaml.v3"
 )
@@ -155,6 +156,10 @@ type AgentRunReconciler struct {
 	// that components like the web proxy can react without polling the CRD.
 	// Optional — nil when NATS is not configured.
 	EventBus eventbus.EventBus
+
+	// Pricing loads the cluster price table for cost estimation.
+	// Optional — nil when no pricing ConfigMap is configured.
+	Pricing *pricing.Loader
 }
 
 const imageRegistry = "ghcr.io/sympozium-ai/sympozium"
@@ -3499,11 +3504,30 @@ func (r *AgentRunReconciler) createInputConfigMap(ctx context.Context, agentRun 
 func (r *AgentRunReconciler) succeedRun(ctx context.Context, agentRun *sympoziumv1alpha1.AgentRun, result string, usage *sympoziumv1alpha1.TokenUsage) (ctrl.Result, error) {
 	now := metav1.Now()
 
+	// Cost estimation is fail-open by contract: a missing or malformed price
+	// table must never fail or delay run completion. Exempt (local/modelRef)
+	// and unpriced runs get no estimate — absence, never $0. The estimate is
+	// frozen here and never recomputed when the table changes.
+	var costEstimate *sympoziumv1alpha1.CostEstimate
+	if usage != nil && r.Pricing != nil && !pricing.Exempt(agentRun.Spec.Model) {
+		table, terr := r.Pricing.Load(ctx)
+		if terr != nil {
+			r.Log.Info("Skipping cost estimate: price table unavailable", "error", terr.Error())
+		} else if est := pricing.Estimate(table, agentRun.Spec.Model.Provider, agentRun.Spec.Model.Model, usage); est != nil {
+			est.Source = pricing.SourceDefaultTable
+			est.EstimatedAt = &now
+			costEstimate = est
+		}
+	}
+
 	err := r.updateStatusWithRetry(ctx, agentRun, func(ar *sympoziumv1alpha1.AgentRun) {
 		ar.Status.Phase = sympoziumv1alpha1.AgentRunPhaseSucceeded
 		ar.Status.CompletedAt = &now
 		ar.Status.Result = result
 		ar.Status.TokenUsage = usage
+		if costEstimate != nil && ar.Status.CostEstimate == nil {
+			ar.Status.CostEstimate = costEstimate
+		}
 	})
 	if err != nil {
 		return ctrl.Result{}, err

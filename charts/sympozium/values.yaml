@@ -114,6 +114,18 @@ certManager:
     duration: 8760h0m0s    # 1 year
     renewBefore: 720h  # 30 days
 
+# -- Model pricing for AgentRun cost estimation
+pricing:
+  # -- Ship the sympozium-model-pricing ConfigMap and enable run cost
+  # estimates. Estimates are display-only and never gate runs. Local
+  # providers (ollama, llama-server, vllm, …) are always exempt.
+  enabled: true
+  # -- Extra price entries appended to the shipped defaults (same schema:
+  # provider, match, inputPerMTokMicro, outputPerMTokMicro). Appended entries
+  # win prefix-length ties, so put persistent local corrections here rather
+  # than editing the ConfigMap (Helm upgrades overwrite it).
+  extraEntries: []
+
 # -- CRD installation
 crds:
   # -- Install CRDs with the chart. Disable if managing CRDs separately.

@@ -94,6 +94,12 @@ spec:
             - name: AGENT_SANDBOX_DEFAULT_RUNTIME_CLASS
               value: {{ .Values.agentSandbox.defaultRuntimeClass | quote }}
             {{- end }}
+            {{- if .Values.pricing.enabled }}
+            - name: SYMPOZIUM_PRICING_CONFIGMAP
+              value: "sympozium-model-pricing"
+            - name: SYMPOZIUM_PRICING_NAMESPACE
+              value: {{ include "sympozium.namespace" . | quote }}
+            {{- end }}
           ports:
             - containerPort: 8081
               name: health
