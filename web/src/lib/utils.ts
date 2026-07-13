@@ -20,6 +20,16 @@ export function formatAge(dateStr: string | undefined): string {
   return `${diffDay}d`;
 }
 
+/** Format micro-USD as dollars: 4 decimal places under $1, 2 above. */
+export function formatUsd(micro: number): string {
+  const dollars = micro / 1e6;
+  return `$${dollars.toFixed(dollars < 1 ? 4 : 2)}`;
+}
+
+/** Tooltip for simulated cost estimates. */
+export const SIMULATED_COST_TITLE =
+  "Hypothetical cost from user-defined simulated prices. Estimate covers the final attempt only.";
+
 export function truncate(s: string, max: number): string {
   if (s.length <= max) return s;
   return s.slice(0, max - 1) + "…";

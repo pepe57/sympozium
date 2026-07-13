@@ -44,7 +44,12 @@ import {
 } from "lucide-react";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { useRunsSeen } from "@/hooks/use-runs-seen";
-import { formatAge, truncate } from "@/lib/utils";
+import {
+  formatAge,
+  formatUsd,
+  SIMULATED_COST_TITLE,
+  truncate,
+} from "@/lib/utils";
 import { YamlButton, instanceYamlFromResource } from "@/components/yaml-panel";
 
 export function AgentDetailPage() {
@@ -233,6 +238,19 @@ export function AgentDetailPage() {
                           <span className="text-xs text-muted-foreground">
                             {run.status.tokenUsage.totalTokens.toLocaleString()}{" "}
                             tokens
+                          </span>
+                        )}
+                        {run.status?.costEstimate && (
+                          <span className="text-xs text-muted-foreground">
+                            {formatUsd(run.status.costEstimate.amountMicro)}
+                          </span>
+                        )}
+                        {run.simulatedCostEstimate && (
+                          <span
+                            className="text-xs text-amber-400"
+                            title={SIMULATED_COST_TITLE}
+                          >
+                            ~{formatUsd(run.simulatedCostEstimate.amountMicro)}
                           </span>
                         )}
                         <span className="text-xs text-muted-foreground">

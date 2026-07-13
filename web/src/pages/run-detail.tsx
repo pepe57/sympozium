@@ -25,16 +25,11 @@ import {
 } from "lucide-react";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { useRunsSeen } from "@/hooks/use-runs-seen";
-import { formatAge } from "@/lib/utils";
-
-/** Format micro-USD as dollars: 4 decimal places under $1, 2 above. */
-function formatUsd(micro: number): string {
-  const dollars = micro / 1e6;
-  return `$${dollars.toFixed(dollars < 1 ? 4 : 2)}`;
-}
-
-const SIMULATED_TITLE =
-  "Hypothetical cost from user-defined simulated prices. Estimate covers the final attempt only.";
+import {
+  formatAge,
+  formatUsd,
+  SIMULATED_COST_TITLE as SIMULATED_TITLE,
+} from "@/lib/utils";
 
 export function RunDetailPage() {
   const { name } = useParams<{ name: string }>();
