@@ -27,7 +27,10 @@ export function draDeviceLabel(d: DraDevice): string {
 export function draDeviceDetail(d: DraDevice): string {
   if (d.kind === "nic") {
     const rate = d.rateGbps ? ` · ${d.rateGbps} Gb` : "";
-    return `${d.linkLayer || "rdma"}${rate}`;
+    // A NIC's part matters as much as a GPU's on a fabric-bound node — an NDR
+    // ConnectX and a RoCE ConnectX-6 are not interchangeable for GPUDirect.
+    const model = d.model ? `${shortModel(d.model)} · ` : "";
+    return `${model}${d.linkLayer || "rdma"}${rate}`;
   }
   const parts: string[] = [];
   if (d.model) parts.push(shortModel(d.model));

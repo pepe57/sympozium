@@ -46,10 +46,43 @@ type GpuFlavour = {
 };
 
 /** Real published specs, so the demo reads as a plausible fleet rather than
- * invented numbers: HBM capacity, memory bandwidth, dense BF16 throughput. */
+ * invented numbers: HBM capacity, memory bandwidth, dense BF16 throughput.
+ *
+ * Form factor is load-bearing, not cosmetic. SXM5 is a module soldered to an
+ * HGX baseboard — it only exists in 4-/8-GPU HGX systems, and those bays are
+ * fixed at populate-all. H200 NVL is the PCIe card (600 W, 2-/4-way NVLink
+ * bridge) and is the only H200 a slotted chassis can take. Pairing them the
+ * other way round describes hardware that cannot be bought, so each flavour
+ * below carries the chassis class it is legal in. */
 const GPU: Record<string, GpuFlavour> = {
-  h200: { model: "NVIDIA H200-SXM5-141GB", vendor: "nvidia", memoryGi: 141, memoryBandwidthGBs: 4800, computeTFLOPS: 989 },
+  // HGX baseboard only. Dense BF16 989 TF (1,979 with sparsity).
+  h200sxm: { model: "NVIDIA H200-SXM5-141GB", vendor: "nvidia", memoryGi: 141, memoryBandwidthGBs: 4800, computeTFLOPS: 989 },
+  // PCIe double-wide. Same 141 GB HBM3e / 4.8 TB/s, lower clocks: dense BF16
+  // 836 TF (1,671 with sparsity).
+  h200nvl: { model: "NVIDIA H200 NVL 141GB", vendor: "nvidia", memoryGi: 141, memoryBandwidthGBs: 4800, computeTFLOPS: 836 },
   l40s: { model: "NVIDIA L40S 48GB", vendor: "nvidia", memoryGi: 48, memoryBandwidthGBs: 864, computeTFLOPS: 362 },
+};
+
+/** Network accelerators. On a fabric-bound fleet these are inventory in their
+ * own right: the HGX boxes carry one NDR ConnectX per GPU (the 1:1 GPUDirect
+ * RDMA ratio the vendors ship), plus BlueField DPUs for the north-south and
+ * storage path that would otherwise burn host cores. */
+type NicFlavour = {
+  model: string;
+  vendor: string;
+  linkLayer: "infiniband" | "ethernet";
+  rateGbps: number;
+};
+
+// Vendor rides in its own field, so the model string stays short enough that
+// the link rate survives truncation in a node card.
+const NIC: Record<string, NicFlavour> = {
+  // MCX75310AAS-NEAT — single-port OSFP, PCIe 5.0 x16. The GPUDirect card.
+  cx7ndr: { model: "ConnectX-7 NDR", vendor: "nvidia", linkLayer: "infiniband", rateGbps: 400 },
+  // B3220 — 2× 200GbE, 16 Arm A78 cores. Infrastructure offload, not GPUDirect.
+  bf3: { model: "BlueField-3 B3220", vendor: "nvidia", linkLayer: "ethernet", rateGbps: 200 },
+  // Workstation-class RoCE. What a tower actually has.
+  cx6dx: { model: "ConnectX-6 Dx", vendor: "nvidia", linkLayer: "ethernet", rateGbps: 100 },
 };
 
 /** N identical accelerators of one flavour. `unhealthy` marks a single card
@@ -79,18 +112,15 @@ function cards(
 
 /** Fabric NICs — what makes multi-node tensor parallelism possible, and the
  * reason a card-dense node is worth scheduling onto at all. */
-function nics(
-  prefix: string,
-  count: number,
-  linkLayer: "infiniband" | "ethernet",
-  rateGbps: number,
-): DraDevice[] {
+function nics(prefix: string, count: number, f: NicFlavour): DraDevice[] {
   return Array.from({ length: count }, (_, i) => ({
     name: `${prefix}-${i}`,
     kind: "nic",
+    model: f.model,
+    vendor: f.vendor,
     healthy: true,
-    linkLayer,
-    rateGbps,
+    linkLayer: f.linkLayer,
+    rateGbps: f.rateGbps,
   }));
 }
 
@@ -297,22 +327,32 @@ function buildDemoTopology(): { nodes: Node[]; edges: Edge[] } {
   // faulted bays, and — for contrast — a render box and a CPU-only node.
   const k8sNodes = [
     {
+      // HGX 8-GPU, 8U. 8× ConnectX-7 is the vendor's 1:1 GPUDirect ratio;
+      // 2× BlueField-3 carry storage and north-south off the host cores.
       name: "ws-h200-01",
       ip: "10.42.3.30",
       chassis: "Supermicro AS-8125GS-TNHR",
-      formFactor: "4U rack",
+      formFactor: "8U rack",
       totalRamGb: 2048, cpuCores: 192, backend: "CUDA", bays: 8, modelFitCount: 18,
       providers: [{ name: "vllm", models: ["llama-3.1-405b", "deepseek-r1-671b"] }],
-      accelerators: [...cards("gpu", "h200", 8, GPU.h200), ...nics("mlx5", 4, "infiniband", 400)],
+      accelerators: [
+        ...cards("gpu", "h200", 8, GPU.h200sxm),
+        ...nics("mlx5", 8, NIC.cx7ndr),
+        ...nics("bf3", 2, NIC.bf3),
+      ],
     },
     {
       name: "ws-h200-02",
       ip: "10.42.3.31",
       chassis: "Supermicro AS-8125GS-TNHR",
-      formFactor: "4U rack",
+      formFactor: "8U rack",
       totalRamGb: 2048, cpuCores: 192, backend: "CUDA", bays: 8, modelFitCount: 17,
       providers: [{ name: "vllm", models: ["llama-3.3-70b", "nemotron-70b"] }],
-      accelerators: [...cards("gpu", "h200", 8, GPU.h200), ...nics("mlx5", 4, "infiniband", 400)],
+      accelerators: [
+        ...cards("gpu", "h200", 8, GPU.h200sxm),
+        ...nics("mlx5", 8, NIC.cx7ndr),
+        ...nics("bf3", 2, NIC.bf3),
+      ],
     },
     {
       name: "ws-h200-03",
@@ -321,39 +361,39 @@ function buildDemoTopology(): { nodes: Node[]; edges: Edge[] } {
       formFactor: "6U rack",
       totalRamGb: 2048, cpuCores: 224, backend: "CUDA", bays: 8, modelFitCount: 14,
       providers: [{ name: "vllm", models: ["mixtral-8x22b"] }, { name: "tgi", models: ["command-r-plus"] }],
-      // One bay faulted — the strip renders that slot red.
+      // One bay faulted — the strip renders that slot red. The board still
+      // has all 8 modules seated; a dead SXM is a fault, not an empty bay.
       accelerators: [
-        ...cards("gpu", "h200", 8, GPU.h200, { index: 5, reason: "ECC uncorrectable" }),
-        ...nics("mlx5", 4, "infiniband", 400),
+        ...cards("gpu", "h200", 8, GPU.h200sxm, { index: 5, reason: "ECC uncorrectable" }),
+        ...nics("mlx5", 8, NIC.cx7ndr),
+        ...nics("bf3", 2, NIC.bf3),
       ],
     },
     {
+      // 5U liquid-cooled HGX. Fixed 8-GPU baseboard, so it is always full —
+      // headroom on an SXM box is not a thing that exists.
       name: "ws-h200-04",
       ip: "10.42.3.33",
       chassis: "Lenovo ThinkSystem SR780a V3",
       formFactor: "5U rack",
-      totalRamGb: 1024, cpuCores: 128, backend: "CUDA", bays: 8, modelFitCount: 9,
+      totalRamGb: 1024, cpuCores: 128, backend: "CUDA", bays: 8, modelFitCount: 16,
       providers: [{ name: "vllm", models: ["qwen2.5-72b", "codestral-22b"] }],
-      // Half-populated: four bays free, visible as dashed empty slots.
-      accelerators: [...cards("gpu", "h200", 4, GPU.h200), ...nics("mlx5", 2, "infiniband", 200)],
+      accelerators: [...cards("gpu", "h200", 8, GPU.h200sxm), ...nics("mlx5", 8, NIC.cx7ndr)],
     },
     {
+      // PCIe NVL box: 4 of 8 slots filled, so this is where the half-populated
+      // "headroom" visual belongs — slots you really could fill later.
       name: "ws-h200-05",
       ip: "10.42.3.34",
-      chassis: "HPE ProLiant DL380a Gen11",
-      formFactor: "2U rack",
-      totalRamGb: 1024, cpuCores: 128, backend: "CUDA", bays: 4, modelFitCount: 8,
-      providers: [{ name: "vllm", models: ["llama-3.1-70b", "deepseek-v3"] }],
-      accelerators: [...cards("gpu", "h200", 4, GPU.h200), ...nics("mlx5", 2, "infiniband", 200)],
-    },
-    {
-      name: "ws-h200-06",
-      ip: "10.42.3.35",
-      chassis: "Supermicro SYS-741GE-TNRT",
-      formFactor: "tower",
-      totalRamGb: 512, cpuCores: 64, backend: "CUDA", bays: 4, modelFitCount: 5,
-      providers: [{ name: "vllm", models: ["gemma-2-27b", "starcoder2-15b"] }],
-      accelerators: [...cards("gpu", "h200", 2, GPU.h200), ...nics("mlx5", 1, "ethernet", 100)],
+      chassis: "Lenovo ThinkSystem SR675 V3",
+      formFactor: "3U rack",
+      totalRamGb: 1024, cpuCores: 128, backend: "CUDA", bays: 8, modelFitCount: 8,
+      providers: [{ name: "vllm", models: ["llama-3.1-70b", "qwen2.5-32b"] }],
+      accelerators: [
+        ...cards("gpu", "h200nvl", 4, GPU.h200nvl),
+        ...nics("mlx5", 2, NIC.cx7ndr),
+        ...nics("bf3", 1, NIC.bf3),
+      ],
     },
     {
       name: "ws-h200-07",
@@ -362,30 +402,45 @@ function buildDemoTopology(): { nodes: Node[]; edges: Edge[] } {
       formFactor: "6U rack",
       totalRamGb: 2048, cpuCores: 224, backend: "CUDA", bays: 8, modelFitCount: 16,
       providers: [{ name: "vllm", models: ["dbrx-instruct", "mistral-large-2"] }],
-      accelerators: [...cards("gpu", "h200", 8, GPU.h200), ...nics("mlx5", 4, "infiniband", 400)],
+      accelerators: [
+        ...cards("gpu", "h200", 8, GPU.h200sxm),
+        ...nics("mlx5", 8, NIC.cx7ndr),
+        ...nics("bf3", 2, NIC.bf3),
+      ],
     },
     {
-      name: "ws-h200-08",
-      ip: "10.42.3.37",
+      // Tower class. No tower takes a 600 W H200 NVL — an L40S box is what a
+      // team actually has under a desk, so these are named for what they hold.
+      name: "ws-l40s-02",
+      ip: "10.42.4.41",
       chassis: "Supermicro SYS-741GE-TNRT",
       formFactor: "tower",
       totalRamGb: 512, cpuCores: 64, backend: "CUDA", bays: 4, modelFitCount: 4,
+      providers: [{ name: "vllm", models: ["gemma-2-27b", "starcoder2-15b"] }],
+      accelerators: [...cards("gpu", "l40s", 4, GPU.l40s), ...nics("mlx5", 1, NIC.cx6dx)],
+    },
+    {
+      name: "ws-l40s-03",
+      ip: "10.42.4.42",
+      chassis: "Supermicro SYS-741GE-TNRT",
+      formFactor: "tower",
+      totalRamGb: 512, cpuCores: 64, backend: "CUDA", bays: 4, modelFitCount: 2,
       providers: [{ name: "ollama", models: ["llama-3.2-8b", "phi-4-14b"] }],
-      accelerators: [...cards("gpu", "h200", 2, GPU.h200), ...nics("mlx5", 1, "ethernet", 100)],
+      accelerators: [...cards("gpu", "l40s", 2, GPU.l40s), ...nics("mlx5", 1, NIC.cx6dx)],
     },
     {
       name: "ws-l40s-01",
       ip: "10.42.4.40",
       chassis: "Dell Precision 7960 Tower",
       formFactor: "tower",
-      totalRamGb: 256, cpuCores: 32, backend: "CUDA", bays: 4, modelFitCount: 3,
+      totalRamGb: 256, cpuCores: 32, backend: "CUDA", bays: 4, modelFitCount: 2,
       providers: [
         { name: "vllm", models: ["whisper-large-v3", "nomic-embed-text"] },
         { name: "tgi", models: ["e5-mistral-7b"] },
       ],
       accelerators: [
-        ...cards("gpu", "l40s", 4, GPU.l40s, { index: 2, reason: "thermal throttle" }),
-        ...nics("mlx5", 1, "ethernet", 100),
+        ...cards("gpu", "l40s", 2, GPU.l40s, { index: 1, reason: "thermal throttle" }),
+        ...nics("mlx5", 1, NIC.cx6dx),
       ],
       stale: true,
     },
@@ -439,13 +494,14 @@ function buildDemoTopology(): { nodes: Node[]; edges: Edge[] } {
     { name: "qwen2.5-72b", phase: "Loading", serverType: "vllm", gpu: 2, node: "ws-h200-04" },
     { name: "codestral-22b", phase: "Ready", serverType: "vllm", gpu: 2, node: "ws-h200-04" },
     { name: "llama-3.1-70b", phase: "Ready", serverType: "vllm", gpu: 2, node: "ws-h200-05" },
-    { name: "deepseek-v3", phase: "Ready", serverType: "vllm", gpu: 2, node: "ws-h200-05" },
-    { name: "gemma-2-27b", phase: "Ready", serverType: "vllm", gpu: 1, node: "ws-h200-06" },
-    { name: "starcoder2-15b", phase: "Ready", serverType: "vllm", gpu: 1, node: "ws-h200-06" },
+    { name: "qwen2.5-32b", phase: "Ready", serverType: "vllm", gpu: 2, node: "ws-h200-05" },
+    // 27B at bf16 is ~54 GB — over one 48 GB L40S, so it runs TP=2.
+    { name: "gemma-2-27b", phase: "Ready", serverType: "vllm", gpu: 2, node: "ws-l40s-02" },
+    { name: "starcoder2-15b", phase: "Ready", serverType: "vllm", gpu: 1, node: "ws-l40s-02" },
     { name: "dbrx-instruct", phase: "Loading", serverType: "vllm", gpu: 4, node: "ws-h200-07" },
     { name: "mistral-large-2", phase: "Ready", serverType: "vllm", gpu: 4, node: "ws-h200-07" },
-    { name: "llama-3.2-8b", phase: "Ready", serverType: "ollama", gpu: 1, node: "ws-h200-08" },
-    { name: "phi-4-14b", phase: "Ready", serverType: "ollama", gpu: 1, node: "ws-h200-08" },
+    { name: "llama-3.2-8b", phase: "Ready", serverType: "ollama", gpu: 1, node: "ws-l40s-03" },
+    { name: "phi-4-14b", phase: "Ready", serverType: "ollama", gpu: 1, node: "ws-l40s-03" },
     { name: "whisper-large-v3", phase: "Ready", serverType: "vllm", gpu: 1, node: "ws-l40s-01" },
     { name: "e5-mistral-7b", phase: "Ready", serverType: "tgi", gpu: 1, node: "ws-l40s-01" },
     { name: "nomic-embed-text", phase: "Failed", serverType: "vllm", gpu: 1, node: "ws-l40s-01" },
@@ -493,7 +549,7 @@ function buildDemoTopology(): { nodes: Node[]; edges: Edge[] } {
         { type: "sequential", source: "analyst", target: "synthesizer" },
       ],
       provider: "anthropic",
-      model: "deepseek-v3",
+      model: "deepseek-r1-671b",
       stimulus: { name: "daily-research", generation: 14 },
       runningCount: 3,
       features: { delegation: true, sequential: true, supervision: false, subagents: true },
