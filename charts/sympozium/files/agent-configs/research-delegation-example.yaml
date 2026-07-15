@@ -1,8 +1,24 @@
 ---
 # Research Team Ensemble — a coordinated research and reporting team.
-# Demonstrates persona relationships: the Researcher delegates findings to
-# the Writer, who produces a report that flows sequentially to the Reviewer.
-# The Lead supervises all activity.
+# Demonstrates persona relationships: the Lead delegates a backlog topic to the
+# Researcher, who gathers sources with fetch_url and delegates findings to the
+# Writer, whose draft flows sequentially to the Reviewer.
+#
+# The worked example is deliberately concrete and offline-verifiable ("the most
+# important kings of ancient Egypt") so the demo exercises two capabilities you
+# can actually watch happen:
+#   * persistent memory — the Lead keeps a backlog across runs, and each persona
+#     records what it learned so later cycles don't redo the work
+#   * web fetching     — the Researcher pulls real sources with fetch_url
+#
+# Nothing runs until you ask it to: the stimulus is `trigger: manual`, so
+# enabling the ensemble brings the team up and leaves it idle. Start a cycle with
+#   POST /api/v1/ensembles/research-delegation-example/stimulus/trigger
+#
+# Only the Lead is scheduled, and its heartbeat is held back a full interval
+# rather than firing on creation. The Researcher, Writer and Reviewer are driven
+# by the delegation/sequential edges below, so they don't wake up with an empty
+# inbox and burn a run reporting that they have nothing to do.
 apiVersion: sympozium.ai/v1alpha1
 kind: Ensemble
 metadata:
@@ -16,7 +32,30 @@ spec:
 
   stimulus:
     name: research-brief
-    prompt: "Begin a new research cycle. Identify trending topics or open research questions relevant to the project, gather sources, and produce a comprehensive report with citations. Submit findings for review."
+    # Wait for a human to start the first cycle. With "onReady" the brief fires
+    # the moment every agent comes up, so enabling the ensemble silently spends
+    # a full research cycle — LLM tokens and half a dozen outbound fetches —
+    # before anyone has looked at it. Trigger a cycle with:
+    #   POST /api/v1/ensembles/research-delegation-example/stimulus/trigger
+    trigger: manual
+    prompt: |
+      Research brief — topic: the most important kings (pharaohs) of ancient Egypt.
+
+      Goal: a cited report naming the most historically significant pharaohs and
+      explaining, for each, why they matter. Cover at least Narmer, Khufu,
+      Hatshepsut, Akhenaten and Ramesses II. For each king record their dynasty,
+      approximate reign dates, and their single most important legacy. Every
+      factual claim must carry the source URL it came from.
+
+      Do this now, in order:
+      1. Call memory_search with "egyptian kings" to check whether an earlier
+         cycle already covered this. Do not repeat work that is already recorded.
+      2. Call delegate_to_persona with target "researcher" and hand it the topic
+         above, including the list of kings and the citation requirement.
+      3. Call memory_store to record that this topic is in progress with the
+         Researcher, so the next backlog check doesn't delegate it twice.
+
+      Delegate the research — do not research it yourself.
 
   relationships:
     - source: research-brief
@@ -32,7 +71,11 @@ spec:
       target: reviewer
       type: sequential
       condition: "when draft is ready"
-      timeout: "5m"
+      # A sequential edge's timeout is persisted onto the successor's run and
+      # takes precedence over that agent config's runTimeout, so this value —
+      # not the Reviewer's 15m — is the Reviewer's actual budget. Keep the two
+      # in step; a smaller number here silently overrides the larger one there.
+      timeout: "15m"
     - source: lead
       target: researcher
       type: delegation
@@ -61,54 +104,85 @@ spec:
   agentConfigs:
     - name: lead
       displayName: "Research Lead"
+      # Delegation is blocking: the Lead's run stays alive while the Researcher
+      # — and, beneath it, the Writer — do their work, so its timeout has to
+      # cover the whole subtree, not just its own thinking. The default is 10m,
+      # which a local model blows through on the first fetch-heavy cycle.
+      runTimeout: "45m"
       systemPrompt: |
-        You are the research lead. You coordinate the team by assigning
-        research topics, tracking progress, and ensuring output quality.
+        You are the research lead. You own a research backlog and coordinate the
+        team that works through it. You do not do the research yourself.
 
         Your responsibilities:
-        - Break down complex research questions into actionable tasks
-        - Delegate research tasks to the Researcher using the
-          delegate_to_persona tool with target "researcher"
-        - Monitor the Writer and Reviewer for progress
-        - Synthesise final outputs and deliver to stakeholders
-        - Maintain a research backlog of pending topics
+        - Keep a prioritised research backlog in memory. Each entry has a topic,
+          an owner, and a status: pending, in-progress, in-review, or delivered.
+        - Work one topic at a time, highest priority first.
+        - Delegate the top pending topic to the Researcher using the
+          delegate_to_persona tool with target "researcher". Give it the full
+          topic text, not just a title.
+        - After delegating, record the topic as in-progress with memory_store so
+          the next backlog check does not delegate it twice.
+        - When a reviewed report comes back, deliver it and mark the topic
+          delivered in memory.
+
+        Always call memory_search before acting so you know what previous cycles
+        already did.
       skills:
         - memory
-      toolPolicy:
-        allow:
-          - read_file
-          - list_directory
-          - fetch_url
-          - send_channel_message
       schedule:
         type: heartbeat
-        interval: "10m"
-        task: "Check the research backlog. If there are pending topics, delegate the highest-priority one to the Researcher. Review any completed reports from the Reviewer and deliver them."
+        interval: "1h"
+        # Don't run at t=0. The default backdates the first tick so a stamped
+        # schedule fires the instant the ensemble is enabled — which would both
+        # start work nobody asked for and collide with the stimulus landing on
+        # this same agent. The Lead picks the backlog up an hour later; the
+        # first cycle comes from the stimulus.
+        firstTick: afterInterval
+        task: |
+          Call memory_search with "research backlog" to load the backlog and the
+          status of each topic. Take the highest-priority topic that is not yet
+          delivered and is not already in-progress, and delegate it to the
+          Researcher with delegate_to_persona, then record it as in-progress with
+          memory_store. If a reviewed report has come back, deliver it and mark
+          that topic delivered. If every topic is delivered, say so and stop —
+          do not invent new topics.
       memory:
         enabled: true
         seeds:
-          - "Maintain a prioritised research backlog"
+          - "Research backlog, in priority order. 1: The most important kings (pharaohs) of ancient Egypt — a cited report covering at least Narmer, Khufu, Hatshepsut, Akhenaten and Ramesses II, with dynasty, approximate reign dates, and each king's most important legacy. Status: pending. 2: How hieroglyphs were deciphered, and the role of the Rosetta Stone. Status: pending."
+          - "Backlog protocol: work one topic at a time, highest priority first. Each entry carries a status — pending, in-progress, in-review, or delivered. Record status changes with memory_store as they happen."
           - "Track which research topics are in progress and who is working on them"
 
     - name: researcher
       displayName: "Researcher"
+      # Covers its own fetching plus the Writer run it blocks on.
+      runTimeout: "30m"
       systemPrompt: |
-        You are a research analyst. You investigate topics thoroughly using
-        available tools, synthesise findings, and produce structured research
-        notes that the Writer can turn into a polished report.
+        You are a research analyst. You investigate the topic the Lead assigns
+        you using real sources, and produce structured notes the Writer can turn
+        into a report.
 
         Your responsibilities:
-        - Investigate assigned research topics using web search and file analysis
-        - Produce structured research notes with key findings, sources, and data
-        - When your research notes are ready, use the delegate_to_persona
-          tool to delegate to "writer" with the complete research notes
-        - Flag any blockers or questions back to the Lead
+        - Call memory_search on the topic first, to reuse anything an earlier
+          cycle already established.
+        - Gather facts with the fetch_url tool. Fetch real pages and quote what
+          they actually say — never rely on recall alone. Good starting sources
+          for ancient Egypt:
+            https://en.wikipedia.org/wiki/List_of_pharaohs
+            https://en.wikipedia.org/wiki/Narmer
+            https://en.wikipedia.org/wiki/Khufu
+            https://en.wikipedia.org/wiki/Hatshepsut
+            https://en.wikipedia.org/wiki/Akhenaten
+            https://en.wikipedia.org/wiki/Ramesses_II
+        - Produce structured notes: one section per subject, each fact followed by
+          the URL it came from.
+        - Record the key findings with memory_store, tagged with the topic, so
+          later cycles can reuse them.
+        - When the notes are ready, use the delegate_to_persona tool to delegate
+          to "writer" with the complete notes inline.
+        - Flag any blockers or questions back to the Lead.
       skills:
         - memory
-      schedule:
-        type: heartbeat
-        interval: "10m"
-        task: "Check for any research tasks assigned by the Lead. Investigate the topic, gather findings, and produce structured research notes. When complete, delegate to the Writer to produce a report."
       memory:
         enabled: true
         seeds:
@@ -117,22 +191,27 @@ spec:
 
     - name: writer
       displayName: "Writer"
+      runTimeout: "15m"
       systemPrompt: |
-        You are a technical writer. You take research notes and transform them
-        into clear, well-structured reports with executive summaries, key
-        findings, and recommendations.
+        You are a technical writer. You take the research notes handed to you and
+        transform them into a clear, well-structured report.
 
         Your responsibilities:
-        - Transform research notes into polished markdown reports
-        - Include executive summary, methodology, findings, and recommendations
-        - Ensure reports are concise and actionable
-        - Hand off completed drafts to the Reviewer
+        - Produce a markdown report with an executive summary, the findings, and
+          recommendations for further research.
+        - Preserve every source URL from the notes as an inline citation. A claim
+          without a citation must not appear in the report.
+        - Keep it concise and readable — the summary should stand on its own.
+        - Publish the finished report by calling workflow_memory_store with the
+          FULL report text and the tag "report". Shared workflow memory is the
+          only channel the Reviewer can actually read the whole draft through —
+          the automatic handoff truncates your reply to 800 characters, and
+          /workspace is local to your own pod, so a file you write there does not
+          exist for anyone else. Store the report before you finish.
+        - Then reply with a short summary saying the report is stored under the
+          "report" tag. The Reviewer runs automatically after you.
       skills:
         - memory
-      schedule:
-        type: heartbeat
-        interval: "10m"
-        task: "Check for research notes from the Researcher. Transform them into a polished report with executive summary, findings, and recommendations."
       memory:
         enabled: true
         seeds:
@@ -141,25 +220,32 @@ spec:
 
     - name: reviewer
       displayName: "Reviewer"
+      runTimeout: "15m"
       systemPrompt: |
-        You are a quality reviewer. You review reports for accuracy, clarity,
-        completeness, and actionability. You provide concrete feedback or
-        approve the report for delivery.
+        You are a quality reviewer. You review the report the Writer produced for
+        accuracy, clarity, completeness, and actionability.
+
+        Start by calling workflow_memory_search with the tag "report" to retrieve
+        the full report text. The handoff you receive is only a truncated summary
+        — never review it on its own, and never try to read the report off disk.
+        The Writer's /workspace belongs to its pod, not yours; shared workflow
+        memory is where the report actually lives.
 
         Your responsibilities:
-        - Review reports for factual accuracy and source verification
-        - Check clarity, structure, and readability
-        - Verify recommendations are actionable and well-supported
-        - Approve reports or return them with specific feedback
+        - Check every claim carries a source URL, and that the sources are real.
+        - Check clarity, structure, and readability.
+        - Verify the recommendations are actionable and well-supported.
+        - Approve the report, or return it with specific, concrete feedback.
+        - Record recurring quality issues with memory_store so the team improves.
       skills:
         - memory
       toolPolicy:
         deny:
+          # No sidecar runs in this ensemble, so execute_command only stalls
+          # until it times out; deny it so the review doesn't burn its run on
+          # shell commands that cannot work.
+          - execute_command
           - write_file
-      schedule:
-        type: heartbeat
-        interval: "10m"
-        task: "Review any pending reports from the Writer. Check for accuracy, clarity, and actionability. Approve or return with feedback."
       memory:
         enabled: true
         seeds:
