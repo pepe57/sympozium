@@ -153,6 +153,19 @@ export interface TokenUsage {
   durationMs: number;
 }
 
+/** A cost estimate in integer micro-USD (1e-6 USD). `source` is
+ *  "defaultTable" for real estimates from the cluster price table, or
+ *  "simulated" for hypothetical estimates from user-defined simulated prices. */
+export interface CostEstimate {
+  amountMicro: number;
+  inputAmountMicro: number;
+  outputAmountMicro: number;
+  currency: string;
+  source: string;
+  priceKey?: string;
+  estimatedAt?: string;
+}
+
 export interface ParentRunRef {
   runName: string;
   sessionKey: string;
@@ -196,6 +209,7 @@ export interface AgentRunStatus {
   error?: string;
   exitCode?: number;
   tokenUsage?: TokenUsage;
+  costEstimate?: CostEstimate;
   postRunJobName?: string;
   gateVerdict?: string;
   delegates?: DelegateStatus[];
@@ -206,6 +220,8 @@ export interface AgentRun {
   metadata: ObjectMeta;
   spec: AgentRunSpec;
   status?: AgentRunStatus;
+  /** Hypothetical estimate from user-defined simulated prices ("source":"simulated"). */
+  simulatedCostEstimate?: CostEstimate;
 }
 
 // ── SympoziumPolicy ──────────────────────────────────────────────────────────
@@ -945,6 +961,34 @@ export interface CatalogResponse {
   total: number;
 }
 
+// ── Pricing (estimated / simulated spend) ────────────────────────────────────
+
+/** One price-table entry. Amounts are integer micro-USD per 1M tokens
+ *  (2500000 → $2.50/MTok). Used for both the cluster default table and
+ *  user-defined simulated prices. */
+export interface SimulatedPrice {
+  provider: string;
+  match: string;
+  inputPerMTokMicro: number;
+  outputPerMTokMicro: number;
+}
+
+export interface SimulatedPricing {
+  simulatedEnabled: boolean;
+  simulatedPrices: SimulatedPrice[];
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export interface PricingResponse {
+  currency: string;
+  defaultTable: SimulatedPrice[];
+  simulated: SimulatedPricing | null;
+  localProviders: string[];
+  /** False when the apiserver runs without auth — pricing writes return 403. */
+  writable: boolean;
+}
+
 // ── API client ───────────────────────────────────────────────────────────────
 
 /** Typed error so callers can inspect the HTTP status code. */
@@ -1042,7 +1086,9 @@ async function apiFetch<T>(
       if (res.status === 204) return undefined as T;
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(text || `HTTP ${res.status}`);
+        // ApiError preserves the status code so callers can distinguish
+        // e.g. 403 (writes disabled) from validation errors.
+        throw new ApiError(text || `HTTP ${res.status}`, res.status);
       }
       // Guard against SPA HTML fallback for unrecognised routes which
       // would throw a SyntaxError from .json().  Only reject responses
@@ -1457,6 +1503,27 @@ export const api = {
       apiFetch<CanaryConfigResponse>("/api/v1/canary", {
         method: "PATCH",
         body: JSON.stringify(data),
+        skipNamespace: true,
+      }),
+  },
+
+  pricing: {
+    get: () =>
+      apiFetch<PricingResponse>("/api/v1/pricing", {
+        skipNamespace: true,
+      }),
+    putSimulated: (data: {
+      simulatedEnabled: boolean;
+      simulatedPrices: SimulatedPrice[];
+    }) =>
+      apiFetch<SimulatedPricing>("/api/v1/pricing/simulated", {
+        method: "PUT",
+        body: JSON.stringify(data),
+        skipNamespace: true,
+      }),
+    deleteSimulated: () =>
+      apiFetch<void>("/api/v1/pricing/simulated", {
+        method: "DELETE",
         skipNamespace: true,
       }),
   },

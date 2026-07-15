@@ -61,6 +61,7 @@ type Server struct {
 	log          logr.Logger
 	upgrader     websocket.Upgrader
 	densityCache *controller.DensityCache // optional: set when llmfit DaemonSet is enabled
+	authEnabled  bool                     // set by buildMux; gates pricing writes
 }
 
 // NewServer creates a new API server.
@@ -114,6 +115,10 @@ func (s *Server) Handler(token string) http.Handler { return s.buildMux(nil, tok
 // When frontendFS is non-nil, it serves the SPA for non-API paths.
 // When token is non-empty, API routes require Bearer authentication.
 func (s *Server) buildMux(frontendFS fs.FS, token string) http.Handler {
+	// Some cluster-wide mutating routes (pricing) refuse writes outright when
+	// the server runs unauthenticated, instead of inheriting the open-API mode.
+	s.authEnabled = token != ""
+
 	mux := http.NewServeMux()
 
 	// Instance endpoints
@@ -208,6 +213,12 @@ func (s *Server) buildMux(frontendFS fs.FS, token string) http.Handler {
 	// System canary endpoints
 	mux.HandleFunc("GET /api/v1/canary", s.getCanaryConfig)
 	mux.HandleFunc("PATCH /api/v1/canary", s.patchCanaryConfig)
+
+	// Model pricing endpoints (cost estimation; distinct from /density/cost,
+	// which is GPU placement cost)
+	mux.HandleFunc("GET /api/v1/pricing", s.getPricing)
+	mux.HandleFunc("PUT /api/v1/pricing/simulated", s.putSimulatedPrices)
+	mux.HandleFunc("DELETE /api/v1/pricing/simulated", s.deleteSimulatedPrices)
 
 	// Provider discovery endpoints (model listing, node discovery)
 	mux.HandleFunc("GET /api/v1/providers/nodes", s.listProviderNodes)
@@ -809,7 +820,16 @@ func (s *Server) listRuns(w http.ResponseWriter, r *http.Request) {
 	sort.Slice(list.Items, func(i, j int) bool {
 		return list.Items[i].Name < list.Items[j].Name
 	})
-	writeJSON(w, list.Items)
+
+	simTable := s.simulatedTable(r.Context())
+	out := make([]runWithCostOverlay, len(list.Items))
+	for i := range list.Items {
+		out[i] = runWithCostOverlay{
+			AgentRun:              list.Items[i],
+			SimulatedCostEstimate: overlaySimulatedCost(simTable, &list.Items[i]),
+		}
+	}
+	writeJSON(w, out)
 }
 
 func (s *Server) getRun(w http.ResponseWriter, r *http.Request) {
@@ -825,7 +845,10 @@ func (s *Server) getRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, run)
+	writeJSON(w, runWithCostOverlay{
+		AgentRun:              run,
+		SimulatedCostEstimate: overlaySimulatedCost(s.simulatedTable(r.Context()), &run),
+	})
 }
 
 // CreateRunRequest is the request body for creating a new AgentRun.

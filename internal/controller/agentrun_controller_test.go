@@ -651,6 +651,57 @@ func TestParseAgentResultFromLogs_SkippedDefaultReason(t *testing.T) {
 	}
 }
 
+func TestParseAgentResultFromLogs_NegativeMetricsRejected(t *testing.T) {
+	// An adversarial agent printing negative counts must not produce usage at
+	// all: a negative total would decrement Ensemble.status.tokenBudgetUsed
+	// and defeat halt-mode budgets.
+	logs := "__SYMPOZIUM_RESULT__" +
+		`{"status":"success","response":"done","metrics":{"durationMs":10,"inputTokens":-5000000000,"outputTokens":1,"toolCalls":1}}` +
+		"__SYMPOZIUM_END__\n"
+
+	result, errMsg, usage, skipped := parseAgentResultFromLogs(logs, logr.Discard())
+	if skipped || errMsg != "" {
+		t.Fatalf("unexpected skip/error: skipped=%v errMsg=%q", skipped, errMsg)
+	}
+	if result != "done" {
+		t.Fatalf("result = %q, want %q (response must survive metric rejection)", result, "done")
+	}
+	if usage != nil {
+		t.Fatalf("expected nil usage for negative metrics, got %+v", usage)
+	}
+}
+
+func TestParseAgentResultFromLogs_NegativeToolCallsRejected(t *testing.T) {
+	logs := "__SYMPOZIUM_RESULT__" +
+		`{"status":"success","response":"done","metrics":{"durationMs":10,"inputTokens":5,"outputTokens":5,"toolCalls":-1}}` +
+		"__SYMPOZIUM_END__\n"
+
+	_, _, usage, _ := parseAgentResultFromLogs(logs, logr.Discard())
+	if usage != nil {
+		t.Fatalf("expected nil usage when any metric is negative, got %+v", usage)
+	}
+}
+
+func TestParseAgentResultFromLogs_OversizedMetricsClamped(t *testing.T) {
+	logs := "__SYMPOZIUM_RESULT__" +
+		`{"status":"success","response":"done","metrics":{"durationMs":10,"inputTokens":90000000000,"outputTokens":20,"toolCalls":3}}` +
+		"__SYMPOZIUM_END__\n"
+
+	_, errMsg, usage, _ := parseAgentResultFromLogs(logs, logr.Discard())
+	if errMsg != "" {
+		t.Fatalf("unexpected error: %s", errMsg)
+	}
+	if usage == nil {
+		t.Fatal("expected usage, got nil")
+	}
+	if usage.InputTokens != maxAgentReportedMetric {
+		t.Fatalf("inputTokens = %d, want clamp at %d", usage.InputTokens, int64(maxAgentReportedMetric))
+	}
+	if usage.TotalTokens != maxAgentReportedMetric+20 {
+		t.Fatalf("totalTokens = %d, want %d", usage.TotalTokens, int64(maxAgentReportedMetric)+20)
+	}
+}
+
 func TestExtractLikelyProviderErrorFromLogs_Quota(t *testing.T) {
 	logs := `
 2026/03/01 12:00:00 agent-runner starting
@@ -2327,6 +2378,48 @@ func TestUpdateTokenBudget(t *testing.T) {
 	}
 	if updated.Status.TokenBudgetUsed != 1500 {
 		t.Errorf("after second call tokenBudgetUsed = %d, want 1500 (no double-count)", updated.Status.TokenBudgetUsed)
+	}
+}
+
+func TestUpdateTokenBudget_NegativeTotalNeverDecrementsLedger(t *testing.T) {
+	// Regression: a TokenUsage with a negative total (e.g. from a forged
+	// result marker on an older controller) must not be added to the ensemble
+	// ledger — the budget only ever counts up.
+	pack := &sympoziumv1alpha1.Ensemble{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-pack", Namespace: "default"},
+		Spec: sympoziumv1alpha1.EnsembleSpec{
+			SharedMemory: &sympoziumv1alpha1.SharedMemorySpec{
+				Enabled: true,
+				Membrane: &sympoziumv1alpha1.MembraneSpec{
+					TokenBudget: &sympoziumv1alpha1.TokenBudgetSpec{
+						MaxTokens: 100000,
+					},
+				},
+			},
+		},
+		Status: sympoziumv1alpha1.EnsembleStatus{
+			TokenBudgetUsed: 1500,
+		},
+	}
+	run := newTestRun()
+	run.Labels = map[string]string{"sympozium.ai/ensemble": "my-pack"}
+	run.Status.TokenUsage = &sympoziumv1alpha1.TokenUsage{
+		InputTokens:  -2000,
+		OutputTokens: 0,
+		TotalTokens:  -2000,
+	}
+
+	r := newMembraneTestReconciler(t, pack, run)
+	if err := r.updateTokenBudget(context.Background(), logr.Discard(), run); err != nil {
+		t.Fatalf("updateTokenBudget: %v", err)
+	}
+
+	var updated sympoziumv1alpha1.Ensemble
+	if err := r.Get(context.Background(), types.NamespacedName{Name: "my-pack", Namespace: "default"}, &updated); err != nil {
+		t.Fatalf("get ensemble: %v", err)
+	}
+	if updated.Status.TokenBudgetUsed != 1500 {
+		t.Errorf("tokenBudgetUsed = %d, want 1500 (negative usage must not decrement)", updated.Status.TokenBudgetUsed)
 	}
 }
 

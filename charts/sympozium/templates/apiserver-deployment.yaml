@@ -56,6 +56,12 @@ spec:
                   fieldPath: spec.nodeName
             - name: SYMPOZIUM_COLLECTOR_METRICS_URL
               value: "http://sympozium-otel-collector.{{ include "sympozium.namespace" . }}.svc.cluster.local:{{ .Values.observability.collector.service.metricsPort }}/metrics"
+          {{- if .Values.pricing.enabled }}
+            - name: SYMPOZIUM_PRICING_CONFIGMAP
+              value: "sympozium-model-pricing"
+            - name: SYMPOZIUM_PRICING_NAMESPACE
+              value: {{ include "sympozium.namespace" . | quote }}
+          {{- end }}
           {{- if .Values.observability.enabled }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: {{ .Values.observability.endpoint | quote }}

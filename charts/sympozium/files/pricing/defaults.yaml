@@ -1,0 +1,72 @@
+# Default model price entries (micro-USD per 1M tokens; $1.00 = 1000000).
+# Rendered into the sympozium-model-pricing ConfigMap by templates/model-pricing.yaml.
+#
+# Prices are APPROXIMATE list prices for cost ESTIMATION, not billing —
+# providers change pricing without notice. Refresh per release (planned:
+# generated from LiteLLM's model_prices_and_context_window.json). For local
+# corrections use values `pricing.extraEntries` (appended, wins ties) so Helm
+# upgrades don't clobber them.
+#
+# `match` is a literal prefix of the model id; the longest match wins.
+- provider: openai
+  match: gpt-4o-mini
+  inputPerMTokMicro: 150000
+  outputPerMTokMicro: 600000
+- provider: openai
+  match: gpt-4o
+  inputPerMTokMicro: 2500000
+  outputPerMTokMicro: 10000000
+- provider: openai
+  match: gpt-4.1-mini
+  inputPerMTokMicro: 400000
+  outputPerMTokMicro: 1600000
+- provider: openai
+  match: gpt-4.1
+  inputPerMTokMicro: 2000000
+  outputPerMTokMicro: 8000000
+- provider: openai
+  match: gpt-5-mini
+  inputPerMTokMicro: 250000
+  outputPerMTokMicro: 2000000
+- provider: openai
+  match: gpt-5
+  inputPerMTokMicro: 1250000
+  outputPerMTokMicro: 10000000
+- provider: openai
+  match: o3
+  inputPerMTokMicro: 2000000
+  outputPerMTokMicro: 8000000
+- provider: anthropic
+  match: claude-opus-4
+  inputPerMTokMicro: 15000000
+  outputPerMTokMicro: 75000000
+- provider: anthropic
+  match: claude-sonnet-4
+  inputPerMTokMicro: 3000000
+  outputPerMTokMicro: 15000000
+- provider: anthropic
+  match: claude-haiku-4-5
+  inputPerMTokMicro: 1000000
+  outputPerMTokMicro: 5000000
+- provider: anthropic
+  match: claude-3-5-haiku
+  inputPerMTokMicro: 800000
+  outputPerMTokMicro: 4000000
+# Bedrock pricing is region-insensitive by design (documented limitation):
+# estimates ignore regional multipliers and use US-region list prices.
+- provider: bedrock
+  match: anthropic.claude-sonnet-4
+  inputPerMTokMicro: 3000000
+  outputPerMTokMicro: 15000000
+- provider: bedrock
+  match: anthropic.claude-3-5-sonnet
+  inputPerMTokMicro: 3000000
+  outputPerMTokMicro: 15000000
+- provider: bedrock
+  match: amazon.nova-pro
+  inputPerMTokMicro: 800000
+  outputPerMTokMicro: 3200000
+- provider: bedrock
+  match: amazon.nova-lite
+  inputPerMTokMicro: 60000
+  outputPerMTokMicro: 240000

@@ -702,6 +702,39 @@ export function usePatchCanaryConfig() {
   });
 }
 
+// ── Pricing ─────────────────────────────────────────────────────────────────
+
+export function usePricing() {
+  return useQuery({
+    queryKey: ["pricing"],
+    queryFn: api.pricing.get,
+  });
+}
+
+export function usePutSimulatedPrices() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: api.pricing.putSimulated,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pricing"] });
+      toast.success("Simulated prices saved");
+    },
+    onError: toastError,
+  });
+}
+
+export function useDeleteSimulatedPrices() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: api.pricing.deleteSimulated,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pricing"] });
+      toast.success("Simulated prices cleared");
+    },
+    onError: toastError,
+  });
+}
+
 // ── Observability ───────────────────────────────────────────────────────────
 
 export function useObservabilityMetrics() {

@@ -1,11 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useCapabilities,
   useInstallAgentSandbox,
   useUninstallAgentSandbox,
   useCanaryConfig,
   usePatchCanaryConfig,
+  usePricing,
+  usePutSimulatedPrices,
+  useDeleteSimulatedPrices,
 } from "@/hooks/use-api";
+import { ApiError, type SimulatedPrice } from "@/lib/api";
 import {
   Card,
   CardHeader,
@@ -19,11 +23,21 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
+import {
   Activity,
   AlertTriangle,
   CheckCircle2,
+  DollarSign,
   Download,
   Loader2,
+  Plus,
   Settings,
   Trash2,
   ExternalLink,
@@ -50,6 +64,7 @@ export function SettingsPage() {
       </div>
 
       <SystemCanarySection />
+      <ModelPricingSection />
       <AgentSandboxSection />
     </div>
   );
@@ -307,6 +322,359 @@ function SystemCanarySection() {
         }}
       />
     </>
+  );
+}
+
+/** Format micro-USD-per-1M-tokens as dollars (2500000 → "$2.50"). */
+function formatPerMTok(micro: number): string {
+  return `$${(micro / 1e6).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  })}`;
+}
+
+const PROVIDER_SUGGESTIONS = ["openai", "anthropic", "bedrock", "modelref"];
+
+interface SimulatedPriceRow {
+  provider: string;
+  match: string;
+  input: string;
+  output: string;
+}
+
+function ModelPricingSection() {
+  const { data: pricing, isLoading } = usePricing();
+  const putMutation = usePutSimulatedPrices();
+  const deleteMutation = useDeleteSimulatedPrices();
+  const [enabled, setEnabled] = useState(false);
+  const [rows, setRows] = useState<SimulatedPriceRow[]>([]);
+  const [dirty, setDirty] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  // Seed the editable form from the server, but never clobber in-flight edits.
+  useEffect(() => {
+    if (!pricing || dirty) return;
+    setEnabled(pricing.simulated?.simulatedEnabled ?? false);
+    setRows(
+      (pricing.simulated?.simulatedPrices ?? []).map((p) => ({
+        provider: p.provider,
+        match: p.match,
+        input: String(p.inputPerMTokMicro / 1e6),
+        output: String(p.outputPerMTokMicro / 1e6),
+      })),
+    );
+  }, [pricing, dirty]);
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-5 w-48" />
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-10 w-32" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const busy = putMutation.isPending || deleteMutation.isPending;
+  const writeError =
+    (putMutation.error instanceof ApiError && putMutation.error.status === 403
+      ? putMutation.error
+      : null) ??
+    (deleteMutation.error instanceof ApiError &&
+    deleteMutation.error.status === 403
+      ? deleteMutation.error
+      : null);
+  const readOnly = !(pricing?.writable ?? true) || !!writeError;
+  const disabled = readOnly || busy;
+
+  const providerSuggestions = Array.from(
+    new Set([...(pricing?.localProviders ?? []), ...PROVIDER_SUGGESTIONS]),
+  );
+
+  function updateRow(index: number, patch: Partial<SimulatedPriceRow>) {
+    setDirty(true);
+    setRows((prev) =>
+      prev.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+    );
+  }
+
+  function addRow() {
+    setDirty(true);
+    setRows((prev) => [
+      ...prev,
+      { provider: "", match: "", input: "", output: "" },
+    ]);
+  }
+
+  function removeRow(index: number) {
+    setDirty(true);
+    setRows((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function handleSave() {
+    const simulatedPrices: SimulatedPrice[] = [];
+    for (const [i, row] of rows.entries()) {
+      if (!row.provider.trim() || !row.match.trim()) {
+        setValidationError(
+          `Row ${i + 1}: provider and model prefix are required`,
+        );
+        return;
+      }
+      const input = parseFloat(row.input);
+      const output = parseFloat(row.output);
+      if (
+        !Number.isFinite(input) ||
+        input <= 0 ||
+        !Number.isFinite(output) ||
+        output <= 0
+      ) {
+        setValidationError(
+          `Row ${i + 1}: prices must be positive dollar amounts per 1M tokens`,
+        );
+        return;
+      }
+      simulatedPrices.push({
+        provider: row.provider.trim(),
+        match: row.match.trim(),
+        inputPerMTokMicro: Math.round(input * 1e6),
+        outputPerMTokMicro: Math.round(output * 1e6),
+      });
+    }
+    setValidationError(null);
+    putMutation.mutate(
+      { simulatedEnabled: enabled, simulatedPrices },
+      { onSuccess: () => setDirty(false) },
+    );
+  }
+
+  function handleClearAll() {
+    setValidationError(null);
+    deleteMutation.mutate(undefined, {
+      onSuccess: () => {
+        setEnabled(false);
+        setRows([]);
+        setDirty(false);
+      },
+    });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <DollarSign className="h-5 w-5 text-muted-foreground" />
+          <CardTitle className="text-base">Model Pricing</CardTitle>
+        </div>
+        <CardDescription>
+          Prices used to estimate run spend from token usage. Estimates appear
+          on run detail pages when a run's model matches a price entry.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Cluster price table (read-only) */}
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Cluster price table</p>
+          {pricing?.defaultTable && pricing.defaultTable.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Provider</TableHead>
+                  <TableHead>Model match</TableHead>
+                  <TableHead>Input $/MTok</TableHead>
+                  <TableHead>Output $/MTok</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pricing.defaultTable.map((entry, i) => (
+                  <TableRow key={i}>
+                    <TableCell className="py-2 font-mono text-xs">
+                      {entry.provider}
+                    </TableCell>
+                    <TableCell className="py-2 font-mono text-xs">
+                      {entry.match}
+                    </TableCell>
+                    <TableCell className="py-2">
+                      {formatPerMTok(entry.inputPerMTokMicro)}
+                    </TableCell>
+                    <TableCell className="py-2">
+                      {formatPerMTok(entry.outputPerMTokMicro)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No price entries configured.
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Cluster price table. Edit via Helm values (pricing.extraEntries) or
+            kubectl. Prices apply cluster-wide.
+          </p>
+        </div>
+
+        {/* Simulated prices */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="simulated-enabled"
+              checked={enabled}
+              onChange={(e) => {
+                setDirty(true);
+                setEnabled(e.target.checked);
+              }}
+              disabled={disabled}
+              className="rounded"
+            />
+            <Label htmlFor="simulated-enabled" className="cursor-pointer">
+              Simulated prices
+            </Label>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Define rates for providers without list prices (e.g. local models,
+            internal chargeback). Runs matching these rates show them as their
+            estimated spend. This is a shared cluster-wide setting, visible to
+            all users of this cluster.
+          </p>
+
+          {readOnly && (
+            <div className="flex items-start gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3">
+              <AlertTriangle className="h-4 w-4 mt-0.5 text-yellow-600 shrink-0" />
+              <p className="text-sm text-muted-foreground">
+                {writeError?.message ||
+                  "Pricing writes are disabled because the API server is running without authentication."}
+              </p>
+            </div>
+          )}
+
+          <datalist id="pricing-provider-suggestions">
+            {providerSuggestions.map((p) => (
+              <option key={p} value={p} />
+            ))}
+          </datalist>
+
+          {rows.length > 0 && (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Provider</TableHead>
+                  <TableHead>Model prefix</TableHead>
+                  <TableHead>Input $/MTok</TableHead>
+                  <TableHead>Output $/MTok</TableHead>
+                  <TableHead className="w-10" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((row, i) => (
+                  <TableRow key={i}>
+                    <TableCell className="p-2">
+                      <Input
+                        list="pricing-provider-suggestions"
+                        value={row.provider}
+                        onChange={(e) =>
+                          updateRow(i, { provider: e.target.value })
+                        }
+                        placeholder="llama-server"
+                        className="h-8 font-mono text-sm"
+                        disabled={disabled}
+                      />
+                    </TableCell>
+                    <TableCell className="p-2">
+                      <Input
+                        value={row.match}
+                        onChange={(e) => updateRow(i, { match: e.target.value })}
+                        placeholder="Qwen"
+                        className="h-8 font-mono text-sm"
+                        disabled={disabled}
+                      />
+                    </TableCell>
+                    <TableCell className="p-2">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={row.input}
+                        onChange={(e) => updateRow(i, { input: e.target.value })}
+                        placeholder="0.20"
+                        className="h-8 w-24 text-sm"
+                        disabled={disabled}
+                      />
+                    </TableCell>
+                    <TableCell className="p-2">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={row.output}
+                        onChange={(e) =>
+                          updateRow(i, { output: e.target.value })
+                        }
+                        placeholder="0.80"
+                        className="h-8 w-24 text-sm"
+                        disabled={disabled}
+                      />
+                    </TableCell>
+                    <TableCell className="p-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeRow(i)}
+                        disabled={disabled}
+                        aria-label="Delete row"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+
+          {validationError && (
+            <p className="text-sm text-destructive">{validationError}</p>
+          )}
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={addRow}
+              disabled={disabled}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              Add row
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={disabled}>
+              {putMutation.isPending ? "Saving..." : "Save"}
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleClearAll}
+              disabled={disabled}
+            >
+              {deleteMutation.isPending ? "Clearing..." : "Clear all"}
+            </Button>
+          </div>
+
+          {pricing?.simulated?.updatedAt && (
+            <p className="text-xs text-muted-foreground">
+              Last updated {formatAge(pricing.simulated.updatedAt)} ago
+              {pricing.simulated.updatedBy && (
+                <> by {pricing.simulated.updatedBy}</>
+              )}
+            </p>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
