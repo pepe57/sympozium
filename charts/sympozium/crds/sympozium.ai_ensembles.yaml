@@ -543,6 +543,20 @@ spec:
                           description: Cron is a raw cron expression. Takes precedence
                             over Interval.
                           type: string
+                        firstTick:
+                          default: immediate
+                          description: |-
+                            FirstTick controls whether a newly created schedule runs straight away.
+                            "immediate" (default): the first tick is treated as already due, so the
+                            agent runs as soon as the ensemble is enabled.
+                            "afterInterval": wait a full interval before the first run. Use this when
+                            the agent has nothing to do until something else has happened — a
+                            heartbeat that fires at t=0 wakes up to an empty inbox, and when a
+                            stimulus targets the same agent the two collide and do the work twice.
+                          enum:
+                          - immediate
+                          - afterInterval
+                          type: string
                         interval:
                           description: |-
                             Interval is a human-readable interval (e.g. "30m", "1h", "6h").
@@ -3188,6 +3202,21 @@ spec:
                   prompt:
                     description: Prompt is the task text injected into the target
                       agent's AgentRun.
+                    type: string
+                  trigger:
+                    default: onReady
+                    description: |-
+                      Trigger controls when the stimulus fires.
+                      "onReady" (default): fire automatically as soon as every agent in the
+                      ensemble reports ready. Enabling the ensemble is then the only consent
+                      step — the first run starts on its own.
+                      "manual": never fire automatically. The ensemble reaches Ready and waits;
+                      the run is created only by POST /api/v1/ensembles/{name}/stimulus/trigger.
+                      Use this when a cycle costs real money or reaches the network, and a human
+                      should choose the moment it starts.
+                    enum:
+                    - onReady
+                    - manual
                     type: string
                 required:
                 - name

@@ -92,9 +92,19 @@ func (r *SympoziumScheduleReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	// sched.Next() finds exactly one past tick — triggering one immediate
 	// run without the duplicates caused by a 24h backdate.
 	var lastRun time.Time
-	if schedule.Status.LastRunTime != nil {
+	switch {
+	case schedule.Status.LastRunTime != nil:
 		lastRun = schedule.Status.LastRunTime.Time
-	} else {
+	case schedule.Spec.WaitsForFirstInterval():
+		// Defer the first run by a full interval. Anchor to the creation
+		// timestamp rather than "now": now moves forward on every reconcile, so
+		// the next tick would recede ahead of it and the schedule would never
+		// fire at all.
+		lastRun = schedule.CreationTimestamp.Time
+		if lastRun.IsZero() {
+			lastRun = now
+		}
+	default:
 		// First run — compute the interval between two consecutive ticks
 		// and backdate by that amount so the first tick lands before now.
 		firstTick := sched.Next(now)
@@ -184,6 +194,13 @@ func (r *SympoziumScheduleReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	// Skip if there's already a serving AgentRun for this instance.
 	// A serving run means a web-proxy Deployment is active — no need to
 	// spawn additional heartbeat runs.
+	//
+	// Also skip while a stimulus run for this instance is still active. Both
+	// triggers land on the target agent the moment an ensemble is enabled —
+	// the stimulus on the readiness edge, the schedule via its backdated first
+	// tick — and the ConcurrencyPolicy check above cannot see it because it
+	// only considers this schedule's own runs. Without this the agent gets the
+	// same work twice and does it twice, in parallel.
 	var allRuns sympoziumv1alpha1.AgentRunList
 	if err := r.List(ctx, &allRuns,
 		client.InNamespace(schedule.Namespace),
@@ -195,6 +212,12 @@ func (r *SympoziumScheduleReconciler) Reconcile(ctx context.Context, req ctrl.Re
 					"servingRun", run.Name)
 				_ = r.Status().Update(ctx, schedule)
 				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+			}
+			if run.Labels["sympozium.ai/stimulus"] == "true" && isAgentRunActive(run.Status.Phase) {
+				log.Info("Skipping trigger — instance has an active stimulus run",
+					"stimulusRun", run.Name, "phase", run.Status.Phase)
+				_ = r.Status().Update(ctx, schedule)
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 			}
 		}
 	}

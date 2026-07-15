@@ -74,6 +74,17 @@ spec:
                 - Allow
                 - Replace
                 type: string
+              firstTick:
+                default: immediate
+                description: |-
+                  FirstTick controls whether a schedule that has never fired runs straight
+                  away. "immediate" (default) backdates the first tick by one interval so
+                  it is already due; "afterInterval" anchors to the schedule's creation
+                  time so the first run lands one full interval later.
+                enum:
+                - immediate
+                - afterInterval
+                type: string
               includeMemory:
                 default: true
                 description: IncludeMemory injects the instance's MEMORY.md as context

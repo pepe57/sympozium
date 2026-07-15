@@ -23,7 +23,6 @@ import (
 
 	sympoziumv1alpha1 "github.com/sympozium-ai/sympozium/api/v1alpha1"
 	"github.com/sympozium-ai/sympozium/internal/eventbus"
-	"github.com/sympozium-ai/sympozium/internal/toolpolicy"
 )
 
 const ensembleFinalizer = "sympozium.ai/ensemble-finalizer"
@@ -508,7 +507,7 @@ func (r *EnsembleReconciler) reconcileAgentConfig(
 	// ordering. Suppress the schedule for such successors so the predecessor's
 	// completion is their only trigger.
 	schedName := instanceName + "-schedule"
-	wantSchedule := persona.Schedule != nil && !isPipelineSuccessor(pack, persona.Name)
+	wantSchedule := persona.Schedule != nil && !isSequentialSuccessor(pack, persona.Name)
 	if wantSchedule {
 		ip.ScheduleName = schedName
 
@@ -526,6 +525,12 @@ func (r *EnsembleReconciler) reconcileAgentConfig(
 		} else if err != nil {
 			return ip, fmt.Errorf("get schedule %s: %w", schedName, err)
 		} else {
+			// Suspend is not expressible on the ensemble, so it can only have
+			// been set out-of-band — by an operator or by an agent's
+			// schedule_task tool. Carry it over: overwriting the whole spec
+			// would silently resume a schedule someone deliberately paused.
+			desired.Spec.Suspend = existingSched.Spec.Suspend
+
 			needsUpdate := false
 			if !reflect.DeepEqual(existingSched.Spec, desired.Spec) {
 				existingSched.Spec = desired.Spec
@@ -552,7 +557,7 @@ func (r *EnsembleReconciler) reconcileAgentConfig(
 		// schedule is suppressed — remove any stale SympoziumSchedule so an
 		// ensemble that previously ran with independent schedules is cleaned up.
 		if persona.Schedule != nil && !wantSchedule {
-			log.Info("Suppressing schedule for pipeline successor — triggered by predecessor completion",
+			log.Info("Suppressing schedule for sequential successor — triggered by predecessor completion",
 				"persona", persona.Name)
 		}
 		existingSched := &sympoziumv1alpha1.SympoziumSchedule{}
@@ -759,15 +764,16 @@ func (r *EnsembleReconciler) buildAgent(
 	return inst
 }
 
-// isPipelineSuccessor reports whether a persona's execution is driven solely by
-// an upstream persona completing rather than by its own schedule. In a
-// "pipeline" ensemble, any persona that is the target of a sequential edge is
-// triggered by triggerSequentialSuccessors when its predecessor succeeds, so it
-// must not get an independent SympoziumSchedule.
-func isPipelineSuccessor(pack *sympoziumv1alpha1.Ensemble, personaName string) bool {
-	if pack.Spec.WorkflowType != "pipeline" {
-		return false
-	}
+// isSequentialSuccessor reports whether a persona's execution is driven by an
+// upstream persona completing rather than by its own schedule. Any persona that
+// is the target of a sequential edge is triggered by triggerSequentialSuccessors
+// when its predecessor succeeds, so it must not also get an independent
+// SympoziumSchedule — the two would race, and the scheduled run would fire at
+// t=0 with no predecessor output to act on.
+//
+// This holds for every workflow type, not just "pipeline": a sequential edge
+// means the same thing wherever it is declared.
+func isSequentialSuccessor(pack *sympoziumv1alpha1.Ensemble, personaName string) bool {
 	for _, rel := range pack.Spec.Relationships {
 		if rel.Type == "sequential" && rel.Target == personaName {
 			return true
@@ -810,6 +816,7 @@ func (r *EnsembleReconciler) buildSchedule(
 			Type:              persona.Schedule.Type,
 			ConcurrencyPolicy: "Forbid",
 			IncludeMemory:     true,
+			FirstTick:         persona.Schedule.FirstTick,
 		},
 	}
 }
@@ -1464,9 +1471,20 @@ func (r *EnsembleReconciler) reconcileStimulus(ctx context.Context, log logr.Log
 	prevAllReady := pack.Status.AllAgentsServing
 	pack.Status.AllAgentsServing = allReady
 
+	// A manual stimulus never fires on readiness — the ensemble goes Ready and
+	// waits for the trigger API. AllAgentsServing is still tracked above so the
+	// edge is available to anything else that watches it.
+	if !pack.Spec.Stimulus.FiresOnReady() {
+		if !prevAllReady && allReady {
+			log.Info("Ensemble ready; stimulus is manual and awaits an explicit trigger",
+				"ensemble", pack.Name, "stimulus", pack.Spec.Stimulus.Name)
+		}
+		return nil
+	}
+
 	// Detect the edge: not-all-ready → all-ready.
 	if !prevAllReady && allReady && !pack.Status.StimulusDelivered {
-		if err := r.deliverStimulus(ctx, log, pack, "readiness"); err != nil {
+		if err := r.deliverStimulus(ctx, log, pack, StimulusTriggerSourceReadiness); err != nil {
 			return err
 		}
 	}
@@ -1477,15 +1495,9 @@ func (r *EnsembleReconciler) reconcileStimulus(ctx context.Context, log logr.Log
 // deliverStimulus creates an AgentRun for the stimulus target agent.
 func (r *EnsembleReconciler) deliverStimulus(ctx context.Context, log logr.Logger, pack *sympoziumv1alpha1.Ensemble, triggerSource string) error {
 	// Resolve stimulus relationship target.
-	var targetPersona string
-	for _, rel := range pack.Spec.Relationships {
-		if rel.Type == "stimulus" {
-			targetPersona = rel.Target
-			break
-		}
-	}
-	if targetPersona == "" {
-		return fmt.Errorf("stimulus spec configured but no stimulus relationship found")
+	targetPersona, err := ResolveStimulusTarget(pack)
+	if err != nil {
+		return err
 	}
 
 	targetAgentName := pack.Name + "-" + targetPersona
@@ -1496,40 +1508,8 @@ func (r *EnsembleReconciler) deliverStimulus(ctx context.Context, log logr.Logge
 		return fmt.Errorf("stimulus target agent %q not found: %w", targetAgentName, err)
 	}
 
-	// Create the AgentRun.
-	runName := fmt.Sprintf("%s-stimulus-%d", targetAgentName, time.Now().UnixMilli()%100000)
-	agentRun := &sympoziumv1alpha1.AgentRun{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      runName,
-			Namespace: pack.Namespace,
-			Labels: map[string]string{
-				"sympozium.ai/instance":       targetAgentName,
-				"sympozium.ai/ensemble":       pack.Name,
-				"sympozium.ai/stimulus":       "true",
-				"sympozium.ai/trigger-source": triggerSource,
-			},
-		},
-		Spec: sympoziumv1alpha1.AgentRunSpec{
-			AgentRef: targetAgentName,
-			Task:     pack.Spec.Stimulus.Prompt,
-			AgentID:  fmt.Sprintf("stimulus-%s", pack.Spec.Stimulus.Name),
-			Model: sympoziumv1alpha1.ModelSpec{
-				Provider:                 resolveProvider(&targetInst),
-				Model:                    targetInst.Spec.Agents.Default.Model,
-				BaseURL:                  targetInst.Spec.Agents.Default.BaseURL,
-				AuthSecretRef:            resolveAuthSecret(&targetInst),
-				ProviderHeaders:          targetInst.Spec.Agents.Default.ProviderHeaders,
-				ProviderHeadersSecretRef: targetInst.Spec.Agents.Default.ProviderHeadersSecretRef,
-			},
-			Skills:           targetInst.Spec.Skills,
-			ImagePullSecrets: targetInst.Spec.ImagePullSecrets,
-			Volumes:          targetInst.Spec.Volumes,
-			VolumeMounts:     targetInst.Spec.VolumeMounts,
-			Env:              targetInst.Spec.Agents.Default.Env,
-			Timeout:          targetInst.Spec.Agents.Default.ParseRunTimeout(),
-			ToolPolicy:       toolpolicy.ForAgent(ctx, r.Client, &targetInst),
-		},
-	}
+	agentRun := BuildStimulusRun(ctx, r.Client, pack, &targetInst, targetPersona, triggerSource, time.Now())
+	runName := agentRun.Name
 
 	if err := r.Create(ctx, agentRun); err != nil {
 		return fmt.Errorf("failed to create stimulus AgentRun: %w", err)

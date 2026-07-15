@@ -99,7 +99,7 @@ func TestBuildInstance_ChannelAccessControlPrecedence(t *testing.T) {
 	}
 }
 
-func TestIsPipelineSuccessor(t *testing.T) {
+func TestIsSequentialSuccessor(t *testing.T) {
 	rels := []sympoziumv1alpha1.AgentConfigRelationship{
 		{Source: "ops-check", Target: "incident-responder", Type: "stimulus"},
 		{Source: "incident-responder", Target: "cost-analyzer", Type: "sequential"},
@@ -113,8 +113,14 @@ func TestIsPipelineSuccessor(t *testing.T) {
 		{"sequential target in pipeline is suppressed", "pipeline", "cost-analyzer", true},
 		{"sequential source (pipeline head) keeps its schedule", "pipeline", "incident-responder", false},
 		{"stimulus target is not a sequential successor", "pipeline", "incident-responder", false},
-		{"sequential target outside pipeline mode is not suppressed", "autonomous", "cost-analyzer", false},
-		{"empty workflowType defaults to not-suppressed", "", "cost-analyzer", false},
+		// A sequential edge means the same thing in every workflow type: the
+		// target runs when its predecessor finishes. Suppressing only under
+		// "pipeline" left delegation ensembles stamping a schedule for a
+		// sequential target, which then fired at t=0 — before the predecessor
+		// it exists to react to had produced anything.
+		{"sequential target in delegation mode is suppressed", "delegation", "cost-analyzer", true},
+		{"sequential target in autonomous mode is suppressed", "autonomous", "cost-analyzer", true},
+		{"empty workflowType still suppresses a sequential target", "", "cost-analyzer", true},
 		{"unrelated persona is not suppressed", "pipeline", "some-other-agent", false},
 	}
 	for _, tt := range tests {
@@ -125,8 +131,8 @@ func TestIsPipelineSuccessor(t *testing.T) {
 					Relationships: rels,
 				},
 			}
-			if got := isPipelineSuccessor(pack, tt.persona); got != tt.want {
-				t.Errorf("isPipelineSuccessor(%q, %q) = %v, want %v", tt.workflowType, tt.persona, got, tt.want)
+			if got := isSequentialSuccessor(pack, tt.persona); got != tt.want {
+				t.Errorf("isSequentialSuccessor(%q, %q) = %v, want %v", tt.workflowType, tt.persona, got, tt.want)
 			}
 		})
 	}

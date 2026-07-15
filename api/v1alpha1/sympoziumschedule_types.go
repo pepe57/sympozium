@@ -33,7 +33,30 @@ type SympoziumScheduleSpec struct {
 	// IncludeMemory injects the instance's MEMORY.md as context for each run.
 	// +kubebuilder:default=true
 	IncludeMemory bool `json:"includeMemory,omitempty"`
+
+	// FirstTick controls whether a schedule that has never fired runs straight
+	// away. "immediate" (default) backdates the first tick by one interval so
+	// it is already due; "afterInterval" anchors to the schedule's creation
+	// time so the first run lands one full interval later.
+	// +kubebuilder:validation:Enum=immediate;afterInterval
+	// +kubebuilder:default="immediate"
+	// +optional
+	FirstTick string `json:"firstTick,omitempty"`
 }
+
+// WaitsForFirstInterval reports whether the first run of a never-fired schedule
+// should be deferred by a full interval. An empty FirstTick means "immediate",
+// preserving the behaviour of schedules created before the field existed.
+func (s *SympoziumScheduleSpec) WaitsForFirstInterval() bool {
+	return s.FirstTick == ScheduleFirstTickAfterInterval
+}
+
+const (
+	// ScheduleFirstTickImmediate backdates the first tick so it is already due.
+	ScheduleFirstTickImmediate = "immediate"
+	// ScheduleFirstTickAfterInterval defers the first run by one full interval.
+	ScheduleFirstTickAfterInterval = "afterInterval"
+)
 
 // SympoziumScheduleStatus defines the observed state of a SympoziumSchedule.
 type SympoziumScheduleStatus struct {
