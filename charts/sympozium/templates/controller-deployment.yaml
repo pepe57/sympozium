@@ -1,3 +1,6 @@
+{{- if and .Values.controller.watchNamespace .Values.controller.excludeWatchNamespaces }}
+{{- fail "choose either controller.watchNamespace or controller.excludeWatchNamespaces" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -28,6 +31,12 @@ spec:
           image: {{ include "sympozium.controllerImage" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
+            {{- if .Values.controller.excludeWatchNamespaces }}
+            - --exclude-watch-namespaces={{ join "," .Values.controller.excludeWatchNamespaces }}
+            {{- end }}
+            {{- if .Values.controller.watchNamespace }}
+            - --watch-namespace={{ .Values.controller.watchNamespace }}
+            {{- end }}
             {{- if .Values.controller.leaderElect }}
             - --leader-elect
             {{- end }}
@@ -129,6 +138,10 @@ spec:
               value: {{ .Values.celln.routerUrl | quote }}
             - name: CELLN_ALLOW_INSECURE_HTTP
               value: {{ .Values.celln.allowInsecureHttp | quote }}
+            {{- if .Values.celln.caConfigMap }}
+            - name: SSL_CERT_FILE
+              value: /etc/sympozium/celln-router-ca/ca-bundle.crt
+            {{- end }}
             - name: CELLN_HARNESS_ENABLED
               value: {{ .Values.celln.harnessEnabled | default false | quote }}
             {{- if .Values.celln.catalogueConfigSecret }}
@@ -169,8 +182,13 @@ spec:
             {{- toYaml .Values.controller.resources | nindent 12 }}
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
-          {{- if and .Values.celln.enabled (or .Values.celln.tokenSecret .Values.celln.catalogueConfigSecret) }}
+          {{- if and .Values.celln.enabled (or .Values.celln.tokenSecret .Values.celln.catalogueConfigSecret .Values.celln.caConfigMap) }}
           volumeMounts:
+            {{- if .Values.celln.caConfigMap }}
+            - name: celln-router-ca
+              mountPath: /etc/sympozium/celln-router-ca
+              readOnly: true
+            {{- end }}
             {{- if .Values.celln.tokenSecret }}
             - name: celln-token
               mountPath: /etc/sympozium/celln
@@ -182,8 +200,13 @@ spec:
               readOnly: true
             {{- end }}
           {{- end }}
-      {{- if and .Values.celln.enabled (or .Values.celln.tokenSecret .Values.celln.catalogueConfigSecret) }}
+      {{- if and .Values.celln.enabled (or .Values.celln.tokenSecret .Values.celln.catalogueConfigSecret .Values.celln.caConfigMap) }}
       volumes:
+        {{- if .Values.celln.caConfigMap }}
+        - name: celln-router-ca
+          configMap:
+            name: {{ .Values.celln.caConfigMap | quote }}
+        {{- end }}
         {{- if .Values.celln.tokenSecret }}
         - name: celln-token
           secret:

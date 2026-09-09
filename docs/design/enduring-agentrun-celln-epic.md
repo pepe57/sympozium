@@ -15,6 +15,39 @@ cell for each turn. It does not mark unfinished #426 operational gates complete.
 
 ## Agreed product model
 
+## Standard installation follow-up — 2026-09-09
+
+The next user-approved target is an installed native persistent Harness on
+framework, selectable through the ordinary UI/YAML without the test supervisor.
+The merged local starter RC is the baseline, not proof of this deployment.
+
+- [x] Add opt-in chart packaging for a single node-pinned parent controller,
+  rotating projected Kubernetes credentials, restricted namespace RBAC and
+  persistent host issuance/approval storage. Local rendering/refusal tests pass;
+  this checkbox does not claim an installed or qualified image.
+- [x] Protect AgentRun finalizers from the uninstall stripper; refuse native
+  uninstall before mutation while runs remain or the state read fails.
+- [ ] Extract host/artifact/catalogue preparation from the test fixture into
+  supported installation tooling; qualify and publish combined images.
+  Standalone package/admission/configuration and Kubernetes catalogue/grant
+  installation now work on framework. Qualified published images remain.
+- [x] Establish controller ownership separation on framework without abandoning
+  existing multi-namespace workloads; install the host owner, TLS edge and grants.
+  General manager excludes only `celln-agents`; dedicated owner/TLS services and
+  node-pinned parent controller are running without replacing the old owner.
+- [ ] Qualify normal UI/YAML creation and permissions on that installation.
+- [ ] Real-model installed E2E: cross-turn files, HTTPS, cancellation/continue,
+  refresh, credential rotation/restart, context loss and confirmed cleanup;
+  regress ordinary Kubernetes and Celln one-shot execution.
+
+Installed progress and remaining release gates are recorded in
+`docs/evidence/celln-framework-installation-2026-09-09.md`. The Concepts glossary
+and guides now distinguish skills from tools, backend from lifecycle, and OCI
+session persistence from native parent context. No capability parity is claimed.
+
+Packaging instructions and outstanding prerequisites:
+`docs/guides/celln-native-installation.md`.
+
 ## Release scope decision — 2026-09-09
 
 User-approved priority: release a useful native multi-turn Harness MLP, then
