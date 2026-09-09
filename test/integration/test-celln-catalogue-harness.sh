@@ -5,7 +5,9 @@ repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 : "${CELLN_CONTROLLER_KUBECONFIG:?explicit isolated kubeconfig required}"
 : "${CELLN_COMPOSITION_FIXTURE:?public signed catalogue fixture required}"
 : "${CELLN_COMPOSITION_BINARY:?actual Celln binary required}"
-: "${CELLN_ISSUANCE_MATERIALIZER:?explicit public-fixture materializer required}"
+if [[ ${CELLN_LIVE_OPERATOR_ADMISSION:-} != 1 ]]; then
+  : "${CELLN_ISSUANCE_MATERIALIZER:?explicit public-fixture materializer required}"
+fi
 : "${CELLN_HARNESS_PACKAGE:?native JSON Harness package required}"
 : "${CELLN_LIVE_EVIDENCE_PARENT:?existing absolute evidence parent required}"
 [[ ${CELLN_PAUSE_TEST_CONTROLLER:-} == 1 ]] || { echo 'Explicit isolated test-controller pause required' >&2; exit 1; }
@@ -42,4 +44,6 @@ export CELLN_LIVE_CATALOGUE=1
 export CELLN_LIVE_SYMPOZIUM_BINARY="$work/sympozium"
 export CELLN_LIVE_CONTROLLER_BINARY="$work/controller"
 cd "$repo"
-go test -race ./test/integration/celln-catalogue-setup -run '^TestLiveCatalogueHarness$' -count=1 -v
+test_timeout=10m
+if [[ ${CELLN_LIVE_INTERACTIVE:-} == 1 ]]; then test_timeout=9h; fi
+go test -race ./test/integration/celln-catalogue-setup -run '^TestLiveCatalogueHarness$' -count=1 -v -timeout="$test_timeout"
