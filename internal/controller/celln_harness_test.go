@@ -98,7 +98,7 @@ func testCellnHarnessFreezing(t *testing.T, jsonAdapter bool) {
 		func(r *executionRequest) { r.APIVersion = "celln.dev/v1alpha1" },
 		func(r *executionRequest) { r.Harness = nil },
 		func(r *executionRequest) { r.Harness.BorrowedTools[0].Path = "/../bad" },
-		func(r *executionRequest) { r.Capabilities.Egress = []string{"https://other.example"} },
+		func(r *executionRequest) { r.Capabilities.Egress = []string{"https://user:password@other.example"} },
 	} {
 		bytes, _ := json.Marshal(req)
 		var bad executionRequest

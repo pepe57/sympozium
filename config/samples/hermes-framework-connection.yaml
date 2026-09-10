@@ -1,0 +1,42 @@
+# Framework's current llama-server endpoint/model. Adjust for your installation.
+# Requires the default persistent Hermes runtime and harness-examples policy.
+apiVersion: sympozium.ai/v1alpha1
+kind: ModelConnection
+metadata:
+  name: framework-llama
+  namespace: default
+spec:
+  provider: llama-server
+  protocol: openai-chat
+  endpoint: http://192.168.1.237:8080/v1/chat/completions
+  models:
+    - Qwen3.8-27B-UD-Q4_K_XL.gguf
+  # No Secret is needed for this unauthenticated local server.
+---
+apiVersion: sympozium.ai/v1alpha1
+kind: Agent
+metadata:
+  name: hermes-framework
+  namespace: default
+spec:
+  runtimeRef: hermes-session-v0-20-6
+  policyRef: harness-examples
+  execution:
+    backend: job
+    modelConnectionRef: framework-llama
+  agents:
+    default:
+      model: Qwen3.8-27B-UD-Q4_K_XL.gguf
+  memory:
+    enabled: false
+---
+apiVersion: sympozium.ai/v1alpha1
+kind: HarnessSession
+metadata:
+  name: hermes-framework-chat
+  namespace: default
+spec:
+  agentRef: hermes-framework
+  runtimeRef: hermes-session-v0-20-6
+  desiredState: running
+  idleTimeout: 30m

@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/sympozium-ai/sympozium/internal/modelconnection"
 	"io"
 	"log/slog"
 	"os"
@@ -344,6 +345,29 @@ func (r *AgentRunReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "add finalizer failed")
 			return ctrl.Result{}, err
+		}
+	}
+
+	// Resolve connection intent before any native model/template binding. Persist
+	// the exact route first so YAML and HTTP creation freeze the same spec.
+	if !isTerminal && agentRun.Spec.Model.ConnectionRef != "" && (agentRun.Status.Phase == "" || agentRun.Status.Phase == sympoziumv1alpha1.AgentRunPhasePending) {
+		if agentRun.Spec.Backend != "celln" {
+			return ctrl.Result{}, r.failRun(ctx, agentRun, "model connections currently require native Celln execution")
+		}
+		reader := r.APIReader
+		if reader == nil {
+			reader = r.Client
+		}
+		model, resolveErr := modelconnection.Resolve(ctx, reader, agentRun.Namespace, agentRun.Spec.Model)
+		if resolveErr != nil {
+			return ctrl.Result{}, r.failRun(ctx, agentRun, resolveErr.Error())
+		}
+		if !apiequality.Semantic.DeepEqual(model, agentRun.Spec.Model) {
+			agentRun.Spec.Model = model
+			if err := r.Update(ctx, agentRun); err != nil {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{Requeue: true}, nil
 		}
 	}
 

@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	api "github.com/sympozium-ai/sympozium/api/v1alpha1"
+	"github.com/sympozium-ai/sympozium/internal/modelconnection"
 	"io"
 	"reflect"
 	"regexp"
@@ -24,6 +26,7 @@ type ModelPolicyDocument struct {
 	Agent                Subject `json:"agent"`
 	Runtime              Subject `json:"runtime"`
 	Provider             string  `json:"provider"`
+	Protocol             string  `json:"protocol,omitempty"`
 	Model                string  `json:"model"`
 	URL                  string  `json:"url"`
 	CredentialProfile    string  `json:"credentialProfile"`
@@ -50,6 +53,20 @@ type ModelLoader struct {
 
 var credentialProfileName = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
 
+func validModelPolicyRoute(doc ModelPolicyDocument) bool {
+	if doc.Protocol == "" {
+		return doc.Provider == "deepseek" && doc.URL == "https://api.deepseek.com/chat/completions"
+	}
+	return (api.ModelConnectionSpec{Provider: doc.Provider, Protocol: doc.Protocol, Endpoint: doc.URL, CredentialProfile: doc.CredentialProfile, Models: []string{doc.Model}}).Validate() == nil
+}
+
+func modelPolicyMatches(m api.ModelSpec, doc ModelPolicyDocument) bool {
+	if doc.Protocol == "" {
+		return m.Protocol == "" && m.CredentialProfile == "" && (m.BaseURL == "" || m.BaseURL == "https://api.deepseek.com")
+	}
+	return m.BaseURL == doc.URL && m.Protocol == doc.Protocol && m.CredentialProfile == doc.CredentialProfile
+}
+
 func (l ModelLoader) Resolve(ctx context.Context, frozen FrozenSelection) (*ModelApproval, error) {
 	if l.Selection.Reader == nil || l.Source.Namespace == "" || l.Source.Name == "" {
 		return nil, fmt.Errorf("independent configured model policy source required")
@@ -66,15 +83,18 @@ func (l ModelLoader) Resolve(ctx context.Context, frozen FrozenSelection) (*Mode
 	if err != nil {
 		return nil, err
 	}
-	if doc.APIVersion != "sympozium.ai/celln-model-policy-v1" || doc.Agent != frozen.Snapshot.Agent || doc.Runtime != frozen.Snapshot.Runtime || doc.Provider != "deepseek" || doc.URL != "https://api.deepseek.com/chat/completions" || len(doc.Model) == 0 || len(doc.Model) > 128 || strings.TrimSpace(doc.Model) != doc.Model || strings.ContainsRune(doc.Model, '\x00') || !credentialProfileName.MatchString(doc.CredentialProfile) || doc.MaxRequests < 1 || doc.MaxRequests > 6 || doc.MaxRequests < frozen.Prepared.JSON.MaxTurns || doc.MaxOutputTokens != 512 || doc.MaxTotalOutputTokens < frozen.Prepared.JSON.MaxTurns*512 || doc.MaxTotalOutputTokens > 3072 {
+	if doc.APIVersion != "sympozium.ai/celln-model-policy-v1" || doc.Agent != frozen.Snapshot.Agent || doc.Runtime != frozen.Snapshot.Runtime || !validModelPolicyRoute(doc) || len(doc.Model) == 0 || len(doc.Model) > 128 || strings.TrimSpace(doc.Model) != doc.Model || strings.ContainsRune(doc.Model, '\x00') || !credentialProfileName.MatchString(doc.CredentialProfile) || doc.MaxRequests < 1 || doc.MaxRequests > 6 || doc.MaxRequests < frozen.Prepared.JSON.MaxTurns || doc.MaxOutputTokens != 512 || doc.MaxTotalOutputTokens < frozen.Prepared.JSON.MaxTurns*512 || doc.MaxTotalOutputTokens > 3072 {
 		return nil, fmt.Errorf("model policy is stale or outside the supported host contract")
 	}
 	run, id, err := l.Selection.readRun(ctx, types.NamespacedName{Namespace: frozen.Run.Namespace, Name: frozen.Run.Name})
 	if err != nil {
 		return nil, err
 	}
-	m := run.Spec.Model
-	if id != frozen.Run || m.Provider != doc.Provider || m.Model != doc.Model || m.AuthSecretRef != "" || (m.BaseURL != "" && m.BaseURL != "https://api.deepseek.com") || (m.Thinking != "" && m.Thinking != "off") || len(m.ProviderHeaders) != 0 || m.ProviderHeadersSecretRef != "" || m.ModelRef != "" || len(m.NodeSelector) != 0 {
+	m, err := modelconnection.Resolve(ctx, l.Selection.Reader, run.Namespace, run.Spec.Model)
+	if err != nil {
+		return nil, err
+	}
+	if id != frozen.Run || m.Provider != doc.Provider || m.Model != doc.Model || m.AuthSecretRef != "" || !modelPolicyMatches(m, doc) || (m.Thinking != "" && m.Thinking != "off") || len(m.ProviderHeaders) != 0 || m.ProviderHeadersSecretRef != "" || m.ModelRef != "" || len(m.NodeSelector) != 0 {
 		return nil, fmt.Errorf("run model or credential selection is not authorized")
 	}
 	// No credential contents are read. A second read detects observed withdrawal

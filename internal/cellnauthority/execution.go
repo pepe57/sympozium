@@ -76,6 +76,10 @@ func (l ModelLoader) BuildExecution(ctx context.Context, frozen FrozenSelection,
 	if borrowed == nil {
 		borrowed = []api.CellnBorrowedTool{}
 	}
+	origin, err := api.ModelEndpointOrigin(approval.Policy.URL)
+	if err != nil {
+		return nil, err
+	}
 	request := map[string]any{
 		"apiVersion": "celln.dev/v1alpha3", "id": executionID,
 		"workload":   map[string]any{"id": string(frozen.Run.UID), "caller": approval.Caller},
@@ -84,7 +88,7 @@ func (l ModelLoader) BuildExecution(ctx context.Context, frozen FrozenSelection,
 		"invocation": api.CellnInvocation{Alias: frozen.Prepared.RuntimeEntryPoint},
 		"harness": map[string]any{"contractVersion": "celln.json-tools/v1", "modelGrant": api.CellnImmutableRef{Hash: "blake3:" + strings.Repeat("0", 64)}, "model": approval.Policy.Model, "task": task, "borrowedTools": borrowed,
 			"json": map[string]any{"system": s.SystemPrompt, "maxTurns": frozen.Prepared.JSON.MaxTurns, "maxCalls": frozen.Prepared.JSON.MaxCalls}},
-		"capabilities": map[string]any{"workspace": "none", "egress": []string{"https://api.deepseek.com"}, "timeoutMs": timeout, "memoryBytes": limits.MemoryBytes, "outputBytes": limits.OutputBytes},
+		"capabilities": map[string]any{"workspace": "none", "egress": []string{origin}, "timeoutMs": timeout, "memoryBytes": limits.MemoryBytes, "outputBytes": limits.OutputBytes},
 		"execution":    map[string]any{"lane": "agent", "requireHardwareIsolation": true},
 	}
 	raw, err := json.Marshal(request)

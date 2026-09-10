@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"github.com/sympozium-ai/sympozium/internal/modelconnection"
 	"reflect"
 
 	api "github.com/sympozium-ai/sympozium/api/v1alpha1"
@@ -39,6 +40,13 @@ func PrepareProvisionIntent(ctx context.Context, loader cellnauthority.Loader, k
 	}
 	if run.Status.CellnParent != nil || (run.Status.Phase != "" && run.Status.Phase != api.AgentRunPhasePending) {
 		return nil, fmt.Errorf("only an unbound pending run may request parent provisioning")
+	}
+	resolved, err := modelconnection.Resolve(ctx, loader.Reader, run.Namespace, run.Spec.Model)
+	if err != nil {
+		return nil, err
+	}
+	if !reflect.DeepEqual(resolved, run.Spec.Model) {
+		return nil, fmt.Errorf("model connection must be resolved and pinned before parent admission")
 	}
 	if err := validateNativeParentSpec(run.Spec); err != nil {
 		return nil, err

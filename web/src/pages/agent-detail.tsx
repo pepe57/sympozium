@@ -543,7 +543,8 @@ function AgentRuntimeCard({ inst, runtimes }: { inst: Agent; runtimes: import("@
                   saveExecution({
                     backend: "celln",
                     executionLifecycle: lifecycle === "enduring" ? "enduring" : "one-shot",
-                    provider: "deepseek",
+                    provider: execution?.modelConnectionRef ? undefined : execution?.provider || "deepseek",
+                    modelConnectionRef: execution?.modelConnectionRef,
                     model: execution?.model || "deepseek-chat",
                     cellnSelection: { toolRefs: tools },
                     enduring: lifecycle === "enduring" ? (execution?.enduring || { leaseSeconds: 600, maxTurns: 8, maxModelRequests: 24, maxOutputTokens: 8192 }) : undefined,
@@ -603,7 +604,8 @@ function AgentRuntimeCard({ inst, runtimes }: { inst: Agent; runtimes: import("@
                     onChange={() => saveExecution({
                       backend: "celln",
                       executionLifecycle: value,
-                      provider: "deepseek",
+                      provider: execution?.modelConnectionRef ? undefined : execution?.provider || "deepseek",
+                      modelConnectionRef: execution?.modelConnectionRef,
                       model: execution?.model || "deepseek-chat",
                       cellnSelection: { toolRefs: tools },
                       enduring: value === "enduring" ? (execution?.enduring || { leaseSeconds: 600, maxTurns: 8, maxModelRequests: 24, maxOutputTokens: 8192 }) : undefined,
@@ -620,7 +622,8 @@ function AgentRuntimeCard({ inst, runtimes }: { inst: Agent; runtimes: import("@
                 <CellnStarterTools agentRef={inst.metadata.name} runtimeRef={inst.spec.runtimeRef || undefined} catalogue={catalogue.data || []} onSelect={(toolRefs) => saveExecution({
                   backend: "celln",
                   executionLifecycle: lifecycle === "enduring" ? "enduring" : "one-shot",
-                  provider: "deepseek",
+                  provider: execution?.modelConnectionRef ? undefined : execution?.provider || "deepseek",
+                  modelConnectionRef: execution?.modelConnectionRef,
                   model: execution?.model || "deepseek-chat",
                   cellnSelection: { toolRefs },
                   enduring: lifecycle === "enduring" ? (execution?.enduring || { leaseSeconds: 600, maxTurns: 8, maxModelRequests: 24, maxOutputTokens: 8192 }) : undefined,
@@ -630,7 +633,8 @@ function AgentRuntimeCard({ inst, runtimes }: { inst: Agent; runtimes: import("@
               <Button type="button" variant="outline" size="sm" disabled={patchAgent.isPending || !execution?.cellnSelection} onClick={() => saveExecution({
                 backend: "celln",
                 executionLifecycle: lifecycle === "enduring" ? "enduring" : "one-shot",
-                provider: "deepseek",
+                provider: execution?.modelConnectionRef ? undefined : execution?.provider || "deepseek",
+                modelConnectionRef: execution?.modelConnectionRef,
                 model: execution?.model || "deepseek-chat",
                 cellnSelection: { toolRefs: [] },
                 enduring: lifecycle === "enduring" ? (execution?.enduring || { leaseSeconds: 600, maxTurns: 8, maxModelRequests: 24, maxOutputTokens: 8192 }) : undefined,

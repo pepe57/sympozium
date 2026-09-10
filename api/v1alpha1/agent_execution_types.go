@@ -9,6 +9,10 @@ package v1alpha1
 // list is an explicit "lend no tools" default. A nil CellnSelection means runs
 // must supply their own selection when using the Celln catalogue path.
 type AgentExecutionDefaults struct {
+	// ModelConnectionRef selects a namespaced model connection.
+	// +optional
+	ModelConnectionRef string `json:"modelConnectionRef,omitempty"`
+
 	// Backend selects the default execution environment.
 	// "job" (Kubernetes containers/OCI) remains the product default when unset.
 	// "celln" is a privileged opt-in for hardware-isolated cells.
@@ -32,7 +36,7 @@ type AgentExecutionDefaults struct {
 	CellnSelection *CellnCatalogueSelection `json:"cellnSelection,omitempty"`
 
 	// Provider is the default model provider for inherited Celln catalogue runs.
-	// Celln catalogue admission currently requires DeepSeek-hosted model grants.
+	// Omit when using modelConnectionRef; independent host model admission still applies.
 	// +optional
 	Provider string `json:"provider,omitempty"`
 

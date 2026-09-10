@@ -26,7 +26,7 @@ func applyAgentExecutionDefaults(agent *sympoziumv1alpha1.Agent, run *sympoziumv
 	}
 	agentexecution.Apply(&run.Spec, resolved)
 	if resolved.CellnSelection != nil {
-		run.Spec.Model = sympoziumv1alpha1.ModelSpec{Provider: resolved.Provider, Model: resolved.Model}
+		run.Spec.Model = sympoziumv1alpha1.ModelSpec{Provider: resolved.Provider, Model: resolved.Model, ConnectionRef: resolved.ModelConnectionRef}
 	}
 	if len(resolved.Inherited) > 0 {
 		if run.Annotations == nil {

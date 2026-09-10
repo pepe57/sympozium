@@ -48,7 +48,7 @@ rules:
     resources: [agentruns/finalizers]
     verbs: [update, patch]
   - apiGroups: [sympozium.ai]
-    resources: [agents, agentruntimes, cellntools, agentrunturns]
+    resources: [agents, agentruntimes, cellntools, agentrunturns, modelconnections]
     verbs: [get, list, watch]
   - apiGroups: [""]
     resources: [configmaps]

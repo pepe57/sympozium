@@ -217,6 +217,10 @@ export interface HarnessSessionChatResponse {
 // ── AgentRun ─────────────────────────────────────────────────────────────────
 
 export interface ModelSpec {
+  connectionRef?: string;
+  connectionRevision?: string;
+  protocol?: string;
+  credentialProfile?: string;
   provider?: string;
   model?: string;
   baseURL?: string;
@@ -272,6 +276,7 @@ export type AgentRunTask = string | TaskModeSpec;
 export interface AgentRunSpec {
   executionLifecycle?: "one-shot" | "enduring";
   enduring?: { leaseSeconds: number; maxTurns: number; maxModelRequests: number; maxOutputTokens: number; requireToolCall?: boolean };
+  modelConnectionRef?: string;
   cellnSelection?: CellnSelection;
   agentRef: string;
   agentId: string;
@@ -978,10 +983,16 @@ export interface CapabilitiesResponse {
   celln: CapabilityStatus;
 }
 
+export interface ModelConnection {
+  metadata: ObjectMeta;
+  spec: { provider: string; protocol: "openai-chat" | "anthropic-messages"; endpoint: string; credentialProfile?: string; secretRef?: string; models: string[]; disabled?: boolean };
+}
+
 export interface AgentExecutionDefaults {
   backend?: "job" | "celln";
   executionLifecycle?: "one-shot" | "enduring";
   enduring?: AgentRunSpec["enduring"];
+  modelConnectionRef?: string;
   cellnSelection?: CellnSelection;
   provider?: string;
   model?: string;
@@ -1399,6 +1410,7 @@ export const api = {
       backend?: string;
       runtimeRef?: string;
       provider?: string;
+      modelConnectionRef?: string;
       cellnSelection?: CellnSelection;
     }) =>
       apiFetch<AgentRun>("/api/v1/runs", {
@@ -1423,6 +1435,11 @@ export const api = {
       apiFetch<InstallDefaultRuntimesResponse>("/api/v1/runtimes/install-defaults", {
         method: "POST",
       }),
+  },
+
+  modelConnections: {
+    list: () => apiFetch<ModelConnection[]>("/api/v1/model-connections"),
+    create: (data: { name: string; spec: ModelConnection["spec"] }) => apiFetch<ModelConnection>("/api/v1/model-connections", { method: "POST", body: JSON.stringify(data) }),
   },
 
   cellnTools: {

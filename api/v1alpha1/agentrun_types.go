@@ -205,7 +205,22 @@ type ParentRunRef struct {
 
 // ModelSpec defines which LLM to use.
 type ModelSpec struct {
+	// ConnectionRef selects a ModelConnection in this run's namespace (native Celln only).
+	// +optional
+	ConnectionRef string `json:"connectionRef,omitempty"`
+	// ConnectionRevision pins the connection UID and spec after resolution.
+	// +optional
+	ConnectionRevision string `json:"connectionRevision,omitempty"`
+	// Protocol is the host API adapter selected by the connection.
+	// +optional
+	Protocol string `json:"protocol,omitempty"`
+	// CredentialProfile is the independently approved opaque host mapping.
+	// +optional
+	CredentialProfile string `json:"credentialProfile,omitempty"`
+
 	// Provider is the AI provider (openai, anthropic, azure-openai, github-copilot, ollama, etc.).
+	// Omit when resolving a model connection.
+	// +optional
 	Provider string `json:"provider"`
 
 	// Model is the model identifier.
@@ -226,6 +241,7 @@ type ModelSpec struct {
 	Thinking string `json:"thinking,omitempty"`
 
 	// AuthSecretRef references the secret containing the API key.
+	// +optional
 	AuthSecretRef string `json:"authSecretRef"`
 
 	// ProviderHeaders are additional HTTP headers sent with every LLM provider request.

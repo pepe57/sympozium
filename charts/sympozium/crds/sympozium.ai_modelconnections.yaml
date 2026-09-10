@@ -1,0 +1,92 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.17.2
+  name: modelconnections.sympozium.ai
+spec:
+  group: sympozium.ai
+  names:
+    kind: ModelConnection
+    listKind: ModelConnectionList
+    plural: modelconnections
+    singular: modelconnection
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          ModelConnection describes a model route, not a grant to execute it.
+          The independent host policy must admit the same endpoint and credential profile.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              credentialProfile:
+                description: CredentialProfile is an opaque host mapping name, never
+                  an API key or file path.
+                pattern: ^[a-zA-Z0-9_-]{1,64}$
+                type: string
+              disabled:
+                description: Disabled prevents new connection resolution. Host profile
+                  withdrawal stops live use.
+                type: boolean
+              endpoint:
+                description: Endpoint is an HTTP(S) API base URL or full request URL.
+                  Native Celln requires a full HTTPS request URL.
+                maxLength: 2048
+                type: string
+              models:
+                description: Models lists the exact model identifiers selectable through
+                  this connection.
+                items:
+                  type: string
+                maxItems: 128
+                minItems: 1
+                type: array
+                x-kubernetes-list-type: set
+              protocol:
+                description: Protocol selects the host adapter. Compatible gateways
+                  may expose other providers.
+                enum:
+                - openai-chat
+                - anthropic-messages
+                type: string
+              provider:
+                description: Provider is a descriptive provider identifier, including
+                  custom providers.
+                pattern: ^[a-zA-Z0-9_-]{1,64}$
+                type: string
+              secretRef:
+                description: SecretRef selects a Kubernetes credential Secret for
+                  container harnesses.
+                type: string
+            required:
+            - endpoint
+            - models
+            - protocol
+            - provider
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true

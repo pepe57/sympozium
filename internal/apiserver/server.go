@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/sympozium-ai/sympozium/internal/agentexecution"
 	"github.com/sympozium-ai/sympozium/internal/cellnauthority"
+	"github.com/sympozium-ai/sympozium/internal/modelconnection"
 	"io"
 	"io/fs"
 	"net"
@@ -184,6 +185,8 @@ func (s *Server) buildMux(frontendFS fs.FS, expected *tokenReader) http.Handler 
 
 	// Administrator-approved harness runtimes
 	mux.HandleFunc("GET /api/v1/runtimes", s.listRuntimes)
+	mux.HandleFunc("GET /api/v1/model-connections", s.listModelConnections)
+	mux.HandleFunc("POST /api/v1/model-connections", s.createModelConnection)
 	mux.HandleFunc("GET /api/v1/celln-tools", s.listCellnTools)
 	mux.HandleFunc("POST /api/v1/celln-selection/preview", s.previewCellnSelection)
 	mux.HandleFunc("POST /api/v1/runtimes/install-defaults", s.installDefaultRuntimes)
@@ -863,6 +866,27 @@ func (s *Server) createAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.Execution != nil && req.Execution.ModelConnectionRef != "" {
+		if req.APIKey != "" || req.SecretName != "" || req.BaseURL != "" {
+			http.Error(w, "select a model connection or inline credentials/endpoint", http.StatusBadRequest)
+			return
+		}
+		if req.Execution.Backend == "celln" {
+			resolvedModel, err := modelconnection.Resolve(r.Context(), s.client, ns, sympoziumv1alpha1.ModelSpec{ConnectionRef: req.Execution.ModelConnectionRef, Model: req.Model})
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			req.Provider = resolvedModel.Provider
+		} else {
+			model, _, err := modelconnection.ResolveHarness(r.Context(), s.client, ns, req.Execution.ModelConnectionRef, req.Model)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			req.Provider, req.BaseURL, req.SecretName = model.Provider, model.BaseURL, model.AuthSecretRef
+		}
+	}
 	if req.Name == "" || req.Provider == "" || req.Model == "" {
 		http.Error(w, "name, provider, and model are required", http.StatusBadRequest)
 		return
@@ -1239,7 +1263,8 @@ type CreateRunRequest struct {
 	RuntimeRef string `json:"runtimeRef,omitempty"`
 	// Catalogue Harness runs require explicit model/provider selection and use
 	// host-issued model authority, never inherited Kubernetes auth credentials.
-	CellnSelection *sympoziumv1alpha1.CellnCatalogueSelection `json:"cellnSelection,omitempty"`
+	ModelConnectionRef string                                     `json:"modelConnectionRef,omitempty"`
+	CellnSelection     *sympoziumv1alpha1.CellnCatalogueSelection `json:"cellnSelection,omitempty"`
 	// Do not silently discard an advanced artifact block sent to this endpoint.
 	Celln    json.RawMessage `json:"celln,omitempty"`
 	Provider string          `json:"provider,omitempty"`
@@ -1263,8 +1288,8 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 	}
 	// Explicit catalogue selections are validated before Agent lookup so malformed
 	// overrides fail closed without depending on inheritance.
-	if req.CellnSelection != nil && (req.Backend != "celln" || req.RuntimeRef != "" || req.Provider != "deepseek" || req.Model == "" || req.CellnSelection.ToolRefs == nil || len(req.CellnSelection.ToolRefs) > 16) {
-		http.Error(w, "catalogue selection requires backend celln, explicit DeepSeek provider/model and toolRefs; use only cellnSelection.runtimeRef for an override", http.StatusBadRequest)
+	if req.CellnSelection != nil && (req.Backend != "celln" || req.RuntimeRef != "" || (req.Provider == "" && req.ModelConnectionRef == "") || req.Model == "" || req.CellnSelection.ToolRefs == nil || len(req.CellnSelection.ToolRefs) > 16) {
+		http.Error(w, "catalogue selection requires backend celln, a provider or model connection, model and toolRefs; use only cellnSelection.runtimeRef for an override", http.StatusBadRequest)
 		return
 	}
 	if len(req.Celln) != 0 && string(req.Celln) != "null" {
@@ -1288,6 +1313,7 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 		ExecutionLifecycle: req.ExecutionLifecycle,
 		Enduring:           req.Enduring,
 		CellnSelection:     req.CellnSelection,
+		ModelConnectionRef: req.ModelConnectionRef,
 		Provider:           req.Provider,
 		Model:              req.Model,
 		RuntimeRef:         req.RuntimeRef,
@@ -1300,6 +1326,7 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 	req.ExecutionLifecycle = resolved.ExecutionLifecycle
 	req.Enduring = resolved.Enduring
 	req.CellnSelection = resolved.CellnSelection
+	req.ModelConnectionRef = resolved.ModelConnectionRef
 	req.Provider = resolved.Provider
 	req.Model = resolved.Model
 
@@ -1406,7 +1433,12 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.CellnSelection != nil {
 		run.Spec.CellnSelection = req.CellnSelection.DeepCopy()
-		run.Spec.Model = sympoziumv1alpha1.ModelSpec{Provider: req.Provider, Model: req.Model}
+		run.Spec.Model = sympoziumv1alpha1.ModelSpec{Provider: req.Provider, Model: req.Model, ConnectionRef: req.ModelConnectionRef}
+		run.Spec.Model, err = modelconnection.Resolve(r.Context(), s.client, ns, run.Spec.Model)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 	}
 	if len(resolved.Inherited) > 0 {
 		if run.Annotations == nil {

@@ -6,15 +6,18 @@ export interface WizardExecution {
   borrowedTools?: CellnSelection["toolRefs"];
   runtimeRef?: string;
   model: string;
+  provider?: string;
+  modelConnectionRef?: string;
 }
 
 // Shared by API creation and YAML preview: neither may silently lose tool refs.
 export function executionFromWizard(form: WizardExecution): AgentExecutionDefaults {
-  if (form.executionBackend !== "celln") return { backend: "job", executionLifecycle: "one-shot" };
+  if (form.executionBackend !== "celln") return { backend: "job", executionLifecycle: "one-shot", ...(form.modelConnectionRef ? { modelConnectionRef: form.modelConnectionRef } : {}) };
   return {
     backend: "celln",
     executionLifecycle: form.executionLifecycle || "one-shot",
-    provider: "deepseek",
+    provider: form.modelConnectionRef ? undefined : form.provider || "deepseek",
+    modelConnectionRef: form.modelConnectionRef,
     model: form.model,
     cellnSelection: {
       runtimeRef: form.runtimeRef || undefined,

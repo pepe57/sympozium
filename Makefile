@@ -62,6 +62,9 @@ test: ## Run tests
 test-short: ## Run short tests
 	$(GOTEST) -short ./...
 
+test-hermes-model-connection: ## Test persistent Hermes with a real llama-server (LLAMA_SERVER_URL required)
+	./test/integration/test-hermes-model-connection.sh
+
 test-integration: ## Run integration tests (requires Kind cluster + API keys)
 	@if [ -n "$$CELLN_CATALOGUE_KUBECONFIG" ]; then \
 		bash ./test/integration/test-celln-tool-catalogue.sh && \
