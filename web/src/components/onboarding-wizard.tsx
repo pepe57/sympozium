@@ -563,7 +563,7 @@ function modelConnectionName(agentName: string): string {
 function defaultProviderEndpoint(provider: string): string {
   switch (provider) {
     case "openai":
-      return "https://api.openai.com/v1";
+      return "https://api.openai.com/v1/chat/completions";
     case "anthropic":
       return "https://api.anthropic.com/v1/messages";
     case "ollama":
@@ -703,21 +703,9 @@ export function OnboardingWizard({
   // execution plane can actually reach.
   const providerChoices = useMemo(() => {
     if (celln) {
-      return [
-        {
-          value: "deepseek",
-          label: "DeepSeek (existing host route)",
-          defaultModel: "deepseek-chat",
-          defaultBaseURL: "",
-          icon: Bot,
-        },
-        ...PROVIDERS.filter(
-          (p) =>
-            p.value === "openai" ||
-            p.value === "anthropic" ||
-            p.value === "custom",
-        ),
-      ];
+      // Same providers as the run/agent flow. Native Celln needs an HTTPS
+      // endpoint, which is validated when the connection is saved.
+      return PROVIDERS;
     }
     if (mode === "agent" && creationKind === "agent" && form.runtimeRef) {
       // Persistent Kubernetes harnesses speak OpenAI-compatible chat.
@@ -816,8 +804,7 @@ export function OnboardingWizard({
       case "tools":
         return !catalogue.isLoading && !catalogue.isError && !staleTools && (form.borrowedTools || []).length <= 16;
       case "apikey":
-        if (celln)
-          return form.provider === "deepseek" || !!form.credentialProfile;
+        if (celln) return !!form.credentialProfile;
         if (form.modelConnectionRef) return true;
         if (
           form.provider === "ollama" ||
@@ -870,14 +857,20 @@ export function OnboardingWizard({
       !celln &&
       !!result.runtimeRef &&
       compatibleRuntime;
-    const nativeConnection = celln && result.provider !== "deepseek";
-    if (persistentHarness || nativeConnection) {
+    if (persistentHarness || celln) {
+      const spec = modelConnectionSpec(result, celln);
+      if (celln && !spec.endpoint.startsWith("https://")) {
+        setConnectionError(
+          "Native Celln needs an HTTPS model endpoint. Configure an HTTPS gateway or choose OpenAI, Anthropic, Azure, or a custom HTTPS endpoint.",
+        );
+        return;
+      }
       setConnectionError("");
       setSavingConnection(true);
       try {
         const connection = await api.modelConnections.create({
           name: modelConnectionName(result.name),
-          spec: modelConnectionSpec(result, celln),
+          spec,
           apiKey: celln ? undefined : result.apiKey || undefined,
         });
         result.modelConnectionRef = connection.metadata.name;
@@ -1155,8 +1148,8 @@ export function OnboardingWizard({
                         executionLifecycle: value === "celln" ? "enduring" : "one-shot",
                         modelConnectionRef: value === form.executionBackend ? form.modelConnectionRef : undefined,
                         credentialProfile: "",
-                        provider: value === "celln" ? "deepseek" : form.provider === "deepseek" ? "openai" : form.provider,
-                        model: value === "celln" ? "deepseek-chat" : form.provider === "deepseek" ? "gpt-4o" : form.model,
+                        provider: form.provider || "openai",
+                        model: form.model || "gpt-4o",
                         apiKey: value === "celln" ? "" : form.apiKey,
                         secretName: value === "celln" ? "" : form.secretName,
                         baseURL: value === "celln" ? "" : form.baseURL,
@@ -1244,20 +1237,9 @@ export function OnboardingWizard({
                         modelRef: model.metadata.name,
                       });
                     }
-                  } else if (v === "deepseek") {
-                    setUsingLocalModel(false);
-                    setForm({
-                      ...form,
-                      modelConnectionRef: undefined,
-                      credentialProfile: "",
-                      provider: "deepseek",
-                      model: "deepseek-chat",
-                      baseURL: "",
-                      modelRef: undefined,
-                    });
                   } else {
                     setUsingLocalModel(false);
-                    const prov = providerChoices.find((p) => p.value === v);
+                    const prov = PROVIDERS.find((p) => p.value === v);
                     setForm({
                       ...form,
                       modelConnectionRef: undefined,
@@ -1472,27 +1454,20 @@ export function OnboardingWizard({
           <ScrollArea className="max-h-[60vh]">
             <div className="space-y-4">
               {celln ? (
-                form.provider === "deepseek" ? (
-                  <p className="text-sm text-muted-foreground">
-                    The existing DeepSeek host route is approved by the host
-                    operator and needs no cluster credential.
+                <div className="space-y-2">
+                  <Label>Host credential profile</Label>
+                  <Input
+                    value={form.credentialProfile || ""}
+                    onChange={(e) =>
+                      setForm({ ...form, credentialProfile: e.target.value })
+                    }
+                    placeholder="team-provider-key"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    The host operator maps this profile to credentials. No key
+                    is stored in the cluster.
                   </p>
-                ) : (
-                  <div className="space-y-2">
-                    <Label>Host credential profile</Label>
-                    <Input
-                      value={form.credentialProfile || ""}
-                      onChange={(e) =>
-                        setForm({ ...form, credentialProfile: e.target.value })
-                      }
-                      placeholder="team-provider-key"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      The host operator maps this profile to credentials. No key
-                      is stored in the cluster.
-                    </p>
-                  </div>
-                )
+                </div>
               ) : (
                 <>
               {form.provider !== "bedrock" &&
@@ -2062,7 +2037,7 @@ export function OnboardingWizard({
               )}
               {mode === "agent" && <div className="space-y-2" data-testid="execution-confirmation">
                 <p>Execution plane: {celln ? "Celln" : "Kubernetes"}</p>
-                {celln && <p>Model connection: {form.provider === "deepseek" ? "Existing DeepSeek host route" : `${form.provider} / ${form.model}`}</p>}
+                {celln && <p>Model connection: {form.provider} / {form.model}</p>}
                 {!celln && form.runtimeRef && <p>Model connection: {form.provider} / {form.model} (saved for this harness)</p>}
                 {celln && <>
                   <p>Lifecycle: {form.executionLifecycle}</p>

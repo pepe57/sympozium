@@ -43,10 +43,11 @@ describe("Agent creation execution-plane flow", () => {
       cy.contains("label", "workspace-write@").find('input[type="checkbox"]').should("be.checked");
       cy.contains("label", "https-fetch@").find('input[type="checkbox"]').uncheck();
     });
-    cy.wizardNext(); // provider (DeepSeek host route)
+    cy.wizardNext(); // provider (same list as the run flow)
     cy.wizardNext(); // auth
+    cy.get('[role="dialog"]').find("input[placeholder='team-provider-key']").type("cypress-native-profile");
     cy.wizardNext(); // model
-    cy.get("#native-model").should("have.value", "deepseek-chat");
+    cy.get("#native-model").should("have.value", "gpt-4o");
     cy.wizardNext(); // confirm
     cy.get('[data-testid="execution-confirmation"]').should("contain", "workspace-read@v1").and("contain", "workspace-write@v1").and("not.contain", "https-fetch@v1");
     cy.contains("button", "YAML").click();

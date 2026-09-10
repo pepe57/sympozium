@@ -51,6 +51,13 @@ creating a one-shot run. Providers that are not OpenAI-compatible are hidden for
 a Kubernetes harness; connect them through a gateway. A run against an Agent
 with a connection inherits the connection's model route.
 
+The same steps apply to **Celln**, with the same provider list as the run/agent
+flow. The Auth step collects a host credential profile instead of an API key.
+Native Celln requires an HTTPS endpoint speaking `openai-chat` or
+`anthropic-messages`; point a local provider at an HTTPS gateway, or use a
+custom HTTPS endpoint. Declarative Agents can still use the legacy DeepSeek host
+route by omitting a connection.
+
 The API exposes `GET /api/v1/model-connections` and
 `POST /api/v1/model-connections` (body `{name, spec, apiKey?}`). When `apiKey`
 is supplied the server creates the Secret and sets `spec.secretRef`; re-posting
