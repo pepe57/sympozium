@@ -30,5 +30,5 @@ export function executionFromWizard(form: WizardExecution): AgentExecutionDefaul
 }
 
 export function agentCreationSteps(celln: boolean) {
-  return ["name", "plane", "runtime", ...(celln ? ["tools", "model"] : ["skills", "provider", "apikey", "model", "heartbeat", "channels"]), "confirm", "channelAction"] as const;
+  return ["name", "plane", "runtime", ...(celln ? ["tools", "provider", "apikey", "model"] : ["skills", "provider", "apikey", "model", "heartbeat", "channels"]), "confirm", "channelAction"] as const;
 }
