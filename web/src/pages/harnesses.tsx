@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ShieldCheck, ShieldX, ExternalLink, Download, MessageSquare, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HarnessSessionChatDialog, StartHarnessSessionDialog } from "@/components/harness-session-dialog";
+import { kubernetesHarnesses } from "@/lib/persistent-harness";
 
 function ready(runtime: import("@/lib/api").AgentRuntime) {
   return runtime.status?.conditions?.some(
@@ -24,11 +25,14 @@ export function HarnessesPage() {
   const [chattingSession, setChattingSession] = useState<import("@/lib/api").HarnessSession | null>(null);
   const [searchParams] = useSearchParams();
   const autoStartConsumed = useRef(false);
+  // Native Celln runtimes share the AgentRuntime CRD but are not Kubernetes
+  // harnesses, so they are not listed here.
+  const harnesses = kubernetesHarnesses(runtimes || []);
 
   useEffect(() => {
     const runtimeName = searchParams.get("start");
     if (!runtimeName || autoStartConsumed.current || !runtimes) return;
-    const runtime = runtimes.find((candidate) => candidate.metadata.name === runtimeName);
+    const runtime = harnesses.find((candidate) => candidate.metadata.name === runtimeName);
     if (!runtime) return;
     autoStartConsumed.current = true;
     setStartingRuntime(runtime);
@@ -58,7 +62,7 @@ export function HarnessesPage() {
         <CardContent className="space-y-2">{sessions?.map((session) => <div key={session.metadata.name} className="flex items-center justify-between gap-3 border p-3 text-sm"><div><p className="font-mono">{session.metadata.name}</p><p className="text-xs text-muted-foreground">{session.spec.agentRef} · {session.spec.runtimeRef} · {session.status?.phase || "Pending"}</p></div><div className="flex gap-2">{session.status?.phase === "Ready" && <Button size="sm" onClick={() => setChattingSession(session)}><MessageSquare className="mr-2 h-4 w-4" /> Open</Button>}<Button size="sm" variant="outline" disabled={stopSession.isPending} onClick={() => stopSession.mutate(session.metadata.name)}><Square className="mr-2 h-3 w-3" /> Stop</Button></div></div>)}</CardContent>
       </Card>}
 
-      {(runtimes || []).length === 0 ? (
+      {harnesses.length === 0 ? (
         <Card>
           <CardContent className="space-y-4 py-8 text-sm text-muted-foreground">
             <p>No approved harnesses are registered in this namespace.</p>
@@ -70,7 +74,7 @@ export function HarnessesPage() {
         </Card>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
-          {(runtimes || []).map((runtime) => {
+          {harnesses.map((runtime) => {
             const isReady = ready(runtime);
             return (
               <Card key={runtime.metadata.name}>

@@ -233,7 +233,7 @@ interface OnboardingWizardProps {
   onClose: () => void;
   /** "agent" shows a Name step first; "persona" skips it; "canary" shows only provider/apikey/model */
   mode: "agent" | "persona" | "canary";
-  creationKind?: "run" | "harness";
+  creationKind?: "run" | "agent";
   /** Display name shown in the dialog title */
   targetName?: string;
   /** Number of personas in the pack (persona mode only) */
@@ -272,17 +272,18 @@ type WizardStep =
 function stepsForMode(
   mode: "agent" | "persona" | "canary",
   celln = false,
-  harness = false,
+  persistent = false,
+  runtimeImplicit = false,
 ): WizardStep[] {
   if (mode === "canary") {
     return ["provider", "apikey", "model"];
   }
   if (mode === "agent") {
-    if (harness) {
+    if (persistent) {
       return [
         "name",
         "plane",
-        "runtime",
+        ...(runtimeImplicit ? [] : ["runtime"]),
         ...(celln
           ? ["tools", "model"]
           : ["skills", "provider", "apikey", "model", "heartbeat", "channels"]),
@@ -315,7 +316,7 @@ function StepIndicator({
 }) {
   const labels: Record<WizardStep, string> = {
     name: "Name",
-    runtime: "Harness",
+    runtime: "Runtime",
     plane: "Execution plane",
     tools: "Borrow tools",
     provider: "Provider",
@@ -606,7 +607,23 @@ export function OnboardingWizard({
   }, [form.runtimeRef, incompatibleSkillsKey]);
   const celln = mode === "agent" && form.executionBackend === "celln";
   const selectableRuntimes = celln ? nativeRuntimes : persistentRuntimes;
-  const steps = stepsForMode(mode, celln, creationKind === "harness");
+  // When the chosen execution plane has exactly one compatible runtime there is
+  // nothing to choose, so select it implicitly and skip the runtime step.
+  const singleRuntimeRef = selectableRuntimes.length === 1 ? selectableRuntimes[0].metadata.name : "";
+  const runtimeImplicit = creationKind === "agent" && !!singleRuntimeRef;
+  const steps = stepsForMode(mode, celln, creationKind === "agent", runtimeImplicit);
+  useEffect(() => {
+    if (!open || !runtimeImplicit || form.runtimeRef === singleRuntimeRef) return;
+    const isDefaultCatalog = selectableRuntimes.some(
+      (runtime) => runtime.metadata.name === singleRuntimeRef && runtime.metadata.labels?.["sympozium.ai/harness-example"] === "true",
+    );
+    setForm((current) => ({
+      ...current,
+      runtimeRef: singleRuntimeRef,
+      skills: current.skills.filter((skill) => !harnessIncompatibleSkills.includes(skill)),
+      policyRef: isDefaultCatalog ? "harness-examples" : current.policyRef,
+    }));
+  }, [open, runtimeImplicit, singleRuntimeRef, form.runtimeRef, incompatibleSkillsKey]);
   const catalogue = useCellnTools();
   const toolsInitialized = useRef(defaults?.borrowedTools !== undefined);
   useEffect(() => {
@@ -845,7 +862,16 @@ export function OnboardingWizard({
     if (open) {
       resetWith(defaults || {});
     }
-  }, [open, defaultsKey, defaultRuntimeRef]);
+  }, [open, defaultsKey]);
+
+  // Apply a preselected runtime once the runtime list finishes loading, without
+  // discarding input the user has already entered (for example the Agent name).
+  useEffect(() => {
+    if (!open || !defaultRuntimeRef) return;
+    setForm((current) =>
+      current.runtimeRef ? current : { ...current, runtimeRef: defaultRuntimeRef },
+    );
+  }, [open, defaultRuntimeRef]);
 
   const titleIcon =
     mode === "agent" ? (
@@ -891,8 +917,8 @@ export function OnboardingWizard({
             {mode === "canary"
               ? "Choose a provider and model for the system health canary."
               : mode === "agent"
-                ? creationKind === "harness"
-                  ? "Choose an execution plane, runtime, and tools for ongoing work."
+                ? creationKind === "agent"
+                  ? "Create an ongoing Agent. Choose an execution plane, runtime, and tools."
                   : "Configure an Agent for one-shot runs with a provider, model, and SkillPacks."
                 : "Configure provider, model, skills, and channels to activate this ensemble."}
           </DialogDescription>
@@ -959,7 +985,7 @@ export function OnboardingWizard({
             </Select>
             {form.runtimeRef ? (
               <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">Harness selected: {selectedRuntime ? persistentHarnessName(selectedRuntime) || selectedRuntime.metadata.name : form.runtimeRef}.</span>{" "}
+                <span className="font-medium text-foreground">{celln ? "Runtime" : "Harness"} selected: {selectedRuntime ? persistentHarnessName(selectedRuntime) || selectedRuntime.metadata.name : form.runtimeRef}.</span>{" "}
                 {celln ? "This conversation uses an enduring Celln parent. Its tools and model are checked at run admission." : "Your conversation runs in a persistent Kubernetes session."}
               </div>
             ) : (
@@ -1450,7 +1476,7 @@ export function OnboardingWizard({
           <ScrollArea className="max-h-[60vh]">
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                {creationKind === "harness"
+                {creationKind === "agent"
                   ? "Select SkillPacks to attach. Skills that require host access are excluded from this harness."
                   : "Select SkillPacks to attach to this one-shot Agent."}
               </p>

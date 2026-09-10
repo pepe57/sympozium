@@ -276,7 +276,7 @@ export function AgentsPage() {
         open={wizardOpen}
         onClose={() => setWizardOpen(false)}
         mode="agent"
-        creationKind={searchParams.get("kind") === "harness" || searchParams.has("runtime") ? "harness" : "run"}
+        creationKind={searchParams.get("kind") === "agent" || searchParams.has("runtime") ? "agent" : "run"}
         availableSkills={(skillPacks || []).map((s) => s.metadata.name)}
         availableRuntimes={runtimes || []}
         availablePolicies={policies || []}

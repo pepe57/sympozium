@@ -9,15 +9,15 @@ function visitInNamespace(path: string) {
   });
 }
 
-describe("Create menu: Harness and Run", () => {
-  it("explains the difference and opens the Harness wizard", () => {
+describe("Create menu: Agent and Run", () => {
+  it("explains the difference and opens the Agent wizard", () => {
     visitInNamespace("/");
     cy.get("header").contains("button", "Create").click();
     cy.get('[role="dialog"]').within(() => {
-      cy.contains("Harness").should("be.visible");
+      cy.contains("Agent").should("be.visible");
       cy.contains("Ongoing work that keeps its context").should("be.visible");
       cy.contains("One-shot work that finishes and exits").should("be.visible");
-      cy.contains("button", "Harness").click();
+      cy.contains("button", "Agent").click();
     });
     cy.get('[role="dialog"]').within(() => {
       cy.get('input[placeholder="my-agent"]').should("be.visible").type("create-menu-check");
@@ -28,7 +28,7 @@ describe("Create menu: Harness and Run", () => {
   });
 
   it("offers Pi and Hermes after choosing the Kubernetes plane", () => {
-    visitInNamespace("/agents?create=1&kind=harness");
+    visitInNamespace("/agents?create=1&kind=agent");
     cy.get('[role="dialog"]').within(() => {
       cy.get('input[placeholder="my-agent"]').type("persistent-choice-check");
       cy.wizardNext();
@@ -62,7 +62,7 @@ describe("Create menu: Harness and Run", () => {
   });
 
   it("clears harness-incompatible skills so Next is never blocked", () => {
-    visitInNamespace("/agents?create=1&kind=harness");
+    visitInNamespace("/agents?create=1&kind=agent");
     cy.get('[role="dialog"]').within(() => {
       cy.get('input[placeholder="my-agent"]').type("incompatible-skill-check");
       cy.wizardNext();

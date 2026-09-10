@@ -21,15 +21,15 @@ describe("Agent creation execution-plane flow", () => {
     expect(executionFromWizard({ executionBackend: "job", model: "test", borrowedTools: [{ name: "stale", revision: "v1" }] })).to.deep.equal({ backend: "job", executionLifecycle: "one-shot" });
   });
 
-  it("requires an explicit execution plane and keeps a preselected native runtime", () => {
+  it("requires an explicit execution plane and treats the single native runtime as implicit", () => {
     visit("/agents?create=1&runtime=celln-native");
     cy.get('input[placeholder="my-agent"]').type(name);
     cy.wizardNext();
     cy.get('[data-testid="create-agent-execution-environment"]').should("be.visible");
     cy.get('[data-testid="create-agent-execution-environment"]').contains("button", "Celln").click();
     cy.wizardNext();
-    cy.contains("Choose a native Celln runtime").should("be.visible");
-    cy.contains("button", "Next").should("be.enabled");
+    cy.get('[data-testid="create-agent-borrowed-tools"]').should("be.visible");
+    cy.contains("Choose a native Celln runtime").should("not.exist");
   });
 
   it("creates a native Agent with pinned borrowed tools and matching YAML", () => {
@@ -37,7 +37,6 @@ describe("Agent creation execution-plane flow", () => {
     cy.get('input[placeholder="my-agent"]').type(name);
     cy.wizardNext();
     cy.get('[data-testid="create-agent-execution-environment"]').contains("button", "Celln").click();
-    cy.wizardNext();
     cy.wizardNext();
     cy.get('[data-testid="create-agent-borrowed-tools"]').within(() => {
       cy.contains("label", "workspace-read@").find('input[type="checkbox"]').should("be.checked");
@@ -66,7 +65,7 @@ describe("Agent creation execution-plane flow", () => {
 
   it("keeps SkillPacks in the Kubernetes harness flow and omits borrowing", () => {
     // The default namespace carries the curated Pi/Hermes persistent harnesses.
-    cy.visit("/agents?create=1&kind=harness");
+    cy.visit("/agents?create=1&kind=agent");
     cy.get('input[placeholder="my-agent"]').type("cypress-kubernetes-flow");
     cy.wizardNext();
     cy.get('[data-testid="create-agent-execution-environment"]').contains("button", "Kubernetes").click();

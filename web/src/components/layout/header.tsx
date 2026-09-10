@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Activity, LogOut, Wifi, WifiOff, Plus, Shield, Play } from "lucide-react";
+import { Activity, LogOut, Wifi, WifiOff, Plus, Bot, Play } from "lucide-react";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { useState } from "react";
 import { formatAge } from "@/lib/utils";
@@ -115,9 +115,9 @@ export function Header() {
             <DialogDescription>Choose how you want to work.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
-            <button className="rounded-lg border p-4 text-left hover:border-primary" onClick={() => { setCreateOpen(false); navigate("/agents?create=1&kind=harness"); }}>
-              <Shield className="mb-2 h-5 w-5" />
-              <p className="font-medium">Harness</p>
+            <button className="rounded-lg border p-4 text-left hover:border-primary" onClick={() => { setCreateOpen(false); navigate("/agents?create=1&kind=agent"); }}>
+              <Bot className="mb-2 h-5 w-5" />
+              <p className="font-medium">Agent</p>
               <p className="mt-1 text-xs text-muted-foreground">Ongoing work that keeps its context. Choose an execution plane — Celln or Kubernetes — then its runtime and tools.</p>
             </button>
             <button className="rounded-lg border p-4 text-left hover:border-primary" onClick={() => { setCreateOpen(false); navigate("/agents?create=1&kind=run"); }}>
