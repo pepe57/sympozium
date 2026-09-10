@@ -42,6 +42,8 @@ separate opt-in path for a user who needs to keep an approved harness pod
 alive and interact with it over several turns. It does **not** keep a completed
 `AgentRun` alive or change its lifecycle.
 
+  <img src="../assets/agentharness/execution-paths.svg" alt="Choose between a persistent HarnessSession and an ephemeral AgentRun for the same approved AgentRuntime." width="1200">
+
 The feature is available only to an `AgentRuntime` that explicitly declares
 the `v1alpha2` `openai-chat` contract. The controller then creates a private
 Deployment and ClusterIP Service, waits for the adapter's `/healthz`, and the

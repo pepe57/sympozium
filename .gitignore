@@ -38,6 +38,9 @@ coverage.out
 coverage.html
 main
 
+# Local tool state (e.g. Go telemetry)
+.config/
+
 # Web UI build output (keep placeholder for go:embed)
 web/dist/*
 !web/dist/index.html
