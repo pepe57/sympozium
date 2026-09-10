@@ -7,7 +7,11 @@ import (
 )
 
 func cellnHarnessModelSupported(m sympoziumv1alpha1.ModelSpec) bool {
-	return m.Provider == "deepseek" && m.AuthSecretRef == "" && (m.BaseURL == "" || m.BaseURL == "https://api.deepseek.com") && (m.Thinking == "" || m.Thinking == "off") && len(m.ProviderHeaders) == 0 && m.ProviderHeadersSecretRef == "" && m.ModelRef == "" && len(m.NodeSelector) == 0
+	route := m.Provider == "deepseek" && m.Protocol == "" && (m.BaseURL == "" || m.BaseURL == "https://api.deepseek.com")
+	if m.Protocol != "" {
+		route = m.CredentialProfile != "" && (sympoziumv1alpha1.ModelConnectionSpec{Provider: m.Provider, Protocol: m.Protocol, Endpoint: m.BaseURL, CredentialProfile: m.CredentialProfile, Models: []string{m.Model}}).Validate() == nil
+	}
+	return route && m.AuthSecretRef == "" && (m.Thinking == "" || m.Thinking == "off") && len(m.ProviderHeaders) == 0 && m.ProviderHeadersSecretRef == "" && m.ModelRef == "" && len(m.NodeSelector) == 0
 }
 
 var cellnFunctionName = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
@@ -18,7 +22,7 @@ func validCellnHarness(req executionRequest) bool {
 	if h == nil {
 		return req.APIVersion == "celln.dev/v1alpha1"
 	}
-	if !validCellnHarnessContract(req.APIVersion, h) || !cellnHash.MatchString(h.ModelGrant.Hash) || len(h.Model) == 0 || len(h.Model) > 128 || len(h.Task) > 2048 || strings.TrimSpace(h.Task) == "" || strings.ContainsRune(h.Task, '\x00') || req.Mote == nil || req.Forge != nil || len(req.Inputs) != 0 || len(req.Tools) != 1 || req.Tools[0].Closure == nil || req.Invocation == nil || len(req.Invocation.Args) != 0 || req.Execution.Lane != "agent" || !req.Execution.RequireHardwareIsolation || req.Capabilities.Workspace != "none" || len(req.Capabilities.Egress) != 1 || req.Capabilities.Egress[0] != "https://api.deepseek.com" {
+	if !validCellnHarnessContract(req.APIVersion, h) || !cellnHash.MatchString(h.ModelGrant.Hash) || len(h.Model) == 0 || len(h.Model) > 128 || len(h.Task) > 2048 || strings.TrimSpace(h.Task) == "" || strings.ContainsRune(h.Task, '\x00') || req.Mote == nil || req.Forge != nil || len(req.Inputs) != 0 || len(req.Tools) != 1 || req.Tools[0].Closure == nil || req.Invocation == nil || len(req.Invocation.Args) != 0 || req.Execution.Lane != "agent" || !req.Execution.RequireHardwareIsolation || req.Capabilities.Workspace != "none" || len(req.Capabilities.Egress) != 1 || !validModelOrigin(req.Capabilities.Egress[0]) {
 		return false
 	}
 	names, paths := map[string]bool{}, map[string]bool{}
@@ -63,4 +67,9 @@ func validCellnHarnessContract(version string, h *executionHarness) bool {
 	default:
 		return false
 	}
+}
+
+func validModelOrigin(origin string) bool {
+	got, err := sympoziumv1alpha1.ModelEndpointOrigin(origin + "/")
+	return err == nil && got == origin
 }

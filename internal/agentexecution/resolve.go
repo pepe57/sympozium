@@ -17,6 +17,7 @@ type Input struct {
 	ExecutionLifecycle string
 	Enduring           *api.EnduringRunSpec
 	CellnSelection     *api.CellnCatalogueSelection
+	ModelConnectionRef string
 	Provider           string
 	Model              string
 	RuntimeRef         string // top-level harness override; not CellnSelection.RuntimeRef
@@ -28,6 +29,7 @@ type Result struct {
 	ExecutionLifecycle string
 	Enduring           *api.EnduringRunSpec
 	CellnSelection     *api.CellnCatalogueSelection
+	ModelConnectionRef string
 	Provider           string
 	Model              string
 	// Inherited records which fields came from Agent defaults (for status/audit).
@@ -41,6 +43,7 @@ func Resolve(agent *api.Agent, in Input) (Result, error) {
 		Backend:            strings.TrimSpace(in.Backend),
 		ExecutionLifecycle: strings.TrimSpace(in.ExecutionLifecycle),
 		Enduring:           in.Enduring.DeepCopy(),
+		ModelConnectionRef: strings.TrimSpace(in.ModelConnectionRef),
 		Provider:           strings.TrimSpace(in.Provider),
 		Model:              strings.TrimSpace(in.Model),
 	}
@@ -73,7 +76,10 @@ func Resolve(agent *api.Agent, in Input) (Result, error) {
 			out.Inherited = append(out.Inherited, "cellnSelection")
 		}
 		if out.CellnSelection != nil {
-			if out.Provider == "" && defaults.Provider != "" {
+			if out.ModelConnectionRef == "" && in.Provider == "" {
+				out.ModelConnectionRef = defaults.ModelConnectionRef
+			}
+			if out.Provider == "" && defaults.Provider != "" && in.ModelConnectionRef == "" {
 				out.Provider = defaults.Provider
 				out.Inherited = append(out.Inherited, "provider")
 			}
@@ -106,13 +112,13 @@ func Resolve(agent *api.Agent, in Input) (Result, error) {
 			return Result{}, fmt.Errorf("cellnSelection.toolRefs supports at most 16 tools")
 		}
 		if strings.TrimSpace(in.RuntimeRef) != "" {
-			return Result{}, fmt.Errorf("catalogue selection requires backend celln, explicit DeepSeek provider/model and toolRefs; use only cellnSelection.runtimeRef for an override")
+			return Result{}, fmt.Errorf("catalogue selection requires backend celln, a provider or model connection, model and toolRefs; use only cellnSelection.runtimeRef for an override")
 		}
-		if out.Provider == "" {
+		if out.Provider == "" && out.ModelConnectionRef == "" {
 			out.Provider = "deepseek"
 		}
-		if out.Provider != "deepseek" || out.Model == "" {
-			return Result{}, fmt.Errorf("catalogue selection requires backend celln, explicit DeepSeek provider/model and toolRefs; use only cellnSelection.runtimeRef for an override")
+		if out.Model == "" {
+			return Result{}, fmt.Errorf("catalogue selection requires backend celln, a provider or model connection, model and toolRefs; use only cellnSelection.runtimeRef for an override")
 		}
 	}
 

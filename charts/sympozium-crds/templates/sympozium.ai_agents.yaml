@@ -2760,10 +2760,13 @@ spec:
                     description: Model is the default model id for inherited Celln
                       catalogue runs.
                     type: string
+                  modelConnectionRef:
+                    description: ModelConnectionRef selects a namespaced model connection.
+                    type: string
                   provider:
                     description: |-
                       Provider is the default model provider for inherited Celln catalogue runs.
-                      Celln catalogue admission currently requires DeepSeek-hosted model grants.
+                      Omit when using modelConnectionRef; independent host model admission still applies.
                     type: string
                 type: object
               imagePullSecrets:

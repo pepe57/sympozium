@@ -1,3 +1,4 @@
+import { NativeModelSelector } from "@/components/native-model-selector";
 import { useState, useEffect, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
@@ -79,6 +80,8 @@ export function RunsPage() {
   const runtimes = useRuntimes();
   const catalogue = useCellnTools();
   const [lentTools, setLentTools] = useState<{ name: string; revision: string }[]>([]);
+  const [nativeConnection, setNativeConnection] = useState<string | undefined>();
+  const [nativeProvider, setNativeProvider] = useState("deepseek");
   const [enduring, setEnduring] = useState(false);
   const [parentSystemPrompt, setParentSystemPrompt] = useState("");
   const [requireToolCall, setRequireToolCall] = useState(false);
@@ -101,6 +104,10 @@ export function RunsPage() {
     runtimeRef: "",
   });
   const selectedAgent = (instances.data || []).find((agent) => agent.metadata.name === form.agentRef);
+  useEffect(() => {
+    setNativeConnection(selectedAgent?.spec.execution?.modelConnectionRef);
+    setNativeProvider(selectedAgent?.spec.execution?.provider || "deepseek");
+  }, [selectedAgent?.metadata.name]);
   const runtimeName = form.runtimeRef || selectedAgent?.spec.runtimeRef || "";
   const selectedRuntime = (runtimes.data || []).find((runtime) => runtime.metadata.name === runtimeName);
   const cellnHarness = form.backend === "celln" && !!runtimeName;
@@ -166,7 +173,7 @@ export function RunsPage() {
   const handleCreate = () => {
     if (blockedSelection || jobIncompatible || invalidParent || parentRequested) return;
     const request = cellnHarness
-      ? { ...form, runtimeRef: undefined, provider: "deepseek", cellnSelection: { runtimeRef: form.runtimeRef || undefined, toolRefs: lentTools } }
+      ? { ...form, runtimeRef: undefined, provider: nativeConnection ? undefined : nativeProvider, modelConnectionRef: nativeConnection, cellnSelection: { runtimeRef: form.runtimeRef || undefined, toolRefs: lentTools } }
       : form;
     if (enduringRequest) setParentRequested(true);
     createRun.mutate({ ...request, ...(enduringRequest ? { timeout: `${parentLimits.leaseSeconds}s`, executionLifecycle: "enduring" as const, enduring: { ...parentLimits, ...(requireToolCall ? { requireToolCall: true } : {}) }, systemPrompt: parentSystemPrompt } : {}) }, {
@@ -302,14 +309,10 @@ export function RunsPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>{cellnHarness ? "Model (required — DeepSeek)" : "Model (optional)"}</Label>
-                  <Input
-                    value={form.model}
-                    onChange={(e) =>
-                      setForm({ ...form, model: e.target.value })
-                    }
-                    placeholder={cellnHarness ? "deepseek-chat" : "gpt-4o"}
-                  />
+                  {cellnHarness ? <NativeModelSelector connectionRef={nativeConnection} provider={nativeProvider} model={form.model} onChange={(value) => { setNativeConnection(value.modelConnectionRef); setNativeProvider(value.provider); setForm({ ...form, model:value.model }); }} /> : <>
+                    <Label>Model (optional)</Label>
+                    <Input value={form.model} onChange={(event) => setForm({ ...form, model:event.target.value })} placeholder="gpt-4o" />
+                  </>}
                 </div>
                 <div className="space-y-2">
                   <Label>{enduringRequest ? "Timeout (from parent lease)" : "Timeout"}</Label>

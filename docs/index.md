@@ -76,13 +76,14 @@ Every concept that traditional agent frameworks manage in application code, Symp
 |-------|-------------|
 | [Getting Started](getting-started.md) | Install, deploy, and onboard your first agent |
 | [Architecture](architecture.md) | System design and how it all fits together |
-| [Custom Resources](concepts/custom-resources.md) | The nine CRDs that model every agentic concept |
+| [Custom Resources](concepts/custom-resources.md) | The ten CRDs that model every agentic concept |
 | [Ensembles](concepts/ensembles.md) | Pre-configured agent bundles |
 | [Skills & Sidecars](concepts/skills.md) | Isolated tool containers with ephemeral RBAC |
 | [Lifecycle Hooks](concepts/lifecycle-hooks.md) | PreRun and postRun containers for setup and teardown |
 | [Security](concepts/security.md) | Defence-in-depth at every layer |
 | [Writing Skills](guides/writing-skills.md) | Build your own SkillPacks |
 | [Writing Tools](guides/writing-tools.md) | Add new tools to the agent runner |
+| [Model Connections](guides/model-connections.md) | Reusable model routes for persistent Hermes and native Celln harnesses |
 | [Ollama & Local Inference](guides/ollama.md) | Node-based and in-cluster Ollama setup with auto-discovery |
 | [LM Studio](guides/lm-studio.md) | Local GGUF model serving with desktop GUI |
 | [llama-server](guides/llama-server.md) | llama.cpp server with full GPU control and node auto-discovery |

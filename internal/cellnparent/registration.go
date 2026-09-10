@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"github.com/sympozium-ai/sympozium/internal/modelconnection"
 	"path/filepath"
 	"reflect"
 
@@ -86,7 +87,7 @@ func validateParentConfiguration(s api.AgentRunSpec, model api.ModelSpec, prompt
 	if err := validateNativeParentSpec(s); err != nil {
 		return err
 	}
-	if !reflect.DeepEqual(s.Model, model) || s.SystemPrompt != prompt {
+	if !reflect.DeepEqual(modelconnection.Route(s.Model), modelconnection.Route(model)) || s.SystemPrompt != prompt {
 		return fmt.Errorf("registered parent model/persona differs from run intent")
 	}
 	if limits.RequireToolCall != s.Enduring.RequireToolCall {

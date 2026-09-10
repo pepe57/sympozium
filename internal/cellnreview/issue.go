@@ -91,7 +91,11 @@ func issue(ctx context.Context, l cellnauthority.ModelLoader, frozen cellnauthor
 		return nil, fmt.Errorf("invalid host request binding")
 	}
 	p := approval.Policy
-	profileBytes, err := json.Marshal(map[string]any{"apiVersion": "celln.dev/model-issuer-profile-v1", "requestBinding": binding.RequestBinding, "credentialFile": credentials, "model": p.Model, "url": p.URL, "maxRequests": p.MaxRequests, "maxOutputTokens": p.MaxOutputTokens, "maxTotalOutputTokens": p.MaxTotalOutputTokens})
+	profile := map[string]any{"apiVersion": "celln.dev/model-issuer-profile-v1", "requestBinding": binding.RequestBinding, "credentialFile": credentials, "model": p.Model, "url": p.URL, "maxRequests": p.MaxRequests, "maxOutputTokens": p.MaxOutputTokens, "maxTotalOutputTokens": p.MaxTotalOutputTokens}
+	if p.Protocol != "" {
+		profile["protocol"] = p.Protocol
+	}
+	profileBytes, err := json.Marshal(profile)
 	if err != nil {
 		return nil, err
 	}

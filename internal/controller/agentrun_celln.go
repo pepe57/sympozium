@@ -243,7 +243,18 @@ func (r *AgentRunReconciler) reconcilePendingCelln(
 			// The initial bridge uses the explicit operator grant, not ambient
 			// provider discovery or an ignored Kubernetes credential selection.
 			if !cellnHarnessModelSupported(agentRun.Spec.Model) {
-				return ctrl.Result{}, r.failRun(ctx, agentRun, "Celln: reference Harness requires deepseek with operator-grant credentials (empty authSecretRef)")
+				return ctrl.Result{}, r.failRun(ctx, agentRun, "Celln: Harness requires a supported model route with host-granted credentials (empty authSecretRef)")
+			}
+			origin := "https://api.deepseek.com"
+			if agentRun.Spec.Model.Protocol != "" {
+				var err error
+				origin, err = sympoziumv1alpha1.ModelEndpointOrigin(agentRun.Spec.Model.BaseURL)
+				if err != nil {
+					return ctrl.Result{}, r.failRun(ctx, agentRun, err.Error())
+				}
+			}
+			if len(request.Capabilities.Egress) != 1 || request.Capabilities.Egress[0] != origin {
+				return ctrl.Result{}, r.failRun(ctx, agentRun, "Celln model endpoint differs from granted network origin")
 			}
 			request.APIVersion = "celln.dev/v1alpha2"
 			request.Harness = &executionHarness{ContractVersion: pinned.Harness.ContractVersion, ModelGrant: pinned.Harness.ModelGrant, Model: agentRun.Spec.Model.Model, Task: task, BorrowedTools: pinned.Harness.BorrowedTools}

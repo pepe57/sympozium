@@ -763,6 +763,18 @@ spec:
                         Azure OpenAI:   https://<resource>.openai.azure.com/openai/deployments/<deployment>
                         Ollama:         http://ollama.default.svc:11434/v1
                     type: string
+                  connectionRef:
+                    description: ConnectionRef selects a ModelConnection in this run's
+                      namespace (native Celln only).
+                    type: string
+                  connectionRevision:
+                    description: ConnectionRevision pins the connection UID and spec
+                      after resolution.
+                    type: string
+                  credentialProfile:
+                    description: CredentialProfile is the independently approved opaque
+                      host mapping.
+                    type: string
                   model:
                     description: Model is the model identifier.
                     type: string
@@ -778,9 +790,14 @@ spec:
                       NodeSelector constrains agent pods to nodes with matching labels.
                       Inherited from AgentConfig at AgentRun creation time.
                     type: object
+                  protocol:
+                    description: Protocol is the host API adapter selected by the
+                      connection.
+                    type: string
                   provider:
-                    description: Provider is the AI provider (openai, anthropic, azure-openai,
-                      github-copilot, ollama, etc.).
+                    description: |-
+                      Provider is the AI provider (openai, anthropic, azure-openai, github-copilot, ollama, etc.).
+                      Omit when resolving a model connection.
                     type: string
                   providerHeaders:
                     additionalProperties:
@@ -798,9 +815,7 @@ spec:
                     description: Thinking mode (off, low, medium, high).
                     type: string
                 required:
-                - authSecretRef
                 - model
-                - provider
                 type: object
               parent:
                 description: Parent contains parent run information for sub-agents.

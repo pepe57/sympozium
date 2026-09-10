@@ -1,3 +1,4 @@
+import { NativeModelSelector } from "@/components/native-model-selector";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useModelList } from "@/hooks/use-model-list";
 import { useProviderNodes } from "@/hooks/use-provider-nodes";
@@ -221,6 +222,7 @@ export interface WizardResult {
   /** Policy required to authorize the selected harness. */
   policyRef?: string;
   /** Default execution environment: Kubernetes (job) or Celln. */
+  modelConnectionRef?: string;
   executionBackend?: "job" | "celln";
   /** Default Celln lifecycle when executionBackend is celln. */
   executionLifecycle?: "one-shot" | "enduring";
@@ -565,6 +567,7 @@ export function OnboardingWizard({
   const [step, setStep] = useState<WizardStep>(mode === "agent" ? "name" : "provider");
   const [form, setForm] = useState<WizardResult>({
     name: defaults?.name || "",
+    modelConnectionRef: defaults?.modelConnectionRef,
     provider: defaults?.provider || "",
     apiKey: defaults?.apiKey || "",
     secretName: defaults?.secretName || "",
@@ -723,6 +726,7 @@ export function OnboardingWizard({
       case "tools":
         return !catalogue.isLoading && !catalogue.isError && !staleTools && (form.borrowedTools || []).length <= 16;
       case "apikey":
+        if (form.modelConnectionRef) return true;
         if (
           form.provider === "ollama" ||
           form.provider === "lm-studio" ||
@@ -759,7 +763,7 @@ export function OnboardingWizard({
     if (mode === "agent" && (!compatibleRuntime || (celln && (form.skills.length > 0 || catalogue.isLoading || catalogue.isError || staleTools)))) return;
     // Apply default baseURL for local providers if the user left it empty.
     const result = { ...form };
-    if (!result.baseURL) {
+    if (!result.baseURL && !result.modelConnectionRef) {
       const prov = PROVIDERS.find((p) => p.value === result.provider);
       if (prov?.defaultBaseURL) {
         result.baseURL = prov.defaultBaseURL;
@@ -790,8 +794,7 @@ export function OnboardingWizard({
     let nextIdx = stepIdx + 1;
     while (
       nextIdx < steps.length &&
-      !celln && usingLocalModel &&
-      (steps[nextIdx] === "apikey" || steps[nextIdx] === "model")
+      !celln && ((usingLocalModel && (steps[nextIdx] === "apikey" || steps[nextIdx] === "model")) || (!!form.modelConnectionRef && steps[nextIdx] === "apikey"))
     ) {
       nextIdx++;
     }
@@ -806,8 +809,7 @@ export function OnboardingWizard({
     let prevIdx = stepIdx - 1;
     while (
       prevIdx >= 0 &&
-      !celln && usingLocalModel &&
-      (steps[prevIdx] === "apikey" || steps[prevIdx] === "model")
+      !celln && ((usingLocalModel && (steps[prevIdx] === "apikey" || steps[prevIdx] === "model")) || (!!form.modelConnectionRef && steps[prevIdx] === "apikey"))
     ) {
       prevIdx--;
     }
@@ -1021,6 +1023,7 @@ export function OnboardingWizard({
                         borrowedTools: [],
                         executionBackend: value,
                         executionLifecycle: value === "celln" ? "enduring" : "one-shot",
+                        modelConnectionRef: value === form.executionBackend ? form.modelConnectionRef : undefined,
                         provider: value === "celln" ? "deepseek" : form.provider,
                         model: value === "celln" ? "deepseek-chat" : form.model,
                         apiKey: value === "celln" ? "" : form.apiKey,
@@ -1086,6 +1089,8 @@ export function OnboardingWizard({
         {/* ── Provider step ─────────────────────────────────────────── */}
         {step === "provider" && (
           <div className="space-y-4">
+            {mode === "agent" && creationKind === "agent" && <NativeModelSelector native={false} connectionRef={form.modelConnectionRef} provider={form.provider} model={form.model} onChange={(value) => { setUsingLocalModel(false); setForm({ ...form, ...value, apiKey: "", secretName: "", baseURL: "", modelRef: undefined, nodeSelector: undefined }); }} />}
+            <div hidden={!!form.modelConnectionRef} className="space-y-4">
             <div className="space-y-2">
               <Label>AI Provider</Label>
               <Select
@@ -1101,6 +1106,7 @@ export function OnboardingWizard({
                       setUsingLocalModel(true);
                       setForm({
                         ...form,
+                        modelConnectionRef: undefined,
                         provider: "openai",
                         model: model.metadata.name,
                         baseURL: model.status?.endpoint || "",
@@ -1114,6 +1120,7 @@ export function OnboardingWizard({
                     const prov = PROVIDERS.find((p) => p.value === v);
                     setForm({
                       ...form,
+                      modelConnectionRef: undefined,
                       provider: v,
                       model: form.model || prov?.defaultModel || "",
                       baseURL: prov?.defaultBaseURL || "",
@@ -1316,6 +1323,7 @@ export function OnboardingWizard({
                 )}
               </div>
             )}
+            </div>
           </div>
         )}
 
@@ -1438,11 +1446,7 @@ export function OnboardingWizard({
         {/* ── Model step ────────────────────────────────────────────── */}
         {step === "model" && (
           <div className="space-y-2">
-            {celln ? <>
-              <Label htmlFor="native-model">Model (host-approved DeepSeek route)</Label>
-              <Input id="native-model" value={form.model} onChange={(event) => setForm({ ...form, model: event.target.value })} placeholder="deepseek-chat" />
-              <p className="text-xs text-muted-foreground">The owner must approve this model. Credentials remain on the host; no API key is requested here.</p>
-            </> : <ModelSelector
+            {celln || form.modelConnectionRef ? <NativeModelSelector native={celln} connectionRef={form.modelConnectionRef} provider={form.provider} model={form.model} onChange={(value) => setForm({ ...form, ...value })} /> : <ModelSelector
               provider={form.provider}
               apiKey={form.apiKey}
               baseURL={form.baseURL}
@@ -1885,6 +1889,7 @@ export function OnboardingWizard({
               )}
               {mode === "agent" && <div className="space-y-2" data-testid="execution-confirmation">
                 <p>Execution plane: {celln ? "Celln" : "Kubernetes"}</p>
+                {celln && <p>Model connection: {form.modelConnectionRef || "Existing DeepSeek host route"}</p>}
                 {celln && <>
                   <p>Lifecycle: {form.executionLifecycle}</p>
                   <p>Borrowed tools: {(form.borrowedTools || []).map((tool) => `${tool.name}@${tool.revision}`).join(", ") || "none (explicit empty selection)"}</p>

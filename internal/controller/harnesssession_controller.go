@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"github.com/sympozium-ai/sympozium/internal/modelconnection"
 	"sort"
 	"strings"
 	"time"
@@ -236,6 +237,31 @@ func (r *HarnessSessionReconciler) resolveInputs(ctx context.Context, session *s
 	if runtime.Spec.ContractVersion != "v1alpha2" || runtime.Spec.Session == nil || runtime.Spec.Session.Protocol != "openai-chat" || runtime.Spec.Session.Port == 0 {
 		return nil, nil, fmt.Sprintf("AgentRuntime %q does not declare the v1alpha2 openai-chat session contract", runtime.Name), nil
 	}
+	if agent.Spec.Execution != nil && agent.Spec.Execution.ModelConnectionRef != "" {
+		model, revision, err := modelconnection.ResolveHarness(ctx, r.Client, session.Namespace, agent.Spec.Execution.ModelConnectionRef, agent.Spec.Agents.Default.Model)
+		if err != nil {
+			return nil, nil, "Model connection: " + err.Error(), nil
+		}
+		if runtime.Spec.Model != nil && *runtime.Spec.Model != *model {
+			return nil, nil, "Runtime model conflicts with the Agent model connection", nil
+		}
+		// A live/durable session keeps its original model route. Reusing its
+		// transcript with a different provider requires an explicit new session.
+		const revisionKey = "sympozium.ai/model-connection-revision"
+		if pinned := session.Annotations[revisionKey]; pinned != "" && pinned != revision {
+			return nil, nil, "Model connection changed; create a new session to use the new route", nil
+		}
+		if session.Annotations[revisionKey] == "" {
+			if session.Annotations == nil {
+				session.Annotations = map[string]string{}
+			}
+			session.Annotations[revisionKey] = revision
+			if err := r.Update(ctx, session); err != nil {
+				return nil, nil, "", err
+			}
+		}
+		runtime.Spec.Model = model
+	}
 	model, modelReason := resolveSessionModel(agent, runtime)
 	if modelReason != "" {
 		return nil, nil, modelReason, nil
@@ -244,7 +270,7 @@ func (r *HarnessSessionReconciler) resolveInputs(ctx context.Context, session *s
 	// AgentRuntime. The Agent remains the owner of the default model route and
 	// credential allowlist when the runtime deliberately leaves model blank.
 	runtime.Spec.Model = model
-	if !agentAllowsModelCredential(agent, model.Provider, model.AuthSecretRef) {
+	if (agent.Spec.Execution == nil || agent.Spec.Execution.ModelConnectionRef == "") && !agentAllowsModelCredential(agent, model.Provider, model.AuthSecretRef) {
 		return nil, nil, fmt.Sprintf("Agent %q does not allow runtime model credential %q for provider %q", agent.Name, model.AuthSecretRef, model.Provider), nil
 	}
 	return agent, runtime, "", nil
@@ -264,7 +290,7 @@ func resolveSessionModel(agent *sympoziumv1alpha1.Agent, runtime *sympoziumv1alp
 	if model.Provider == "" && len(agent.Spec.AuthRefs) == 1 {
 		model.Provider = agent.Spec.AuthRefs[0].Provider
 	}
-	if model.AuthSecretRef == "" {
+	if model.AuthSecretRef == "" && (agent.Spec.Execution == nil || agent.Spec.Execution.ModelConnectionRef == "") {
 		for _, ref := range agent.Spec.AuthRefs {
 			if ref.Provider == "" || strings.EqualFold(ref.Provider, model.Provider) {
 				model.AuthSecretRef = ref.Secret
@@ -417,6 +443,11 @@ func (r *HarnessSessionReconciler) reconcileDeployment(ctx context.Context, sess
 		if runtime.Spec.Resources != nil {
 			container.Resources = *runtime.Spec.Resources
 		}
+		if runtime.Spec.Model.AuthSecretRef == "" && runtime.Spec.Model.BaseURL != "" {
+			// The OpenAI SDK and Hermes require a nonempty key even for an
+			// explicitly unauthenticated endpoint. This is not a credential.
+			container.Env = append(container.Env, corev1.EnvVar{Name: "OPENAI_API_KEY", Value: "sympozium-no-auth"})
+		}
 		if runtime.Spec.Model.AuthSecretRef != "" {
 			for _, key := range allowedAuthSecretKeys {
 				optional := true
@@ -505,6 +536,7 @@ func (r *HarnessSessionReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// changes or disappears, so a Failed session recovers without a manual
 		// retry and a revoked binding stops promptly.
 		Watches(&sympoziumv1alpha1.Agent{}, handler.EnqueueRequestsFromMapFunc(r.sessionsReferencing(func(session *sympoziumv1alpha1.HarnessSession) string { return session.Spec.AgentRef })), builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		Watches(&sympoziumv1alpha1.ModelConnection{}, handler.EnqueueRequestsFromMapFunc(r.sessionsForModelConnection)).
 		Watches(&sympoziumv1alpha1.AgentRuntime{}, handler.EnqueueRequestsFromMapFunc(r.sessionsReferencing(func(session *sympoziumv1alpha1.HarnessSession) string { return session.Spec.RuntimeRef }))).
 		Complete(r)
 }
@@ -533,4 +565,30 @@ func protocolPtr(protocol corev1.Protocol) *corev1.Protocol { return &protocol }
 func intstrPtr(port int32) *intstr.IntOrString {
 	value := intstr.FromInt32(port)
 	return &value
+}
+
+func (r *HarnessSessionReconciler) sessionsForModelConnection(ctx context.Context, obj client.Object) []reconcile.Request {
+	var agents sympoziumv1alpha1.AgentList
+	var sessions sympoziumv1alpha1.HarnessSessionList
+	if err := r.List(ctx, &agents, client.InNamespace(obj.GetNamespace())); err != nil {
+		r.Log.Error(err, "list connection Agents")
+		return nil
+	}
+	if err := r.List(ctx, &sessions, client.InNamespace(obj.GetNamespace())); err != nil {
+		r.Log.Error(err, "list connection sessions")
+		return nil
+	}
+	selected := map[string]bool{}
+	for _, agent := range agents.Items {
+		if agent.Spec.Execution != nil && agent.Spec.Execution.ModelConnectionRef == obj.GetName() {
+			selected[agent.Name] = true
+		}
+	}
+	var out []reconcile.Request
+	for _, session := range sessions.Items {
+		if selected[session.Spec.AgentRef] {
+			out = append(out, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&session)})
+		}
+	}
+	return out
 }

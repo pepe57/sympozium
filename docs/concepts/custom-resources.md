@@ -13,6 +13,7 @@ Sympozium models every agentic concept as a Kubernetes Custom Resource:
 | `Model` | Deployment + Service | [Cluster-local inference](../guides/local-models.md) — declares a model (GGUF or HuggingFace), controller deploys an inference server (llama.cpp, vLLM, or TGI) and exposes an OpenAI-compatible endpoint |
 | `MCPServer` | Deployment + Service | Managed [Model Context Protocol](../mcp-servers.md) server — external tool providers with auto-discovery and allow/deny filtering |
 | `SympoziumConfig` | Cluster configuration | Platform-wide singleton — gateway, canary, and pricing settings |
+| `ModelConnection` | ExternalName Service | Namespaced, reusable model route — provider, protocol, endpoint, models, and an optional Secret or host credential profile |
 
 ---
 
@@ -100,3 +101,14 @@ Cron-based recurring agent runs. See [Scheduled Tasks](scheduled-tasks.md) for d
 ## Ensemble
 
 Pre-configured agent bundles. See [Ensembles](ensembles.md) for details.
+
+---
+
+## ModelConnection
+
+A namespaced, reusable model route. An Agent selects one with
+`spec.execution.modelConnectionRef`; native Celln runs select one with
+`spec.model.connectionRef`. The controller pins the connection UID, spec, and
+revision before admitting a run or persistent session, so a conversation is
+never silently redirected to another provider. See
+[Model connections for persistent harnesses](../guides/model-connections.md).

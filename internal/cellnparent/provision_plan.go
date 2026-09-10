@@ -67,10 +67,14 @@ func BuildHostProvisionPlan(ctx context.Context, loader cellnauthority.Loader, i
 		Task            string `json:"task"`
 		System          string `json:"system"`
 		Model           string `json:"model"`
+		URL             string `json:"url"`
 		RequireToolCall bool   `json:"require_tool_call"`
 	}
 	if json.Unmarshal(n.Template, &harness) != nil || harness.Contract != "celln.json-tools/v1" || harness.Task != "" || harness.Model != template.Model.Model || harness.RequireToolCall != template.HostLimits.RequireToolCall {
 		return nil, fmt.Errorf("host native harness policy mismatch")
+	}
+	if template.Model.Protocol != "" && harness.URL != template.Model.BaseURL {
+		return nil, fmt.Errorf("host native endpoint differs from model route")
 	}
 	if err := validateParentConfiguration(intent.Spec, template.Model, harness.System, template.HostLimits); err != nil {
 		return nil, err
