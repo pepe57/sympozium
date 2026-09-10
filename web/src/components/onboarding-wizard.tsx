@@ -288,7 +288,7 @@ function stepsForMode(
         "plane",
         ...(runtimeImplicit ? [] : ["runtime"]),
         ...(celln
-          ? ["tools", "model"]
+          ? ["tools", "provider", "apikey", "model"]
           : ["skills", "provider", "apikey", "model", "heartbeat", "channels"]),
         "confirm",
         "channelAction",
@@ -382,6 +382,7 @@ function ModelSelector({
   value,
   onChange,
   bedrockCredentials,
+  inputId,
 }: {
   provider: string;
   apiKey: string;
@@ -389,6 +390,7 @@ function ModelSelector({
   value: string;
   onChange: (v: string) => void;
   bedrockCredentials?: import("@/hooks/use-model-list").BedrockCredentials;
+  inputId?: string;
 }) {
   const { models, isLoading, isLive } = useModelList(
     provider,
@@ -457,6 +459,7 @@ function ModelSelector({
           Or enter a custom model name
         </Label>
         <Input
+          id={inputId}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="gpt-4o"
@@ -1151,8 +1154,9 @@ export function OnboardingWizard({
                         executionBackend: value,
                         executionLifecycle: value === "celln" ? "enduring" : "one-shot",
                         modelConnectionRef: value === form.executionBackend ? form.modelConnectionRef : undefined,
-                        provider: value === "celln" ? "deepseek" : form.provider,
-                        model: value === "celln" ? "deepseek-chat" : form.model,
+                        credentialProfile: "",
+                        provider: value === "celln" ? "deepseek" : form.provider === "deepseek" ? "openai" : form.provider,
+                        model: value === "celln" ? "deepseek-chat" : form.provider === "deepseek" ? "gpt-4o" : form.model,
                         apiKey: value === "celln" ? "" : form.apiKey,
                         secretName: value === "celln" ? "" : form.secretName,
                         baseURL: value === "celln" ? "" : form.baseURL,
@@ -1614,6 +1618,7 @@ export function OnboardingWizard({
               baseURL={form.baseURL}
               value={form.model}
               onChange={(v) => setForm({ ...form, model: v })}
+              inputId={celln ? "native-model" : undefined}
               bedrockCredentials={
                 form.provider === "bedrock" && form.awsAccessKeyId
                   ? {
