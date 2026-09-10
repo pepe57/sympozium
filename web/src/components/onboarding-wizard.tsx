@@ -1,4 +1,3 @@
-import { NativeModelSelector } from "@/components/native-model-selector";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useModelList } from "@/hooks/use-model-list";
 import { useProviderNodes } from "@/hooks/use-provider-nodes";
@@ -46,7 +45,7 @@ import { cn } from "@/lib/utils";
 import { useCapabilities, useModels, useCellnTools } from "@/hooks/use-api";
 import { persistentHarnesses, persistentHarnessName } from "@/lib/persistent-harness";
 import { api } from "@/lib/api";
-import type { AgentRuntime, SympoziumPolicy, CellnSelection } from "@/lib/api";
+import type { AgentRuntime, SympoziumPolicy, CellnSelection, ModelConnection } from "@/lib/api";
 import {
   YamlModal,
   instanceYamlFromWizard,
@@ -223,6 +222,8 @@ export interface WizardResult {
   policyRef?: string;
   /** Default execution environment: Kubernetes (job) or Celln. */
   modelConnectionRef?: string;
+  /** Opaque host credential mapping for a native Celln model connection. */
+  credentialProfile?: string;
   executionBackend?: "job" | "celln";
   /** Default Celln lifecycle when executionBackend is celln. */
   executionLifecycle?: "one-shot" | "enduring";
@@ -542,6 +543,61 @@ function CanaryConnectionTest({ baseURL }: { baseURL: string }) {
   );
 }
 
+// ── Model connection folding ─────────────────────────────────────────────────
+// Persistent Kubernetes harnesses and native Celln runs consume a reusable
+// ModelConnection instead of inline credentials. The wizard keeps the ordinary
+// Provider → Auth → Model steps and persists that selection as a connection,
+// so creating a route feels identical to creating a one-shot run.
+
+const CONNECTION_SUFFIX = "-connection";
+
+function modelConnectionName(agentName: string): string {
+  const max = 253 - CONNECTION_SUFFIX.length;
+  const base = agentName.length > max ? agentName.slice(0, max) : agentName;
+  return `${base.replace(/-+$/, "")}${CONNECTION_SUFFIX}`;
+}
+
+function defaultProviderEndpoint(provider: string): string {
+  switch (provider) {
+    case "openai":
+      return "https://api.openai.com/v1";
+    case "anthropic":
+      return "https://api.anthropic.com/v1/messages";
+    case "ollama":
+      return "http://ollama.default.svc:11434/v1";
+    case "lm-studio":
+      return "http://localhost:1234/v1";
+    case "llama-server":
+    case "unsloth":
+      return "http://localhost:8080/v1";
+    default:
+      return "";
+  }
+}
+
+function modelConnectionSpec(
+  result: WizardResult,
+  celln: boolean,
+): ModelConnection["spec"] {
+  const endpoint = result.baseURL || defaultProviderEndpoint(result.provider);
+  const protocol =
+    celln && result.provider === "anthropic"
+      ? "anthropic-messages"
+      : "openai-chat";
+  const auth = celln
+    ? { credentialProfile: result.credentialProfile }
+    : result.apiKey || !result.secretName
+      ? {}
+      : { secretRef: result.secretName };
+  return {
+    provider: result.provider,
+    protocol,
+    endpoint,
+    models: [result.model],
+    ...auth,
+  };
+}
+
 // ── Main wizard component ────────────────────────────────────────────────────
 
 export function OnboardingWizard({
@@ -568,6 +624,7 @@ export function OnboardingWizard({
   const [form, setForm] = useState<WizardResult>({
     name: defaults?.name || "",
     modelConnectionRef: defaults?.modelConnectionRef,
+    credentialProfile: defaults?.credentialProfile || "",
     provider: defaults?.provider || "",
     apiKey: defaults?.apiKey || "",
     secretName: defaults?.secretName || "",
@@ -639,12 +696,42 @@ export function OnboardingWizard({
   const compatibleRuntime = celln
     ? selectedRuntime?.spec.celln?.contractVersion === "celln.json-tools/v1"
     : !form.runtimeRef || !!selectedRuntime?.spec.image;
+  // Provider choices mirror the run flow, narrowed to what the selected
+  // execution plane can actually reach.
+  const providerChoices = useMemo(() => {
+    if (celln) {
+      return [
+        {
+          value: "deepseek",
+          label: "DeepSeek (existing host route)",
+          defaultModel: "deepseek-chat",
+          defaultBaseURL: "",
+          icon: Bot,
+        },
+        ...PROVIDERS.filter(
+          (p) =>
+            p.value === "openai" ||
+            p.value === "anthropic" ||
+            p.value === "custom",
+        ),
+      ];
+    }
+    if (mode === "agent" && creationKind === "agent" && form.runtimeRef) {
+      // Persistent Kubernetes harnesses speak OpenAI-compatible chat.
+      return PROVIDERS.filter(
+        (p) => p.value !== "anthropic" && p.value !== "bedrock",
+      );
+    }
+    return PROVIDERS;
+  }, [celln, mode, creationKind, form.runtimeRef]);
   const staleTools = (form.borrowedTools || []).some((ref) => !(catalogue.data || []).some((tool) => tool.metadata.name === ref.name && tool.spec.revision === ref.revision && tool.spec.invocationABI === "celln.json-stdio/v1" && tool.spec.lane === "tool"));
   const [inferenceMode, setInferenceMode] = useState<"workload" | "node">(
     "workload",
   );
   const [channelActionIdx, setChannelActionIdx] = useState(0);
   const [showYaml, setShowYaml] = useState(false);
+  const [savingConnection, setSavingConnection] = useState(false);
+  const [connectionError, setConnectionError] = useState("");
   const { data: capabilities } = useCapabilities();
   const { data: clusterModels } = useModels();
   const [usingLocalModel, setUsingLocalModel] = useState(false);
@@ -726,6 +813,8 @@ export function OnboardingWizard({
       case "tools":
         return !catalogue.isLoading && !catalogue.isError && !staleTools && (form.borrowedTools || []).length <= 16;
       case "apikey":
+        if (celln)
+          return form.provider === "deepseek" || !!form.credentialProfile;
         if (form.modelConnectionRef) return true;
         if (
           form.provider === "ollama" ||
@@ -759,7 +848,7 @@ export function OnboardingWizard({
   );
   const hasActionChannels = actionChannels.length > 0;
 
-  function completeWithDefaults() {
+  async function completeWithDefaults() {
     if (mode === "agent" && (!compatibleRuntime || (celln && (form.skills.length > 0 || catalogue.isLoading || catalogue.isError || staleTools)))) return;
     // Apply default baseURL for local providers if the user left it empty.
     const result = { ...form };
@@ -768,6 +857,42 @@ export function OnboardingWizard({
       if (prov?.defaultBaseURL) {
         result.baseURL = prov.defaultBaseURL;
       }
+    }
+    // Persistent Kubernetes harnesses and non-legacy native Celln routes store
+    // their Provider → Auth → Model selection as a reusable ModelConnection.
+    // The legacy DeepSeek host route keeps working without one.
+    const persistentHarness =
+      mode === "agent" &&
+      creationKind === "agent" &&
+      !celln &&
+      !!result.runtimeRef &&
+      compatibleRuntime;
+    const nativeConnection = celln && result.provider !== "deepseek";
+    if (persistentHarness || nativeConnection) {
+      setConnectionError("");
+      setSavingConnection(true);
+      try {
+        const connection = await api.modelConnections.create({
+          name: modelConnectionName(result.name),
+          spec: modelConnectionSpec(result, celln),
+          apiKey: celln ? undefined : result.apiKey || undefined,
+        });
+        result.modelConnectionRef = connection.metadata.name;
+        // The connection now owns the route and credential; inline values would
+        // be rejected by the Agent API and duplicate the Secret.
+        result.apiKey = "";
+        result.secretName = "";
+        result.baseURL = "";
+      } catch (err) {
+        setSavingConnection(false);
+        setConnectionError(
+          err instanceof Error
+            ? err.message
+            : "Could not save the model connection",
+        );
+        return;
+      }
+      setSavingConnection(false);
     }
     onComplete(result);
   }
@@ -827,6 +952,8 @@ export function OnboardingWizard({
     toolsInitialized.current = d.borrowedTools !== undefined;
     setForm({
       name: d.name || "",
+      modelConnectionRef: d.modelConnectionRef,
+      credentialProfile: d.credentialProfile || "",
       provider: d.provider || "",
       apiKey: d.apiKey || "",
       secretName: d.secretName || "",
@@ -1089,8 +1216,6 @@ export function OnboardingWizard({
         {/* ── Provider step ─────────────────────────────────────────── */}
         {step === "provider" && (
           <div className="space-y-4">
-            {mode === "agent" && creationKind === "agent" && <NativeModelSelector native={false} connectionRef={form.modelConnectionRef} provider={form.provider} model={form.model} onChange={(value) => { setUsingLocalModel(false); setForm({ ...form, ...value, apiKey: "", secretName: "", baseURL: "", modelRef: undefined, nodeSelector: undefined }); }} />}
-            <div hidden={!!form.modelConnectionRef} className="space-y-4">
             <div className="space-y-2">
               <Label>AI Provider</Label>
               <Select
@@ -1115,12 +1240,24 @@ export function OnboardingWizard({
                         modelRef: model.metadata.name,
                       });
                     }
-                  } else {
+                  } else if (v === "deepseek") {
                     setUsingLocalModel(false);
-                    const prov = PROVIDERS.find((p) => p.value === v);
                     setForm({
                       ...form,
                       modelConnectionRef: undefined,
+                      credentialProfile: "",
+                      provider: "deepseek",
+                      model: "deepseek-chat",
+                      baseURL: "",
+                      modelRef: undefined,
+                    });
+                  } else {
+                    setUsingLocalModel(false);
+                    const prov = providerChoices.find((p) => p.value === v);
+                    setForm({
+                      ...form,
+                      modelConnectionRef: undefined,
+                      credentialProfile: "",
                       provider: v,
                       model: form.model || prov?.defaultModel || "",
                       baseURL: prov?.defaultBaseURL || "",
@@ -1151,7 +1288,7 @@ export function OnboardingWizard({
                       ))}
                     </>
                   )}
-                  {PROVIDERS.map((p) => (
+                  {providerChoices.map((p) => (
                     <SelectItem key={p.value} value={p.value}>
                       <span className="flex items-center gap-2">
                         <p.icon className="h-4 w-4 shrink-0" />
@@ -1323,7 +1460,6 @@ export function OnboardingWizard({
                 )}
               </div>
             )}
-            </div>
           </div>
         )}
 
@@ -1331,6 +1467,30 @@ export function OnboardingWizard({
         {step === "apikey" && (
           <ScrollArea className="max-h-[60vh]">
             <div className="space-y-4">
+              {celln ? (
+                form.provider === "deepseek" ? (
+                  <p className="text-sm text-muted-foreground">
+                    The existing DeepSeek host route is approved by the host
+                    operator and needs no cluster credential.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Host credential profile</Label>
+                    <Input
+                      value={form.credentialProfile || ""}
+                      onChange={(e) =>
+                        setForm({ ...form, credentialProfile: e.target.value })
+                      }
+                      placeholder="team-provider-key"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      The host operator maps this profile to credentials. No key
+                      is stored in the cluster.
+                    </p>
+                  </div>
+                )
+              ) : (
+                <>
               {form.provider !== "bedrock" &&
                 form.provider !== "ollama" &&
                 form.provider !== "lm-studio" &&
@@ -1439,6 +1599,8 @@ export function OnboardingWizard({
                   auto-create one from the credentials above.
                 </p>
               </div>
+                </>
+              )}
             </div>
           </ScrollArea>
         )}
@@ -1446,7 +1608,7 @@ export function OnboardingWizard({
         {/* ── Model step ────────────────────────────────────────────── */}
         {step === "model" && (
           <div className="space-y-2">
-            {celln || form.modelConnectionRef ? <NativeModelSelector native={celln} connectionRef={form.modelConnectionRef} provider={form.provider} model={form.model} onChange={(value) => setForm({ ...form, ...value })} /> : <ModelSelector
+            <ModelSelector
               provider={form.provider}
               apiKey={form.apiKey}
               baseURL={form.baseURL}
@@ -1462,7 +1624,13 @@ export function OnboardingWizard({
                     }
                   : undefined
               }
-            />}
+            />
+            {celln && (
+              <p className="text-xs text-muted-foreground">
+                The host operator must approve this connection and model.
+                Credentials stay on the host; no API key is requested here.
+              </p>
+            )}
             {mode === "persona" && agentConfigCount !== undefined && (
               <p className="text-xs text-muted-foreground">
                 Applied to all{" "}
@@ -1889,7 +2057,8 @@ export function OnboardingWizard({
               )}
               {mode === "agent" && <div className="space-y-2" data-testid="execution-confirmation">
                 <p>Execution plane: {celln ? "Celln" : "Kubernetes"}</p>
-                {celln && <p>Model connection: {form.modelConnectionRef || "Existing DeepSeek host route"}</p>}
+                {celln && <p>Model connection: {form.provider === "deepseek" ? "Existing DeepSeek host route" : `${form.provider} / ${form.model}`}</p>}
+                {!celln && form.runtimeRef && <p>Model connection: {form.provider} / {form.model} (saved for this harness)</p>}
                 {celln && <>
                   <p>Lifecycle: {form.executionLifecycle}</p>
                   <p>Borrowed tools: {(form.borrowedTools || []).map((tool) => `${tool.name}@${tool.revision}`).join(", ") || "none (explicit empty selection)"}</p>
@@ -2099,6 +2268,12 @@ export function OnboardingWizard({
           </div>
         )}
 
+        {connectionError && (
+          <p role="alert" className="text-sm text-destructive">
+            {connectionError}
+          </p>
+        )}
+
         {/* ── Navigation ────────────────────────────────────────────── */}
         <div className="flex items-center justify-between pt-2">
           <Button
@@ -2116,9 +2291,11 @@ export function OnboardingWizard({
               size="sm"
               className="gap-1 bg-primary hover:bg-primary/90 text-primary-foreground border-0"
               onClick={next}
-              disabled={isPending}
+              disabled={isPending || savingConnection}
             >
-              {isPending ? (
+              {savingConnection ? (
+                "Saving…"
+              ) : isPending ? (
                 "Working…"
               ) : (
                 <>
