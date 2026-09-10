@@ -1,4 +1,3 @@
-import { NativeModelSelector } from "@/components/native-model-selector";
 import { useState, useEffect, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
@@ -107,6 +106,12 @@ export function RunsPage() {
   useEffect(() => {
     setNativeConnection(selectedAgent?.spec.execution?.modelConnectionRef);
     setNativeProvider(selectedAgent?.spec.execution?.provider || "deepseek");
+    // A connection fixes the model route; inherit it so the run pins the same
+    // connection revision instead of failing resolution on an empty model.
+    setForm((prev) => ({
+      ...prev,
+      model: selectedAgent?.spec.agents?.default?.model || prev.model,
+    }));
   }, [selectedAgent?.metadata.name]);
   const runtimeName = form.runtimeRef || selectedAgent?.spec.runtimeRef || "";
   const selectedRuntime = (runtimes.data || []).find((runtime) => runtime.metadata.name === runtimeName);
@@ -309,10 +314,31 @@ export function RunsPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  {cellnHarness ? <NativeModelSelector connectionRef={nativeConnection} provider={nativeProvider} model={form.model} onChange={(value) => { setNativeConnection(value.modelConnectionRef); setNativeProvider(value.provider); setForm({ ...form, model:value.model }); }} /> : <>
-                    <Label>Model (optional)</Label>
-                    <Input value={form.model} onChange={(event) => setForm({ ...form, model:event.target.value })} placeholder="gpt-4o" />
-                  </>}
+                  {cellnHarness && nativeConnection ? (
+                    <>
+                      <Label>Model (from connection)</Label>
+                      <Input
+                        value={form.model}
+                        disabled
+                        readOnly
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Inherited from connection{" "}
+                        <span className="font-mono">{nativeConnection}</span>.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <Label>Model (optional)</Label>
+                      <Input
+                        value={form.model}
+                        onChange={(event) =>
+                          setForm({ ...form, model: event.target.value })
+                        }
+                        placeholder={cellnHarness ? "deepseek-chat" : "gpt-4o"}
+                      />
+                    </>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>{enduringRequest ? "Timeout (from parent lease)" : "Timeout"}</Label>

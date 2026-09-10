@@ -42,3 +42,46 @@ func TestCreateConnectionAndAgentWithoutProviderOrSecret(t *testing.T) {
 		t.Fatal("accepted connection and inline key")
 	}
 }
+
+func TestCreateConnectionWithAPIKeyWritesSecret(t *testing.T) {
+	server, _ := newInstanceTestServer(t)
+	handler := server.buildMux(nil, nil)
+	body := `{"name":"framework","apiKey":"sk-test","spec":{"provider":"llama-server","protocol":"openai-chat","endpoint":"http://framework:8080/v1/chat/completions","models":["qwen"]}}`
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/model-connections", strings.NewReader(body)))
+	if response.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", response.Code, response.Body.String())
+	}
+	var connection api.ModelConnection
+	if err := server.client.Get(context.Background(), types.NamespacedName{Namespace: "default", Name: "framework"}, &connection); err != nil {
+		t.Fatal(err)
+	}
+	if connection.Spec.SecretRef == "" {
+		t.Fatal("connection did not record the Secret reference")
+	}
+	var secret corev1.Secret
+	if err := server.client.Get(context.Background(), types.NamespacedName{Namespace: "default", Name: connection.Spec.SecretRef}, &secret); err != nil {
+		t.Fatal(err)
+	}
+	payload := string(secret.Data["OPENAI_API_KEY"])
+	if payload == "" {
+		// The fake client stores StringData verbatim; a real API server folds it
+		// into Data. Accept either representation.
+		payload = secret.StringData["OPENAI_API_KEY"]
+	}
+	if payload != "sk-test" {
+		t.Fatalf("wrong secret payload: data=%v stringData=%v", secret.Data, secret.StringData)
+	}
+	// Re-saving the same selection updates the connection instead of failing.
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/model-connections", strings.NewReader(body)))
+	if response.Code >= 300 {
+		t.Fatalf("update: %d %s", response.Code, response.Body.String())
+	}
+	// A host credential profile and a Kubernetes Secret are mutually exclusive.
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/model-connections", strings.NewReader(`{"name":"native","apiKey":"sk-test","spec":{"provider":"anthropic","protocol":"anthropic-messages","endpoint":"https://api.anthropic.com/v1/messages","credentialProfile":"team-key","models":["claude"]}}`)))
+	if response.Code != http.StatusBadRequest {
+		t.Fatal("accepted a Secret and a host credential profile together")
+	}
+}

@@ -32,26 +32,30 @@ The controller removes a trailing `/chat/completions` before passing the base UR
 to the harness. Kubernetes network policy must permit the chosen endpoint port;
 the current session policy permits 443, 8080, and 9473.
 
-For an authenticated endpoint, add `spec.secretRef` naming a Secret in the same
-namespace. Use the credential environment keys required by the selected adapter
-(Hermes uses `OPENAI_API_KEY`). The connection contains no credential values.
-Selecting a connection in an Agent explicitly selects that connection's Secret.
-For an unauthenticated endpoint, omit the reference. The controller supplies an
-inert `OPENAI_API_KEY` placeholder because the SDK/adapter requires a nonempty
-setting even when the server does not authenticate. It creates no Secret.
+For an authenticated endpoint, the wizard's Auth step accepts an API key and
+writes a Kubernetes Secret, then records its name in `spec.secretRef`. Use the
+credential environment keys required by the selected adapter (Hermes uses
+`OPENAI_API_KEY`). The connection contains no credential values. For an
+unauthenticated endpoint, leave the key blank. The controller supplies an inert
+`OPENAI_API_KEY` placeholder because the SDK/adapter requires a nonempty setting
+even when the server does not authenticate. It creates no Secret.
 
 See [the complete Hermes example](../../config/samples/hermes-framework-connection.yaml)
 for the Agent and HarnessSession manifests. API/wizard Agent creation creates
 `<agent>-chat` automatically; declarative creation also requires a HarnessSession.
 
-In the wizard choose **Kubernetes → Hermes → Provider**, then select a saved
-connection or choose **Add connection**. Enter its provider, endpoint, model IDs,
-and optional Secret reference. Selecting a connection skips the inline API-key
-step. The model step selects from the connection's declared models.
+In the wizard choose **Kubernetes → Hermes**, then use the ordinary
+**Provider → Auth → Model** steps. The wizard persists that selection as a
+`<agent>-connection` ModelConnection, so creating a route is identical to
+creating a one-shot run. Providers that are not OpenAI-compatible are hidden for
+a Kubernetes harness; connect them through a gateway. A run against an Agent
+with a connection inherits the connection's model route.
 
 The API exposes `GET /api/v1/model-connections` and
-`POST /api/v1/model-connections` (body `{name, spec}`), using the standard namespace
-query parameter and API authentication. Connections can be changed or disabled
+`POST /api/v1/model-connections` (body `{name, spec, apiKey?}`). When `apiKey`
+is supplied the server creates the Secret and sets `spec.secretRef`; re-posting
+the same name updates the connection. Requests use the standard namespace query
+parameter and API authentication. Connections can be changed or disabled
 through the Kubernetes API. The listing reports configuration, not a claim of
 provider reachability or model/tool compatibility.
 

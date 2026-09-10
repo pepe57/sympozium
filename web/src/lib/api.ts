@@ -1439,7 +1439,7 @@ export const api = {
 
   modelConnections: {
     list: () => apiFetch<ModelConnection[]>("/api/v1/model-connections"),
-    create: (data: { name: string; spec: ModelConnection["spec"] }) => apiFetch<ModelConnection>("/api/v1/model-connections", { method: "POST", body: JSON.stringify(data) }),
+    create: (data: { name: string; spec: ModelConnection["spec"]; apiKey?: string }) => apiFetch<ModelConnection>("/api/v1/model-connections", { method: "POST", body: JSON.stringify(data) }),
   },
 
   cellnTools: {
