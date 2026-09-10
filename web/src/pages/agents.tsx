@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { executionFromWizard } from "@/lib/agent-execution";
 import {
   useAgents,
@@ -37,22 +37,21 @@ export function AgentsPage() {
   const { data: policies } = usePolicies();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const deleteAgent = useDeleteAgent();
   const createAgent = useCreateAgent();
   const [wizardOpen, setWizardOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [whatsAppInstance, setWhatsAppInstance] = useState<string | null>(null);
-  const autoOpenConsumed = useRef(false);
   const harnessIncompatibleSkills = (skillPacks || [])
     .filter((skill) => skill.spec.sidecar?.hostAccess?.enabled)
     .map((skill) => skill.metadata.name);
 
   useEffect(() => {
-    if (searchParams.get("create") === "1" && !autoOpenConsumed.current) {
-      autoOpenConsumed.current = true;
+    if (searchParams.get("create") === "1") {
       setWizardOpen(true);
     }
-  }, [searchParams]);
+  }, [searchParams, location.key]);
 
   const filtered = (data || [])
     .filter((inst) =>
@@ -273,9 +272,11 @@ export function AgentsPage() {
 
       {/* Shared onboarding wizard in agent mode */}
       <OnboardingWizard
+        key={location.key}
         open={wizardOpen}
         onClose={() => setWizardOpen(false)}
         mode="agent"
+        creationKind={searchParams.get("kind") === "harness" || searchParams.has("runtime") ? "harness" : "run"}
         availableSkills={(skillPacks || []).map((s) => s.metadata.name)}
         availableRuntimes={runtimes || []}
         availablePolicies={policies || []}

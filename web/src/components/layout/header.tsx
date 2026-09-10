@@ -1,6 +1,6 @@
 import { useAuth } from "@/components/auth-provider";
 import { getNamespace, setNamespace } from "@/lib/api";
-import { useNamespaces, useCanaryConfig, useRuntimes, useInstallDefaultRuntimes } from "@/hooks/use-api";
+import { useNamespaces, useCanaryConfig } from "@/hooks/use-api";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -9,26 +9,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Activity, LogOut, Wifi, WifiOff } from "lucide-react";
+import { Activity, LogOut, Wifi, WifiOff, Plus, Shield, Play } from "lucide-react";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { useState } from "react";
 import { formatAge } from "@/lib/utils";
-import { persistentHarnesses, persistentHarnessName } from "@/lib/persistent-harness";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Bot, Plus, Shield } from "lucide-react";
 
 export function Header() {
   const { logout } = useAuth();
   const { connected } = useWebSocket();
   const { data: namespaces } = useNamespaces();
   const { data: canary } = useCanaryConfig();
-  const { data: runtimes } = useRuntimes();
-  const installDefaultRuntimes = useInstallDefaultRuntimes();
   const [ns, setNs] = useState(getNamespace());
   const [createOpen, setCreateOpen] = useState(false);
-  const [choosingHarness, setChoosingHarness] = useState(false);
   const navigate = useNavigate();
 
   const handleNsChange = (value: string) => {
@@ -116,47 +111,21 @@ export function Header() {
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{choosingHarness ? "Choose a Harness" : "Create"}</DialogTitle>
-            <DialogDescription>{choosingHarness ? "Choose Pi or Hermes for a persistent conversation and workspace." : <>Choose what you want to create in namespace <span className="font-mono">{ns}</span>.</>}</DialogDescription>
+            <DialogTitle>Create</DialogTitle>
+            <DialogDescription>Choose how you want to work.</DialogDescription>
           </DialogHeader>
-          {choosingHarness ? (
-            <div className="space-y-3">
-              {persistentHarnesses(runtimes || []).length === 0 ? (
-                <div className="space-y-3 rounded-lg border border-border p-4">
-                  <p className="text-sm">No approved harnesses are installed in this namespace.</p>
-                  <p className="text-xs text-muted-foreground">Install the curated persistent runtimes plus their approving policy. This never accepts an arbitrary image.</p>
-                  <Button size="sm" onClick={() => installDefaultRuntimes.mutate()} disabled={installDefaultRuntimes.isPending}>{installDefaultRuntimes.isPending ? "Installing…" : "Install default harnesses"}</Button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {persistentHarnesses(runtimes || []).map((runtime) => {
-                    return <button key={runtime.metadata.name} className="w-full rounded-lg border border-border p-3 text-left transition-colors hover:border-amber-500/60 hover:bg-amber-500/5" onClick={() => {
-                      setCreateOpen(false);
-                      setChoosingHarness(false);
-                      navigate(`/agents?create=1&runtime=${encodeURIComponent(runtime.metadata.name)}&policy=harness-examples`);
-                    }}>
-                      <div className="flex items-center gap-2"><Shield className="h-4 w-4 text-amber-500" /><span className="font-medium">{persistentHarnessName(runtime)}</span></div>
-                      <p className="mt-1 text-xs text-muted-foreground">Create an Agent and automatically start its persistent chat.</p>
-                    </button>;
-                  })}
-                </div>
-              )}
-              <Button variant="ghost" size="sm" onClick={() => setChoosingHarness(false)}>Back</Button>
-            </div>
-          ) : <>
           <div className="grid gap-3 sm:grid-cols-2">
-            <button className="rounded-lg border border-border p-4 text-left transition-colors hover:border-primary/60 hover:bg-primary/5" onClick={() => { setCreateOpen(false); navigate("/agents?create=1"); }}>
-              <Bot className="mb-3 h-5 w-5 text-primary" />
-              <p className="font-medium">Agent</p>
-              <p className="mt-1 text-xs text-muted-foreground">Create an Agent with a persistent Pi or Hermes harness.</p>
-            </button>
-            <button className="rounded-lg border border-border p-4 text-left transition-colors hover:border-primary/60 hover:bg-primary/5" onClick={() => setChoosingHarness(true)}>
-              <Shield className="mb-3 h-5 w-5 text-amber-500" />
+            <button className="rounded-lg border p-4 text-left hover:border-primary" onClick={() => { setCreateOpen(false); navigate("/agents?create=1&kind=harness"); }}>
+              <Shield className="mb-2 h-5 w-5" />
               <p className="font-medium">Harness</p>
-              <p className="mt-1 text-xs text-muted-foreground">Create an Agent backed by a trusted persistent runtime.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Ongoing work that keeps its context. Choose an execution plane — Celln or Kubernetes — then its runtime and tools.</p>
+            </button>
+            <button className="rounded-lg border p-4 text-left hover:border-primary" onClick={() => { setCreateOpen(false); navigate("/agents?create=1&kind=run"); }}>
+              <Play className="mb-2 h-5 w-5" />
+              <p className="font-medium">Run</p>
+              <p className="mt-1 text-xs text-muted-foreground">One-shot work that finishes and exits. Configure an Agent with a provider, model, and SkillPacks.</p>
             </button>
           </div>
-          </>}
         </DialogContent>
       </Dialog>
     </header>

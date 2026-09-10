@@ -43,7 +43,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCapabilities, useModels, useCellnTools } from "@/hooks/use-api";
-import { agentCreationSteps } from "@/lib/agent-execution";
 import { persistentHarnesses, persistentHarnessName } from "@/lib/persistent-harness";
 import { api } from "@/lib/api";
 import type { AgentRuntime, SympoziumPolicy, CellnSelection } from "@/lib/api";
@@ -234,6 +233,7 @@ interface OnboardingWizardProps {
   onClose: () => void;
   /** "agent" shows a Name step first; "persona" skips it; "canary" shows only provider/apikey/model */
   mode: "agent" | "persona" | "canary";
+  creationKind?: "run" | "harness";
   /** Display name shown in the dialog title */
   targetName?: string;
   /** Number of personas in the pack (persona mode only) */
@@ -272,14 +272,25 @@ type WizardStep =
 function stepsForMode(
   mode: "agent" | "persona" | "canary",
   celln = false,
-  runtimePreselected = false,
+  harness = false,
 ): WizardStep[] {
   if (mode === "canary") {
     return ["provider", "apikey", "model"];
   }
   if (mode === "agent") {
-    if (celln) return [...agentCreationSteps(true)] as WizardStep[];
-    return ["name", ...(runtimePreselected ? [] : ["runtime"]), "provider", "apikey", "model", "skills", "heartbeat", "channels", "confirm", "channelAction"] as WizardStep[];
+    if (harness) {
+      return [
+        "name",
+        "plane",
+        "runtime",
+        ...(celln
+          ? ["tools", "model"]
+          : ["skills", "provider", "apikey", "model", "heartbeat", "channels"]),
+        "confirm",
+        "channelAction",
+      ] as WizardStep[];
+    }
+    return ["name", "provider", "apikey", "model", "skills", "heartbeat", "channels", "confirm", "channelAction"];
   }
   return [
     "provider",
@@ -535,6 +546,7 @@ export function OnboardingWizard({
   onClose,
   mode,
   targetName,
+  creationKind = "run",
   agentConfigCount,
   availableSkills = [],
   availableRuntimes = [],
@@ -544,8 +556,9 @@ export function OnboardingWizard({
   onComplete,
   isPending,
 }: OnboardingWizardProps) {
-  const selectableRuntimes = persistentHarnesses(availableRuntimes);
-  const defaultRuntimeRef = selectableRuntimes.some(
+  const persistentRuntimes = persistentHarnesses(availableRuntimes);
+  const nativeRuntimes = availableRuntimes.filter((runtime) => runtime.spec.celln?.contractVersion === "celln.json-tools/v1");
+  const defaultRuntimeRef = availableRuntimes.some(
     (runtime) => runtime.metadata.name === defaults?.runtimeRef,
   ) ? defaults?.runtimeRef || "" : "";
   const [step, setStep] = useState<WizardStep>(mode === "agent" ? "name" : "provider");
@@ -578,13 +591,30 @@ export function OnboardingWizard({
     awsSessionToken: defaults?.awsSessionToken || "",
     runtimeRef: defaultRuntimeRef,
     policyRef: defaults?.policyRef || "",
-    executionBackend: mode === "agent" ? "job" : defaults?.executionBackend || "job",
+    executionBackend: defaults?.executionBackend || "job",
     executionLifecycle: defaults?.executionLifecycle || "one-shot",
     borrowedTools: defaults?.borrowedTools || [],
   });
+  // Skill compatibility can arrive after the form defaults or harness selection.
+  const incompatibleSkillsKey = JSON.stringify(harnessIncompatibleSkills);
+  useEffect(() => {
+    setForm((current) => {
+      if (!current.runtimeRef) return current;
+      const skills = current.skills.filter((skill) => !harnessIncompatibleSkills.includes(skill));
+      return skills.length === current.skills.length ? current : { ...current, skills };
+    });
+  }, [form.runtimeRef, incompatibleSkillsKey]);
   const celln = mode === "agent" && form.executionBackend === "celln";
-  const steps = stepsForMode(mode, celln, !!defaultRuntimeRef);
+  const selectableRuntimes = celln ? nativeRuntimes : persistentRuntimes;
+  const steps = stepsForMode(mode, celln, creationKind === "harness");
   const catalogue = useCellnTools();
+  const toolsInitialized = useRef(defaults?.borrowedTools !== undefined);
+  useEffect(() => {
+    if (!celln || toolsInitialized.current || !catalogue.data) return;
+    toolsInitialized.current = true;
+    const borrowedTools = catalogue.data.filter((tool) => tool.spec.invocationABI === "celln.json-stdio/v1" && tool.spec.lane === "tool").map((tool) => ({ name: tool.metadata.name, revision: tool.spec.revision }));
+    setForm((current) => ({ ...current, borrowedTools }));
+  }, [celln, catalogue.data]);
   const selectedRuntime = selectableRuntimes.find((runtime) => runtime.metadata.name === form.runtimeRef);
   const compatibleRuntime = celln
     ? selectedRuntime?.spec.celln?.contractVersion === "celln.json-tools/v1"
@@ -668,11 +698,11 @@ export function OnboardingWizard({
       case "name":
         return nameValid;
       case "runtime":
-        return selectableRuntimes.some((runtime) => runtime.metadata.name === form.runtimeRef);
+        return !!form.runtimeRef && compatibleRuntime;
       case "provider":
         return !!form.provider;
       case "plane":
-        return compatibleRuntime;
+        return true;
       case "tools":
         return !catalogue.isLoading && !catalogue.isError && !staleTools && (form.borrowedTools || []).length <= 16;
       case "apikey":
@@ -775,6 +805,7 @@ export function OnboardingWizard({
 
   // Reset form when defaults change (new wizard opened)
   function resetWith(d: Partial<WizardResult>) {
+    toolsInitialized.current = d.borrowedTools !== undefined;
     setForm({
       name: d.name || "",
       provider: d.provider || "",
@@ -798,9 +829,9 @@ export function OnboardingWizard({
       awsAccessKeyId: d.awsAccessKeyId || "",
       awsSecretAccessKey: d.awsSecretAccessKey || "",
       awsSessionToken: d.awsSessionToken || "",
-      runtimeRef: selectableRuntimes.some((runtime) => runtime.metadata.name === d.runtimeRef) ? d.runtimeRef : "",
+      runtimeRef: availableRuntimes.some((runtime) => runtime.metadata.name === d.runtimeRef) ? d.runtimeRef : "",
       policyRef: d.policyRef || "",
-      executionBackend: mode === "agent" ? "job" : d.executionBackend || "job",
+      executionBackend: d.executionBackend || "job",
       executionLifecycle: d.executionLifecycle || "one-shot",
       borrowedTools: d.borrowedTools || [],
     });
@@ -860,7 +891,9 @@ export function OnboardingWizard({
             {mode === "canary"
               ? "Choose a provider and model for the system health canary."
               : mode === "agent"
-                ? "Choose a persistent Pi or Hermes harness, provider, model, and skills."
+                ? creationKind === "harness"
+                  ? "Choose an execution plane, runtime, and tools for ongoing work."
+                  : "Configure an Agent for one-shot runs with a provider, model, and SkillPacks."
                 : "Configure provider, model, skills, and channels to activate this ensemble."}
           </DialogDescription>
         </DialogHeader>
@@ -897,9 +930,9 @@ export function OnboardingWizard({
         {step === "runtime" && (
           <div className="space-y-4">
             <div>
-              <Label>Choose a persistent harness</Label>
+              <Label>{celln ? "Choose a native Celln runtime" : "Choose a persistent harness"}</Label>
               <p className="mt-1 text-xs text-muted-foreground">
-                Pi and Hermes keep a persistent conversation and workspace. Choose the harness for this Agent.
+                {celln ? "Choose an installed native runtime for an enduring Celln parent. Model credentials remain on the host." : "Pi and Hermes keep a persistent conversation and workspace. Choose the harness for this Agent."}
               </p>
             </div>
             <Select
@@ -910,28 +943,28 @@ export function OnboardingWizard({
                 setForm({
                   ...form,
                   runtimeRef,
-                  executionBackend: "job",
+                  skills: form.skills.filter((skill) => !harnessIncompatibleSkills.includes(skill)),
                   policyRef: runtimeRef && isDefaultCatalog ? "harness-examples" : runtimeRef ? form.policyRef : "",
                 });
               }}
             >
-              <SelectTrigger><SelectValue placeholder="Choose Pi or Hermes" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={celln ? "Choose native Celln runtime" : "Choose Pi or Hermes"} /></SelectTrigger>
               <SelectContent>
                 {selectableRuntimes.map((runtime) => (
                   <SelectItem key={runtime.metadata.name} value={runtime.metadata.name}>
-                    {persistentHarnessName(runtime)} — persistent chat
+                    {celln ? runtime.metadata.name : `${persistentHarnessName(runtime)} — persistent chat`}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {form.runtimeRef ? (
               <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">Harness selected: {selectedRuntime ? persistentHarnessName(selectedRuntime) : form.runtimeRef}.</span>{" "}
-                Your conversation runs in a persistent Kubernetes session. Choose its provider and model in the next steps.
+                <span className="font-medium text-foreground">Harness selected: {selectedRuntime ? persistentHarnessName(selectedRuntime) || selectedRuntime.metadata.name : form.runtimeRef}.</span>{" "}
+                {celln ? "This conversation uses an enduring Celln parent. Its tools and model are checked at run admission." : "Your conversation runs in a persistent Kubernetes session."}
               </div>
             ) : (
               <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
-                Choose Pi or Hermes to continue. If neither is listed, install the default harnesses from Create → Harness.
+                {celln ? "Select a native Celln runtime registered in this namespace. Native Celln runtimes are namespace-scoped: the Agent must live where the runtime was registered (for example celln-agents). The Celln host itself is cluster-wide." : "Choose Pi or Hermes to continue. Install the default persistent runtimes if none are listed."}
               </div>
             )}
             {form.runtimeRef && !availablePolicies.some((policy) => policy.metadata.name === form.policyRef) && (
@@ -944,56 +977,62 @@ export function OnboardingWizard({
         {step === "plane" && <div className="space-y-3">
             <div className="space-y-2" data-testid="create-agent-execution-environment">
               <Label>Execution plane</Label>
-              <p className="text-xs text-muted-foreground">Kubernetes remains the product default. Celln is a privileged opt-in. Harness selection alone does not choose Celln or grant tools.</p>
+              <p className="text-xs text-muted-foreground">Celln uses a hardware-isolated native parent. Kubernetes runs a persistent Pi or Hermes session.</p>
               <div className="grid gap-2 sm:grid-cols-2">
-                {([["job", "Kubernetes", "Default · containers and OCI"], ["celln", "Celln", "Opt-in · hardware-isolated"]] as const).map(([value, title, description]) => (
+                {([["job", "Kubernetes", "Persistent Pi or Hermes"], ["celln", "Celln", "Persistent native parent"]] as const).map(([value, title, description]) => (
                   <button
                     key={value}
                     type="button"
                     className={`rounded-md border p-3 text-left ${form.executionBackend === value ? "border-primary bg-primary/5" : "border-border"}`}
-                    onClick={() => setForm({
-                      ...form,
-                      executionBackend: value,
-                      executionLifecycle: value === "celln" ? form.executionLifecycle || "one-shot" : "one-shot",
-                      provider: value === "celln" ? "deepseek" : form.provider,
-                      model: value === "celln" ? "deepseek-chat" : form.model,
-                      apiKey: value === "celln" ? "" : form.apiKey,
-                      secretName: value === "celln" ? "" : form.secretName,
-                      baseURL: value === "celln" ? "" : form.baseURL,
-                      modelRef: value === "celln" ? undefined : form.modelRef,
-                      agentSandboxEnabled: value === "celln" ? false : form.agentSandboxEnabled,
-                      channels: value === "celln" ? [] : form.channels,
-                      heartbeatInterval: value === "celln" ? "" : form.heartbeatInterval,
-                    })}
+                    onClick={() => {
+                      toolsInitialized.current = false;
+                      const planeRuntimes = value === "celln" ? nativeRuntimes : persistentRuntimes;
+                      const keepRuntime = planeRuntimes.some((runtime) => runtime.metadata.name === form.runtimeRef);
+                      setForm({
+                        ...form,
+                        runtimeRef: keepRuntime ? form.runtimeRef : "",
+                        skills: value === "celln" ? [] : form.skills,
+                        borrowedTools: [],
+                        executionBackend: value,
+                        executionLifecycle: value === "celln" ? "enduring" : "one-shot",
+                        provider: value === "celln" ? "deepseek" : form.provider,
+                        model: value === "celln" ? "deepseek-chat" : form.model,
+                        apiKey: value === "celln" ? "" : form.apiKey,
+                        secretName: value === "celln" ? "" : form.secretName,
+                        baseURL: value === "celln" ? "" : form.baseURL,
+                        modelRef: value === "celln" ? undefined : form.modelRef,
+                        agentSandboxEnabled: value === "celln" ? false : form.agentSandboxEnabled,
+                        channels: value === "celln" ? [] : form.channels,
+                        heartbeatInterval: value === "celln" ? "" : form.heartbeatInterval,
+                      });
+                    }}
                   >
                     <p className="text-sm font-medium">{title}</p>
                     <p className="text-xs text-muted-foreground">{description}</p>
                   </button>
                 ))}
               </div>
+              {form.executionBackend === "job" && persistentRuntimes.length === 0 && (
+                <p role="status" className="text-xs text-amber-500">No persistent Pi or Hermes harness is installed in this namespace. Install the default harnesses, or choose Celln.</p>
+              )}
+              {form.executionBackend === "celln" && nativeRuntimes.length === 0 && (
+                <p role="status" className="text-xs text-amber-500">No native Celln runtime is registered in this namespace. Native Celln runtimes are namespace-scoped — create this Agent in the namespace that holds the runtime registration (for example celln-agents), or choose Kubernetes. The Celln host itself is cluster-wide.</p>
+              )}
               {form.executionBackend === "celln" && (
                 <div className="space-y-2 rounded-md border p-3">
-                  <Label>Default Celln lifecycle</Label>
-                  <div className="flex gap-4 text-sm">
-                    {(["one-shot", "enduring"] as const).map((value) => (
-                      <label key={value} className="flex items-center gap-2">
-                        <input type="radio" name="create-agent-lifecycle" checked={form.executionLifecycle === value} onChange={() => setForm({ ...form, executionLifecycle: value })} />
-                        {value}
-                      </label>
-                    ))}
-                  </div>
+                  <Label>Enduring Celln parent</Label>
                   <p className="text-xs text-muted-foreground">
-                    You will choose borrowed tools before creating this Agent. An empty selection explicitly lends no tools. Model credentials stay on the host; this flow does not create a model-key Secret or configure channels/heartbeats. {capabilities?.celln?.available ? capabilities.celln.reason : `Celln readiness: ${capabilities?.celln?.state || "unknown"} — ${capabilities?.celln?.reason || "not confirmed"}.`}
+                    All compatible borrowed tools start selected in the next steps. SkillPacks are skipped for Celln. An empty selection explicitly lends no tools. Model credentials stay on the host; this flow does not create a model-key Secret or configure channels/heartbeats. {capabilities?.celln?.available ? capabilities.celln.reason : `Celln readiness: ${capabilities?.celln?.state || "unknown"} — ${capabilities?.celln?.reason || "not confirmed"}.`}
                   </p>
                 </div>
               )}
             </div>
-          {!compatibleRuntime && <p role="alert" className="text-sm text-red-400">{celln ? "Choose a native Celln harness in the previous step. The built-in Kubernetes runner and OCI-only harnesses cannot run in Celln." : "This harness has no Kubernetes image. Go back to select a Kubernetes-compatible harness, or choose Celln."}</p>}
+
         </div>}
 
         {step === "tools" && <div className="space-y-3" data-testid="create-agent-borrowed-tools">
           <h3 className="font-medium">Borrow tools for Celln</h3>
-          <p className="text-sm text-muted-foreground">Select installed, reviewed revisions to request for this Agent’s runs. This saves defaults, not permission grants. Effective operator/runtime/Agent permissions can be previewed on the Harness tab after the Agent exists and are checked again before execution.</p>
+          <p className="text-sm text-muted-foreground">All compatible installed tools are selected by default; deselect any you do not want. This saves defaults, not permission grants. Effective operator/runtime/Agent permissions can be previewed on the Harness tab after the Agent exists and are checked again before execution.</p>
           {catalogue.isLoading && <p>Loading tool catalogue…</p>}
           {catalogue.isError && <p role="alert">Cannot load the tool catalogue. Retry before creating this Agent.</p>}
           {catalogue.isError && <Button type="button" onClick={() => catalogue.refetch()}>Retry catalogue</Button>}
@@ -1012,6 +1051,7 @@ export function OnboardingWizard({
               <span className="block text-xs text-muted-foreground">Limit: {tool.spec.limits.timeoutMillis} ms · workspace: {tool.spec.limits.workspace} · effects: {tool.spec.limits.effects}</span>
             </label>;
           })}
+          {(form.borrowedTools || []).length > 16 && <p role="alert">Select at most 16 tools to continue.</p>}
           <p className="text-xs">{(form.borrowedTools || []).length}/16 selected. No shell, Python, host mounts or unrestricted network access is included.</p>
           {staleTools && <p role="alert">The catalogue changed. Clear the selection and choose current revisions.</p>}
           {!!form.borrowedTools?.length && <Button type="button" variant="outline" onClick={() => setForm({ ...form, borrowedTools: [] })}>Lend no tools</Button>}
@@ -1410,8 +1450,14 @@ export function OnboardingWizard({
           <ScrollArea className="max-h-[60vh]">
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Select SkillPacks to attach.
+                {creationKind === "harness"
+                  ? "Select SkillPacks to attach. Skills that require host access are excluded from this harness."
+                  : "Select SkillPacks to attach to this one-shot Agent."}
               </p>
+              {!celln && form.runtimeRef && <div className="space-y-2 rounded border p-3 text-sm" data-testid="borrowed-tool-availability">
+                <p className="font-medium">Borrowed tools (Celln)</p>
+                <p className="text-xs text-muted-foreground">The installed Pi and Hermes harnesses use Kubernetes sessions and cannot borrow native Celln tools. Use compatible SkillPacks here. For an existing native Celln Agent, select tools under Agent → Harness → Approved borrowed tools.</p>
+              </div>}
               {celln && <div className="space-y-2 rounded border p-3 text-sm" data-testid="native-skill-compatibility">
                 <p>Native Celln does not support SkillPacks yet, including memory and Kubernetes administration sidecars. Borrowed tools are selected next. Existing Kubernetes SkillPacks remain available on the Kubernetes plane.</p>
                 {form.skills.length > 0 && <Button type="button" variant="outline" onClick={() => setForm({ ...form, skills: [] })}>Continue without SkillPacks</Button>}
@@ -1429,13 +1475,14 @@ export function OnboardingWizard({
                         const selected = form.skills.includes(skill);
                         const locked = skill === "memory";
                         const incompatible = celln || (!!form.runtimeRef && harnessIncompatibleSkills.includes(skill));
+                        const disabled = incompatible ? !selected : locked;
                         return (
                           <button
                             key={skill}
                             type="button"
-                            disabled={locked || incompatible}
+                            disabled={disabled}
                             onClick={() => {
-                              if (locked || incompatible) return;
+                              if (disabled) return;
                               const next = selected
                                 ? form.skills.filter((s) => s !== skill)
                                 : [...form.skills, skill];
@@ -1443,7 +1490,9 @@ export function OnboardingWizard({
                             }}
                             className={cn(
                               "flex w-full items-center justify-between rounded-md border px-2.5 py-2 text-left text-xs transition-colors",
-                              locked || incompatible
+                              incompatible && !selected
+                                ? "border-transparent text-muted-foreground opacity-60 cursor-not-allowed"
+                                : locked
                                 ? "border-blue-500/40 bg-blue-500/15 text-blue-300 opacity-70 cursor-not-allowed"
                                 : selected
                                   ? "border-blue-500/40 bg-blue-500/15 text-blue-300"
@@ -1455,7 +1504,7 @@ export function OnboardingWizard({
                               {locked
                                 ? "Required"
                                 : incompatible
-                                  ? "Not compatible with harnesses"
+                                  ? selected ? "Remove incompatible skill" : "Not compatible with harnesses"
                                 : selected
                                   ? "Selected"
                                   : "Select"}

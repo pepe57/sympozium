@@ -16,42 +16,38 @@ describe("Agent creation execution-plane flow", () => {
   after(() => { request("DELETE", `agents/${name}`); });
 
   it("uses the requested order and keeps native selections out of Kubernetes defaults", () => {
-    expect(agentCreationSteps(true).slice(0, 5)).to.deep.equal(["name", "runtime", "plane", "skills", "tools"]);
+    expect(agentCreationSteps(true).slice(0, 5)).to.deep.equal(["name", "plane", "runtime", "tools", "model"]);
     expect(agentCreationSteps(false)).not.to.include("tools");
     expect(executionFromWizard({ executionBackend: "job", model: "test", borrowedTools: [{ name: "stale", revision: "v1" }] })).to.deep.equal({ backend: "job", executionLifecycle: "one-shot" });
   });
 
-  it("does not bypass the plane step for a preselected harness", () => {
+  it("requires an explicit execution plane and keeps a preselected native runtime", () => {
     visit("/agents?create=1&runtime=celln-native");
     cy.get('input[placeholder="my-agent"]').type(name);
     cy.wizardNext();
-    cy.contains("label", "Harness / Run").should("be.visible");
-    cy.wizardNext();
     cy.get('[data-testid="create-agent-execution-environment"]').should("be.visible");
-    cy.contains("This harness has no Kubernetes image").should("be.visible");
-    cy.get('[role="dialog"]').contains("button", "Next").should("be.disabled");
+    cy.get('[data-testid="create-agent-execution-environment"]').contains("button", "Celln").click();
+    cy.wizardNext();
+    cy.contains("Choose a native Celln runtime").should("be.visible");
+    cy.contains("button", "Next").should("be.enabled");
   });
 
   it("creates a native Agent with pinned borrowed tools and matching YAML", () => {
     visit("/agents?create=1&runtime=celln-native");
     cy.get('input[placeholder="my-agent"]').type(name);
     cy.wizardNext();
-    cy.wizardNext();
     cy.get('[data-testid="create-agent-execution-environment"]').contains("button", "Celln").click();
-    cy.contains("label", "enduring").find("input").check();
     cy.wizardNext();
-    cy.get('[data-testid="native-skill-compatibility"]').should("be.visible");
-    cy.get('[role="dialog"]').contains("button", "Next").should("be.disabled");
-    cy.contains("button", "Continue without SkillPacks").click();
     cy.wizardNext();
     cy.get('[data-testid="create-agent-borrowed-tools"]').within(() => {
-      cy.contains("label", "workspace-read@").find('input[type="checkbox"]').check();
-      cy.contains("label", "workspace-write@").find('input[type="checkbox"]').check();
+      cy.contains("label", "workspace-read@").find('input[type="checkbox"]').should("be.checked");
+      cy.contains("label", "workspace-write@").find('input[type="checkbox"]').should("be.checked");
+      cy.contains("label", "https-fetch@").find('input[type="checkbox"]').uncheck();
     });
     cy.wizardNext();
     cy.get("#native-model").should("have.value", "deepseek-chat");
     cy.wizardNext();
-    cy.get('[data-testid="execution-confirmation"]').should("contain", "workspace-read@v1").and("contain", "workspace-write@v1");
+    cy.get('[data-testid="execution-confirmation"]').should("contain", "workspace-read@v1").and("contain", "workspace-write@v1").and("not.contain", "https-fetch@v1");
     cy.contains("button", "YAML").click();
     cy.get('[role="dialog"]').last().should("contain", "backend: celln").and("contain", "toolRefs:").and("contain", "workspace-write").and("not.contain", "skillPackRef: memory");
     cy.get("body").type("{esc}");
@@ -68,18 +64,19 @@ describe("Agent creation execution-plane flow", () => {
     });
   });
 
-  it("keeps SkillPacks in the Kubernetes flow and omits borrowing", () => {
-    visit("/agents?create=1");
+  it("keeps SkillPacks in the Kubernetes harness flow and omits borrowing", () => {
+    // The default namespace carries the curated Pi/Hermes persistent harnesses.
+    cy.visit("/agents?create=1&kind=harness");
     cy.get('input[placeholder="my-agent"]').type("cypress-kubernetes-flow");
     cy.wizardNext();
-    cy.contains("label", "Harness / Run").should("be.visible");
+    cy.get('[data-testid="create-agent-execution-environment"]').contains("button", "Kubernetes").click();
     cy.wizardNext();
-    cy.get('[data-testid="create-agent-execution-environment"]').contains("Kubernetes");
+    cy.contains("Choose a persistent harness").should("be.visible");
+    cy.get('[role="dialog"]').find('[role="combobox"]').click();
+    cy.get('[role="option"]').contains("Pi — persistent chat").click();
     cy.wizardNext();
     cy.contains("Select SkillPacks to attach").should("be.visible");
-    cy.get('[data-testid="native-skill-compatibility"]').should("not.exist");
-    cy.wizardNext();
     cy.get('[data-testid="create-agent-borrowed-tools"]').should("not.exist");
-    cy.contains("label", "AI Provider").should("exist");
+    cy.get('[data-testid="borrowed-tool-availability"]').should("contain", "cannot borrow native Celln tools");
   });
 });
