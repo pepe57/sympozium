@@ -1,5 +1,16 @@
-# Framework's current llama-server endpoint/model. Adjust for your installation.
-# Requires the default persistent Hermes runtime and harness-examples policy.
+# Persistent harness + model connection example.
+#
+# A ModelConnection is a reusable model route. The Agent selects it with
+# spec.execution.modelConnectionRef and the HarnessSession starts the persistent
+# workload. The controller resolves the connection and pins its revision before
+# the session starts, so a conversation is never silently redirected to another
+# provider.
+#
+# This example points Hermes and Pi at a local llama-server ("Framework").
+# Adjust the endpoint, model, and runtime names for your installation. The
+# runtimeRef must match an installed AgentRuntime; the endpoint must be
+# reachable from the cluster and speak the OpenAI-compatible chat protocol.
+---
 apiVersion: sympozium.ai/v1alpha1
 kind: ModelConnection
 metadata:
@@ -8,10 +19,13 @@ metadata:
 spec:
   provider: llama-server
   protocol: openai-chat
+  # Full request URL or API base URL; a trailing /chat/completions is trimmed.
   endpoint: http://192.168.1.237:8080/v1/chat/completions
   models:
     - Qwen3.8-27B-UD-Q4_K_XL.gguf
-  # No Secret is needed for this unauthenticated local server.
+  # No Secret is needed for this unauthenticated local server. For an
+  # authenticated endpoint, reference a Secret with spec.secretRef. The wizard
+  # writes that Secret from the API key entered on the Auth step.
 ---
 apiVersion: sympozium.ai/v1alpha1
 kind: Agent
@@ -38,5 +52,33 @@ metadata:
 spec:
   agentRef: hermes-framework
   runtimeRef: hermes-session-v0-20-6
+  desiredState: running
+  idleTimeout: 30m
+---
+apiVersion: sympozium.ai/v1alpha1
+kind: Agent
+metadata:
+  name: pi-framework
+  namespace: default
+spec:
+  runtimeRef: pi-session-v0-84-4
+  policyRef: harness-examples
+  execution:
+    backend: job
+    modelConnectionRef: framework-llama
+  agents:
+    default:
+      model: Qwen3.8-27B-UD-Q4_K_XL.gguf
+  memory:
+    enabled: false
+---
+apiVersion: sympozium.ai/v1alpha1
+kind: HarnessSession
+metadata:
+  name: pi-framework-chat
+  namespace: default
+spec:
+  agentRef: pi-framework
+  runtimeRef: pi-session-v0-84-4
   desiredState: running
   idleTimeout: 30m
