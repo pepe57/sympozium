@@ -180,6 +180,26 @@ The host-level dispatcher (not the Sympozium controller) needs one of:
 
 If none of the above is true on a given KVM node, that node's dispatcher is still installed and healthy from Kubernetes' point of view (the router's health check only verifies `/dev/kvm` and non-empty tool/mote stores, not provider availability) — the failure only surfaces when a task is actually dispatched, as an AgentRun `Failed` status with the provider's own auth error (e.g. *"`claude` has no saved login and ANTHROPIC_API_KEY is not set — authenticate it or set a key"*).
 
+### Host requirement: a musl linker for `forge`
+
+The dispatcher's `forge` step compiles model-generated Rust to the
+`x86_64-unknown-linux-musl` target. The installer ships the Rust toolchain and
+the musl *standard library*, but it does **not** install a linker: building a
+musl binary needs `musl-gcc` (or a C compiler configured for musl) on the host
+itself. Without it, `rustc` compiles but fails at the link step with
+`no default linker (cc) was found`.
+
+Install it on each KVM node before dispatching code-generating runs:
+
+```sh
+# Debian/Ubuntu
+apt-get install -y musl-tools
+```
+
+This is separate from — and in addition to — the AI-provider requirement above.
+The installer does not provision it because linking happens in the host's
+dispatcher, not inside the installer container.
+
 ## Graceful Degradation
 
 | Scenario | Behavior |

@@ -1,7 +1,7 @@
 # Native release handoff — 2026-09-09
 
 Release pair: Celln v0.5.8 and Sympozium v0.10.57. The artifact dependency is
-recorded in `images/celln-parent-controller/celln-release.json`; the host package
+recorded in `config/celln/release.json`; the host package
 also records both sources and checksums. Publication/install checks are recorded
 on PR #470 rather than inferred from a tag alone.
 

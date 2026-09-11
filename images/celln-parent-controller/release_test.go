@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"os"
 	"regexp"
+	"strings"
 	"testing"
 
 	"sigs.k8s.io/yaml"
 )
 
 func TestCellnReleaseDependencyIsPinned(t *testing.T) {
-	raw, err := os.ReadFile("celln-release.json")
+	raw, err := os.ReadFile("../../config/celln/release.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,5 +59,23 @@ func TestReleasePublishesEveryStandardBuildImage(t *testing.T) {
 		if !released[name] {
 			t.Errorf("image %s builds on main but is absent from releases", name)
 		}
+	}
+}
+
+// TestInstallerUsesCentralCellnPin guards against a second copy of the Celln
+// image digest drifting into the installer Dockerfile. The digest must come
+// from config/celln/release.json via the CELLN_IMAGE build arg, not be
+// hardcoded next to the Dockerfile.
+func TestInstallerUsesCentralCellnPin(t *testing.T) {
+	dockerfile, err := os.ReadFile("../celln-installer/Dockerfile")
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(dockerfile)
+	if !strings.Contains(content, "ARG CELLN_IMAGE") {
+		t.Fatal("installer Dockerfile must consume CELLN_IMAGE from the central pin")
+	}
+	if strings.Contains(content, "celln@sha256:") {
+		t.Fatal("installer Dockerfile hardcodes a Celln image digest; use config/celln/release.json via CELLN_IMAGE")
 	}
 }

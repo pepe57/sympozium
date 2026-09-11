@@ -212,8 +212,8 @@ context allowlist excludes local `target/` evidence and credentials.
 
 Do not substitute an older published Celln image simply because it contains a
 binary with the right name. Native parent protocol/provisioning support must be
-qualified. The exact release dependency is pinned in
-`images/celln-parent-controller/celln-release.json`.
+qualified. The exact release dependency — Celln version, archive checksum and
+image digest — is pinned in `config/celln/release.json`.
 
 Merge the following settings into a reviewed installation's values. Placeholders
 are intentionally invalid; render/inspect before applying. Do not use
