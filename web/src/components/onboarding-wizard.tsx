@@ -224,6 +224,8 @@ export interface WizardResult {
   modelConnectionRef?: string;
   /** Opaque host credential mapping for a native Celln model connection. */
   credentialProfile?: string;
+  /** Explicit opt-in for an HTTP or self-signed private native model endpoint. */
+  allowInsecure?: boolean;
   executionBackend?: "job" | "celln";
   /** Default Celln lifecycle when executionBackend is celln. */
   executionLifecycle?: "one-shot" | "enduring";
@@ -588,7 +590,9 @@ function modelConnectionSpec(
       ? "anthropic-messages"
       : "openai-chat";
   const auth = celln
-    ? { credentialProfile: result.credentialProfile }
+    ? // The host operator maps the provider to a credential profile by default;
+      // the field is only overridden under Advanced.
+      { credentialProfile: result.credentialProfile || result.provider }
     : result.apiKey || !result.secretName
       ? {}
       : { secretRef: result.secretName };
@@ -598,6 +602,7 @@ function modelConnectionSpec(
     endpoint,
     models: [result.model],
     ...auth,
+    ...(celln && result.allowInsecure ? { allowInsecure: true } : {}),
   };
 }
 
@@ -703,9 +708,19 @@ export function OnboardingWizard({
   // execution plane can actually reach.
   const providerChoices = useMemo(() => {
     if (celln) {
-      // Same providers as the run/agent flow. Native Celln needs an HTTPS
-      // endpoint, which is validated when the connection is saved.
-      return PROVIDERS;
+      // The native Celln host transport only reaches public HTTPS endpoints by
+      // default. The explicit insecure opt-in also allows HTTP/self-signed
+      // local providers; Bedrock has no compatible protocol either way.
+      if (form.allowInsecure) {
+        return PROVIDERS.filter((p) => p.value !== "bedrock");
+      }
+      return PROVIDERS.filter(
+        (p) =>
+          p.value === "openai" ||
+          p.value === "anthropic" ||
+          p.value === "azure-openai" ||
+          p.value === "custom",
+      );
     }
     if (mode === "agent" && creationKind === "agent" && form.runtimeRef) {
       // Persistent Kubernetes harnesses speak OpenAI-compatible chat.
@@ -714,7 +729,7 @@ export function OnboardingWizard({
       );
     }
     return PROVIDERS;
-  }, [celln, mode, creationKind, form.runtimeRef]);
+  }, [celln, mode, creationKind, form.runtimeRef, form.allowInsecure]);
   const staleTools = (form.borrowedTools || []).some((ref) => !(catalogue.data || []).some((tool) => tool.metadata.name === ref.name && tool.spec.revision === ref.revision && tool.spec.invocationABI === "celln.json-stdio/v1" && tool.spec.lane === "tool"));
   const [inferenceMode, setInferenceMode] = useState<"workload" | "node">(
     "workload",
@@ -723,6 +738,7 @@ export function OnboardingWizard({
   const [showYaml, setShowYaml] = useState(false);
   const [savingConnection, setSavingConnection] = useState(false);
   const [connectionError, setConnectionError] = useState("");
+  const [advancedAuth, setAdvancedAuth] = useState(false);
   const { data: capabilities } = useCapabilities();
   const { data: clusterModels } = useModels();
   const [usingLocalModel, setUsingLocalModel] = useState(false);
@@ -804,7 +820,7 @@ export function OnboardingWizard({
       case "tools":
         return !catalogue.isLoading && !catalogue.isError && !staleTools && (form.borrowedTools || []).length <= 16;
       case "apikey":
-        if (celln) return !!form.credentialProfile;
+        if (celln) return true;
         if (form.modelConnectionRef) return true;
         if (
           form.provider === "ollama" ||
@@ -859,7 +875,7 @@ export function OnboardingWizard({
       compatibleRuntime;
     if (persistentHarness || celln) {
       const spec = modelConnectionSpec(result, celln);
-      if (celln && !spec.endpoint.startsWith("https://")) {
+      if (celln && !result.allowInsecure && !spec.endpoint.startsWith("https://")) {
         setConnectionError(
           "Native Celln needs an HTTPS model endpoint. Configure an HTTPS gateway or choose OpenAI, Anthropic, Azure, or a custom HTTPS endpoint.",
         );
@@ -1148,7 +1164,11 @@ export function OnboardingWizard({
                         executionLifecycle: value === "celln" ? "enduring" : "one-shot",
                         modelConnectionRef: value === form.executionBackend ? form.modelConnectionRef : undefined,
                         credentialProfile: "",
-                        provider: form.provider || "openai",
+                        provider:
+                          value === "celln" &&
+                          !["openai", "anthropic", "azure-openai", "custom"].includes(form.provider)
+                            ? "openai"
+                            : form.provider || "openai",
                         model: form.model || "gpt-4o",
                         apiKey: value === "celln" ? "" : form.apiKey,
                         secretName: value === "celln" ? "" : form.secretName,
@@ -1256,7 +1276,7 @@ export function OnboardingWizard({
                   <SelectValue placeholder="Select a provider…" />
                 </SelectTrigger>
                 <SelectContent>
-                  {readyModels.length > 0 && (
+                  {!celln && readyModels.length > 0 && (
                     <>
                       {readyModels.map((m) => (
                         <SelectItem
@@ -1285,6 +1305,23 @@ export function OnboardingWizard({
                 </SelectContent>
               </Select>
             </div>
+            {celln && (
+              <label className="flex items-start gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={!!form.allowInsecure}
+                  onChange={(e) =>
+                    setForm({ ...form, allowInsecure: e.target.checked })
+                  }
+                />
+                <span>
+                  Allow an insecure model endpoint (HTTP or self-signed HTTPS)
+                  on a private address. This is an explicit operator opt-in;
+                  without it native Celln reaches public HTTPS endpoints only.
+                </span>
+              </label>
+            )}
             {/* Inference mode toggle for local providers */}
             {isLocalProvider && (
               <div className="space-y-2">
@@ -1455,18 +1492,38 @@ export function OnboardingWizard({
             <div className="space-y-4">
               {celln ? (
                 <div className="space-y-2">
-                  <Label>Host credential profile</Label>
-                  <Input
-                    value={form.credentialProfile || ""}
-                    onChange={(e) =>
-                      setForm({ ...form, credentialProfile: e.target.value })
-                    }
-                    placeholder="team-provider-key"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    The host operator maps this profile to credentials. No key
-                    is stored in the cluster.
+                  <p className="text-sm text-muted-foreground">
+                    Native Celln keeps credentials on the host. The host
+                    operator maps this connection to a credential profile; no
+                    key is stored in the cluster.
                   </p>
+                  <button
+                    type="button"
+                    className="text-xs text-blue-400 hover:text-blue-300"
+                    onClick={() => setAdvancedAuth(!advancedAuth)}
+                  >
+                    {advancedAuth ? "Hide advanced" : "Advanced"}
+                  </button>
+                  {advancedAuth && (
+                    <div className="space-y-2">
+                      <Label>Host credential profile</Label>
+                      <Input
+                        value={form.credentialProfile || ""}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            credentialProfile: e.target.value,
+                          })
+                        }
+                        placeholder={form.provider}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Defaults to the provider name. Set this only if your
+                        host operator configured a different credential
+                        mapping.
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>
