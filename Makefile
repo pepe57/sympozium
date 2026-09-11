@@ -372,10 +372,21 @@ run-controller-inner: build-controller
 
 DOCKER_PLATFORMS ?= linux/amd64,linux/arm64
 
+# The Celln dependency (version + archive checksum + image digest) is pinned in
+# one place. Everything that layers onto the Celln image — the parent controller
+# and the host installer — reads it from here.
+CELLN_RELEASE ?= config/celln/release.json
+CELLN_IMAGE ?= ghcr.io/sympozium-ai/celln@$(shell sed -n 's/.*"imageDigest": *"\(sha256:[a-f0-9]*\)".*/\1/p' $(CELLN_RELEASE))
+
 docker-build: $(addprefix docker-build-,$(IMAGES)) ## Build all Docker images (native arch)
 
 docker-build-%: ## Build a specific Docker image (native arch)
 	docker buildx build --build-arg IMAGE_TAG=$(TAG) --load -t $(REGISTRY)/$*:$(TAG) -f images/$*/Dockerfile .
+
+docker-build-celln-installer: ## Build the Celln host-installer image (amd64; needs the Celln base image)
+	docker buildx build --load -t $(REGISTRY)/celln-installer:$(TAG) \
+		--build-arg CELLN_IMAGE=$(CELLN_IMAGE) \
+		-f images/celln-installer/Dockerfile .
 
 docker-buildx: $(addprefix docker-buildx-,$(IMAGES)) ## Build all Docker images for amd64+arm64
 

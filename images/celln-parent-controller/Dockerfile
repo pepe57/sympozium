@@ -1,6 +1,7 @@
 # Operator-only co-located parent provisioner. CELLN_IMAGE must be a qualified
 # digest-pinned Celln image containing /usr/local/bin/celln and its libraries.
 # It is never used as a guest/agent image and requires no KVM device.
+# The Celln version/digest pin lives in config/celln/release.json.
 ARG CELLN_IMAGE
 FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
 ARG TARGETOS=linux

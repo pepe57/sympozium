@@ -141,9 +141,11 @@ spec:
               mountPath: /etc/sympozium/celln-router-ca
               readOnly: true
             {{- end }}
+            {{- if .Values.celln.capabilityTokenSecret }}
             - name: celln-capability-token
               mountPath: /etc/celln/capability
               readOnly: true
+            {{- end }}
           {{- end }}
           {{- if and .Values.apiserver.webUI.enabled (not .Values.apiserver.webUI.token) }}
             - name: sympozium-ui-token
@@ -183,10 +185,12 @@ spec:
           configMap:
             name: {{ .Values.celln.caConfigMap | quote }}
         {{- end }}
+        {{- if .Values.celln.capabilityTokenSecret }}
         - name: celln-capability-token
           secret:
             secretName: {{ .Values.celln.capabilityTokenSecret | quote }}
             defaultMode: 0444
+        {{- end }}
       {{- end }}
       {{- if not .Values.apiserver.webUI.token }}
         - name: sympozium-ui-token

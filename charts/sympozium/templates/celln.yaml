@@ -19,8 +19,8 @@
 {{- end }}
 {{- $dispatcher := .Values.celln.dispatcher | default dict }}
 {{- $dispatcherImage := $dispatcher.image | default dict }}
-{{- $dispatcherRepo := $dispatcherImage.repository | default .Values.celln.image.repository | default "ghcr.io/sympozium-ai/celln-installer" }}
-{{- $dispatcherTag := $dispatcherImage.tag | default .Values.celln.image.tag | default "v0.4.13" }}
+{{- $dispatcherRepo := $dispatcherImage.repository | default .Values.celln.image.repository | default "ghcr.io/sympozium-ai/sympozium/celln-installer" }}
+{{- $dispatcherTag := $dispatcherImage.tag | default .Values.celln.image.tag | default .Chart.AppVersion }}
 {{- $clientToken := randAlphaNum 32 }}
 {{- with lookup "v1" "Secret" .Release.Namespace $clientSecret }}{{ $clientToken = index .data "token" | b64dec }}{{ end }}
 {{- $backendToken := randAlphaNum 32 }}
@@ -186,7 +186,7 @@ spec:
       hostPID: true
       containers:
       - name: installer
-        image: {{ .Values.celln.image.repository | default "ghcr.io/sympozium-ai/celln-installer" }}:{{ .Values.celln.image.tag | default "v0.4.13" }}
+        image: {{ .Values.celln.image.repository | default "ghcr.io/sympozium-ai/sympozium/celln-installer" }}:{{ .Values.celln.image.tag | default .Chart.AppVersion }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         securityContext:
           privileged: true
