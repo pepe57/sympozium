@@ -6,16 +6,19 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/sympozium-ai/sympozium/pkg/telemetry"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -251,6 +254,17 @@ func traceMetadata(ctx context.Context) map[string]string {
 		"span_id":     sc.SpanID().String(),
 		"traceparent": formatTraceparent(sc),
 	}
+}
+
+// tracingHTTPClient returns an *http.Client that injects traceparent into
+// every request. Propagator is pinned, not left to the global, since
+// initObservability skips telemetry.Init (which sets the global) when OTel
+// is disabled or the collector is unreachable.
+func tracingHTTPClient() *http.Client {
+	return &http.Client{Transport: otelhttp.NewTransport(
+		http.DefaultTransport,
+		otelhttp.WithPropagators(propagation.TraceContext{}),
+	)}
 }
 
 func formatTraceparent(sc trace.SpanContext) string {
