@@ -100,7 +100,7 @@ func Partitioned(args []string, namespace string) bool {
 
 func Install(ctx context.Context, store client.Client, o Options) error {
 	origin, originErr := url.Parse(o.OwnerTarget)
-	if store == nil || len(validation.IsDNS1123Label(o.Namespace)) != 0 || o.Namespace == o.ControllerNamespace || o.Scope == "" || originErr != nil || origin.Scheme != "https" || origin.Hostname() == "" || origin.User != nil || origin.RawQuery != "" || origin.Fragment != "" || (origin.Path != "" && origin.Path != "/") || !strings.HasPrefix(o.PackageHash, "blake3:") || len(o.PackageHash) != 71 {
+	if store == nil || len(validation.IsDNS1123Label(o.Namespace)) != 0 || o.Namespace == o.ControllerNamespace || o.Scope == "" || originErr != nil || (origin.Scheme != "https" && origin.Scheme != "http") || origin.Hostname() == "" || origin.User != nil || origin.RawQuery != "" || origin.Fragment != "" || (origin.Path != "" && origin.Path != "/") || !strings.HasPrefix(o.PackageHash, "blake3:") || len(o.PackageHash) != 71 {
 		return fmt.Errorf("dedicated namespace, scope and HTTPS owner required")
 	}
 	for _, path := range []string{o.ConfigurationDir, o.OutputDir, o.StatePath} {
@@ -115,8 +115,12 @@ func Install(ctx context.Context, store client.Client, o Options) error {
 	if err := store.Get(ctx, types.NamespacedName{Namespace: o.ControllerNamespace, Name: "sympozium-controller-manager"}, &d); err != nil {
 		return err
 	}
-	if len(d.Spec.Template.Spec.Containers) != 1 || !Partitioned(d.Spec.Template.Spec.Containers[0].Args, o.Namespace) || d.Spec.Replicas == nil || *d.Spec.Replicas < 1 || d.Status.ObservedGeneration < d.Generation || d.Status.Replicas != *d.Spec.Replicas || d.Status.UpdatedReplicas != *d.Spec.Replicas || d.Status.AvailableReplicas != *d.Spec.Replicas {
-		return fmt.Errorf("general controller must finish its namespace-separated rollout before native installation")
+	// The unified plane folds the parent reconcilers into the one controller, so
+	// the legacy namespace partition (a separate parent-only controller watching
+	// a dedicated namespace) is no longer required. We still require the
+	// controller to be fully rolled out before writing native authority.
+	if len(d.Spec.Template.Spec.Containers) != 1 || d.Spec.Replicas == nil || *d.Spec.Replicas < 1 || d.Status.ObservedGeneration < d.Generation || d.Status.Replicas != *d.Spec.Replicas || d.Status.UpdatedReplicas != *d.Spec.Replicas || d.Status.AvailableReplicas != *d.Spec.Replicas {
+		return fmt.Errorf("general controller must finish its rollout before native installation")
 	}
 	var cat catalogue
 	var configured receipt
@@ -225,7 +229,11 @@ func Install(ctx context.Context, store client.Client, o Options) error {
 		return err
 	}
 	approvals, journal := filepath.Join(o.StatePath, "approvals"), filepath.Join(o.StatePath, "journal")
-	registration := cellnparent.RegistrationConfig{APIVersion: "sympozium.ai/celln-parent-registrations-v1", Journal: journal, Approvals: approvals, OperatorSource: ref("operator"), RuntimeSource: ref("runtime"), AgentSource: ref("agent"), LocalProvisioner: &cellnparent.LocalProvisioner{Binary: "/usr/local/bin/celln", Root: filepath.Join(o.StatePath, "authority"), Journal: journal, Approvals: approvals, Target: o.OwnerTarget, TokenFile: "/etc/sympozium/celln-parent/owner-token", CAFile: "/etc/sympozium/celln-parent/owner-ca.pem"}, HostTemplates: []cellnparent.HostProvisionTemplate{{APIVersion: "sympozium.ai/celln-parent-host-template-v1", SelectionSHA256: digest, Scope: o.Scope, Principal: configured.Principal, Model: configured.Model, HostLimits: configured.HostLimits, Native: native}}}
+	caFile := ""
+	if origin.Scheme == "https" {
+		caFile = "/etc/sympozium/celln-parent/owner-ca.pem"
+	}
+	registration := cellnparent.RegistrationConfig{APIVersion: "sympozium.ai/celln-parent-registrations-v1", Journal: journal, Approvals: approvals, OperatorSource: ref("operator"), RuntimeSource: ref("runtime"), AgentSource: ref("agent"), LocalProvisioner: &cellnparent.LocalProvisioner{Binary: "/usr/local/bin/celln", Root: filepath.Join(o.StatePath, "authority"), Journal: journal, Approvals: approvals, Target: o.OwnerTarget, TokenFile: "/etc/sympozium/celln-parent/owner-token", CAFile: caFile}, HostTemplates: []cellnparent.HostProvisionTemplate{{APIVersion: "sympozium.ai/celln-parent-host-template-v1", SelectionSHA256: digest, Scope: o.Scope, Principal: configured.Principal, Model: configured.Model, HostLimits: configured.HostLimits, Native: native}}}
 	if err := write("registrations.json", registration); err != nil {
 		return err
 	}
